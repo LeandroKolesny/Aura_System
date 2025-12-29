@@ -45,3 +45,5 @@ prisma/migrations/**/migration_lock.toml
 .vscode/*
 !.vscode/extensions.json
 
+
+.vercel
