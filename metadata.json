@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Aura System",
+  "description": "SaaS completo para gestão de clínicas de estética com prontuário eletrônico, agenda inteligente, financeiro e comparação de fotos antes e depois com auxílio de IA.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

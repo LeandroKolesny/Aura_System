@@ -1,0 +1,202 @@
+-- ==========================================================
+-- AURA SYSTEM - SCRIPT DE CRIAÇÃO DO BANCO DE DADOS (SQL)
+-- Versão: 1.0.0
+-- Descrição: Estrutura completa para SaaS de Clínicas de Estética
+-- ==========================================================
+
+-- 1. TABELAS DO ECOSSISTEMA SAAS (MASTER)
+
+CREATE TABLE saas_plans (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    features TEXT, -- Armazenado como JSON ou Texto delimitado
+    active BOOLEAN DEFAULT TRUE,
+    stripe_link TEXT
+);
+
+CREATE TABLE companies (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    cnpj VARCHAR(20),
+    address TEXT,
+    logo_url TEXT,
+    plan_id VARCHAR(50) REFERENCES saas_plans(id),
+    subscription_status VARCHAR(20) DEFAULT 'trial', -- active, trial, overdue, canceled
+    subscription_expires_at TIMESTAMP NOT NULL,
+    onboarding_completed BOOLEAN DEFAULT FALSE,
+    business_hours JSON, -- Armazena a grade de horários da clínica
+    layout_config JSON,   -- Armazena cores e fontes customizadas
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. TABELAS DE USUÁRIOS E EQUIPE
+
+CREATE TABLE users (
+    id VARCHAR(50) PRIMARY KEY,
+    company_id VARCHAR(50) REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(30) NOT NULL, -- OWNER, ADMIN, RECEPTIONIST, ESTHETICIAN, PATIENT
+    phone VARCHAR(20),
+    title VARCHAR(100), -- Ex: Biomédica Esteta
+    contract_type VARCHAR(20), -- CLT, PJ, Freelancer
+    remuneration_type VARCHAR(20), -- fixo, comissao, misto
+    commission_rate DECIMAL(5, 2) DEFAULT 0,
+    fixed_salary DECIMAL(10, 2) DEFAULT 0,
+    avatar_url TEXT,
+    specific_business_hours JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. TABELAS DE PACIENTES E PRONTUÁRIO
+
+CREATE TABLE patients (
+    id VARCHAR(50) PRIMARY KEY,
+    company_id VARCHAR(50) REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    phone VARCHAR(20) NOT NULL,
+    birth_date DATE,
+    cpf VARCHAR(14),
+    status VARCHAR(20) DEFAULT 'active', -- active, inactive, lead
+    anamnesis_summary TEXT,
+    consent_signed_at TIMESTAMP,
+    consent_signature_url TEXT,
+    consent_metadata JSON, -- Armazena IP e UserAgent da assinatura
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE photo_records (
+    id VARCHAR(50) PRIMARY KEY,
+    company_id VARCHAR(50) REFERENCES companies(id) ON DELETE CASCADE,
+    patient_id VARCHAR(50) REFERENCES patients(id) ON DELETE CASCADE,
+    group_id VARCHAR(50), -- Para vincular Antes e Depois
+    type VARCHAR(10) NOT NULL, -- before, after
+    procedure_name VARCHAR(100),
+    image_url TEXT NOT NULL,
+    record_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. OPERAÇÕES: PROCEDIMENTOS, AGENDA E ESTOQUE
+
+CREATE TABLE inventory_items (
+    id VARCHAR(50) PRIMARY KEY,
+    company_id VARCHAR(50) REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    unit VARCHAR(10), -- ml, un, cx, g
+    current_stock DECIMAL(10, 2) NOT NULL,
+    min_stock DECIMAL(10, 2) NOT NULL,
+    cost_per_unit DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE procedures (
+    id VARCHAR(50) PRIMARY KEY,
+    company_id VARCHAR(50) REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    cost DECIMAL(10, 2) DEFAULT 0,
+    duration_minutes INTEGER NOT NULL,
+    image_url TEXT,
+    maintenance_required BOOLEAN DEFAULT FALSE,
+    maintenance_interval_days INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE procedure_supplies (
+    id SERIAL PRIMARY KEY,
+    procedure_id VARCHAR(50) REFERENCES procedures(id) ON DELETE CASCADE,
+    inventory_item_id VARCHAR(50) REFERENCES inventory_items(id),
+    quantity_used DECIMAL(10, 2) NOT NULL
+);
+
+CREATE TABLE appointments (
+    id VARCHAR(50) PRIMARY KEY,
+    company_id VARCHAR(50) REFERENCES companies(id) ON DELETE CASCADE,
+    patient_id VARCHAR(50) REFERENCES patients(id),
+    professional_id VARCHAR(50) REFERENCES users(id),
+    service_name VARCHAR(255) NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    appointment_date TIMESTAMP NOT NULL,
+    duration_minutes INTEGER NOT NULL,
+    status VARCHAR(30) DEFAULT 'scheduled', -- scheduled, confirmed, completed, canceled, pending_approval
+    room_id INTEGER,
+    paid BOOLEAN DEFAULT FALSE,
+    stock_deducted BOOLEAN DEFAULT FALSE,
+    signature_url TEXT, -- Assinatura por procedimento
+    signature_metadata JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. FINANCEIRO E ALERTAS
+
+CREATE TABLE transactions (
+    id VARCHAR(50) PRIMARY KEY,
+    company_id VARCHAR(50) REFERENCES companies(id) ON DELETE CASCADE,
+    appointment_id VARCHAR(50) REFERENCES appointments(id) ON DELETE SET NULL,
+    date TIMESTAMP NOT NULL,
+    description TEXT NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    type VARCHAR(10) NOT NULL, -- income, expense
+    category VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'paid', -- paid, pending, overdue
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE system_alerts (
+    id VARCHAR(50) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(20) NOT NULL, -- info, warning, error, success
+    target VARCHAR(50) DEFAULT 'all', -- 'all' ou ID da empresa específica
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================================
+-- INSERÇÃO DE DADOS PARA TESTE (SEED)
+-- ==========================================================
+
+-- Planos
+INSERT INTO saas_plans (id, name, price, features, active) VALUES 
+('starter', 'Starter', 89.00, '["Agenda Inteligente", "Prontuário Digital"]', TRUE),
+('pro', 'Profissional', 197.00, '["Tudo do Starter", "Fotos Antes/Depois", "Aura AI"]', TRUE),
+('clinic', 'Clinic', 397.00, '["Múltiplos Profissionais", "Gestão de Comissões"]', TRUE);
+
+-- Empresas
+INSERT INTO companies (id, name, plan_id, subscription_status, subscription_expires_at) VALUES 
+('c1', 'Aura Matriz Premium', 'clinic', 'active', '2025-12-31 23:59:59'),
+('c_exp', 'Clínica Expirada Teste', 'starter', 'overdue', '2024-01-01 00:00:00');
+
+-- Usuários Staff
+INSERT INTO users (id, company_id, name, email, password, role, title, remuneration_type, commission_rate) VALUES 
+('u1', 'c1', 'Dra. Ana Costa', 'admin@aura.system', '123456', 'ADMIN', 'Biomédica Esteta', 'misto', 10.00),
+('u2', 'c1', 'Júlia Recepção', 'recepcao@aura.system', '123456', 'RECEPTIONIST', 'Recepcionista', 'fixo', 0);
+
+-- Pacientes
+INSERT INTO patients (id, company_id, name, email, phone, birth_date, status) VALUES 
+('p1', 'c1', 'Beatriz Lima', 'bia.lima@email.com', '(11) 99999-1234', '1990-05-15', 'active'),
+('p2', 'c1', 'Carlos Eduardo', 'carlos.edu@email.com', '(11) 98888-5678', '1985-08-22', 'active');
+
+-- Estoque
+INSERT INTO inventory_items (id, company_id, name, unit, current_stock, min_stock, cost_per_unit) VALUES 
+('inv_1', 'c1', 'Toxina Botulínica (100U)', 'un', 10, 2, 850.00),
+('inv_2', 'c1', 'Ácido Hialurônico (1ml)', 'un', 5, 2, 450.00);
+
+-- Procedimentos
+INSERT INTO procedures (id, company_id, name, price, cost, duration_minutes) VALUES 
+('pr1', 'c1', 'Botox (3 Regiões)', 1200.00, 450.00, 30),
+('pr2', 'c1', 'Preenchimento Labial', 1500.00, 600.00, 45);
+
+-- Agendamentos
+INSERT INTO appointments (id, company_id, patient_id, professional_id, service_name, price, appointment_date, duration_minutes, status) VALUES 
+('a1', 'c1', 'p1', 'u1', 'Botox (3 Regiões)', 1200.00, CURRENT_TIMESTAMP + INTERVAL '1 day', 30, 'confirmed');
+
+-- Transações Financeiras
+INSERT INTO transactions (id, company_id, date, description, amount, type, category) VALUES 
+('t1', 'c1', CURRENT_TIMESTAMP, 'Mensalidade SaaS Aura System', 397.00, 'expense', 'Assinatura Software'),
+('t2', 'c1', CURRENT_TIMESTAMP, 'Pagamento: Botox - Beatriz Lima', 1200.00, 'income', 'Procedimentos');
