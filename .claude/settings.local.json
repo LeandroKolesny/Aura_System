@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --version:*)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(./node_modules/.bin/prisma db push:*)",
+      "Bash(curl:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(npx prisma db push)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma db seed:*)",
+      "Bash(npm run db:seed:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx prisma db execute:*)",
+      "Bash(cat:*)",
+      "Bash(npm run dev:*)"
+    ]
+  }
+}

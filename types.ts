@@ -19,6 +19,8 @@ export interface Company {
   name: string;
   slug?: string; // Slug único da empresa
   address?: string;
+  city?: string; // Cidade da clínica
+  state?: string; // Estado (sigla: SP, RJ, RS...)
   logo?: string; // Novo campo para Logo
 
   onboardingCompleted?: boolean; // Flag para controlar o fluxo de boas-vindas

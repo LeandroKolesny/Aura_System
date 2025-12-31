@@ -24,8 +24,79 @@ async function main() {
   await prisma.stockMovement.deleteMany();
   await prisma.inventoryItem.deleteMany();
   await prisma.patient.deleteMany();
+  await prisma.activity.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.lead.deleteMany();
   await prisma.user.deleteMany();
   await prisma.company.deleteMany();
+  await prisma.saasPlan.deleteMany();
+
+  // Criar planos SaaS padrão
+  console.log("💎 Criando planos SaaS...");
+  const defaultPlans = [
+    {
+      id: "starter",
+      name: "Starter",
+      price: 97,
+      features: ["Agenda ilimitada", "Confirmação automática", "Financeiro básico", "Suporte via chat"],
+      isActive: true,
+    },
+    {
+      id: "pro",
+      name: "Pro",
+      price: 197,
+      features: ["Tudo do Starter", "CRM completo", "Relatórios avançados", "Integração WhatsApp", "Suporte prioritário"],
+      isActive: true,
+    },
+    {
+      id: "clinic",
+      name: "Clinic",
+      price: 397,
+      features: ["Tudo do Pro", "Multi-unidades", "API personalizada", "Gerente de conta dedicado", "Treinamento da equipe"],
+      isActive: true,
+    },
+  ];
+
+  for (const plan of defaultPlans) {
+    await prisma.saasPlan.create({ data: plan });
+  }
+  console.log("✅ Planos SaaS criados:", defaultPlans.length);
+
+  // 0. Criar empresa HOLDING (Aura System) e usuário OWNER
+  const holdingCompany = await prisma.company.create({
+    data: {
+      name: "Aura System (Holding)",
+      slug: "aura-system",
+      plan: "PREMIUM",
+      subscriptionStatus: "ACTIVE",
+      subscriptionExpiresAt: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 anos
+      businessHours: {
+        monday: { isOpen: true, start: "00:00", end: "23:59" },
+        tuesday: { isOpen: true, start: "00:00", end: "23:59" },
+        wednesday: { isOpen: true, start: "00:00", end: "23:59" },
+        thursday: { isOpen: true, start: "00:00", end: "23:59" },
+        friday: { isOpen: true, start: "00:00", end: "23:59" },
+        saturday: { isOpen: true, start: "00:00", end: "23:59" },
+        sunday: { isOpen: true, start: "00:00", end: "23:59" },
+      },
+      onboardingCompleted: true,
+    },
+  });
+  console.log("👑 Empresa Holding criada:", holdingCompany.name);
+
+  const ownerPassword = await bcrypt.hash("admin", 12);
+  const owner = await prisma.user.create({
+    data: {
+      email: "king@aura.system",
+      name: "King (Owner)",
+      password: ownerPassword,
+      role: "OWNER",
+      companyId: holdingCompany.id,
+      isActive: true,
+      phone: "(00) 00000-0000",
+    },
+  });
+  console.log("👑 OWNER criado:", owner.email);
 
   // 1. Criar empresa de demonstração
   const company = await prisma.company.create({
@@ -353,10 +424,14 @@ async function main() {
 
   console.log("\n🎉 Seed concluído com sucesso!");
   console.log("\n📋 Credenciais de acesso:");
+  console.log("   ───────────────────────────────────────");
+  console.log("   👑 OWNER:     king@aura.system / admin");
+  console.log("   ───────────────────────────────────────");
   console.log("   Admin:       admin@aura.com / admin123");
   console.log("   Esteticista: joana@aura.com / joana123");
   console.log("   Esteticista: marcos@aura.com / marcos123");
   console.log("   Recepção:    recep@aura.com / recep123");
+  console.log("\n   🔗 Acesso OWNER: http://localhost:3000/king");
 }
 
 main()

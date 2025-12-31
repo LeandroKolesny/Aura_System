@@ -14,29 +14,34 @@ const KingLogin: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-    
+
     if (email && password) {
+      setIsLoading(true);
       try {
-          const success = login(email, password);
+          const success = await login(email, password);
           if (success) {
-            // Redirecionar para o dashboard
-            navigate('/dashboard');
+            // Redirecionar para o dashboard do King
+            navigate('/king/dashboard');
           } else {
-            setLoginError('Acesso negado. Verifique suas credenciais reais.');
+            setLoginError('Acesso negado. Verifique suas credenciais.');
           }
       } catch (err) {
           setLoginError('Erro ao tentar logar. Tente novamente.');
+      } finally {
+          setIsLoading(false);
       }
     }
   };
 
-  // Redirecionamento automático se já logado
+  // Redirecionamento automático se já logado como OWNER
   React.useEffect(() => {
       if (user && user.role === UserRole.OWNER) {
-          navigate('/dashboard');
+          navigate('/king/dashboard');
       }
   }, [user, navigate]);
 
@@ -111,11 +116,16 @@ const KingLogin: React.FC = () => {
                 </div>
               )}
 
-              <button 
+              <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-900/20 transform hover:-translate-y-0.5"
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-900/20 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                Entrar no Painel <ArrowRight className="w-4 h-4" />
+                {isLoading ? (
+                  <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> Entrando...</>
+                ) : (
+                  <>Entrar no Painel <ArrowRight className="w-4 h-4" /></>
+                )}
               </button>
 
                {/* Atalho Dev */}

@@ -4,11 +4,12 @@ import {
   BarChart3, TrendingUp, Users, DollarSign, Building, Crown, ChevronDown,
   Star, ArrowUpRight, Activity, CalendarCheck, UserCheck, Calendar,
   Briefcase, Target, Zap, Award, PieChart, Filter, Download, RefreshCw,
-  ChevronRight, Sparkles, TrendingDown, AlertTriangle
+  ChevronRight, Sparkles, TrendingDown, AlertTriangle, Loader2
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
 import { UserRole } from '../types';
 import { RevenueAreaChart, MetricDonutChart, HorizontalBarChart, KPICard, MiniSparkline } from '../components/charts';
+import { ReportsSkeleton } from '../components/LoadingSkeleton';
 
 // --- COMPONENTES AUXILIARES MODERNOS ---
 
@@ -116,12 +117,24 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 };
 
 const Reports: React.FC = () => {
-  const { companies, saasPlans, patients, appointments, transactions, procedures, professionals, user, currentCompany } = useApp();
+  const {
+    companies, saasPlans, patients, appointments, transactions, procedures, professionals, user, currentCompany,
+    loadPatients, loadAppointments, loadTransactions, loadProcedures, loadProfessionals, loadingStates
+  } = useApp();
   // State Initialization - Hook 1
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
   const [timeRange, setTimeRange] = useState<string>('6m');
 
   const isOwner = user?.role === UserRole.OWNER;
+
+  // Lazy loading - carregar todos os dados necessários para relatórios
+  useEffect(() => {
+    loadPatients();
+    loadAppointments();
+    loadTransactions();
+    loadProcedures();
+    loadProfessionals();
+  }, [loadPatients, loadAppointments, loadTransactions, loadProcedures, loadProfessionals]);
 
   // Effect to set default company - Hook 2
   useEffect(() => {
@@ -519,6 +532,20 @@ const Reports: React.FC = () => {
     return patients.filter(p => p.companyId === selectedCompanyId).length;
   }, [selectedCompanyId, patients]);
 
+  // Loading state - mostrar skeleton apenas se TODOS os dados principais estão carregando
+  const isInitialLoading = (loadingStates.patients && patients.length === 0) ||
+                           (loadingStates.appointments && appointments.length === 0) ||
+                           (loadingStates.transactions && transactions.length === 0) ||
+                           (loadingStates.procedures && procedures.length === 0);
+
+  // Flags para loading de seções específicas
+  const isRevenueLoading = loadingStates.transactions && transactions.length === 0;
+  const isAppointmentsLoading = loadingStates.appointments && appointments.length === 0;
+
+  if (isInitialLoading) {
+    return <ReportsSkeleton />;
+  }
+
   // Early return ONLY AFTER hooks are called
   if (!companies || companies.length === 0) {
     return (
@@ -641,16 +668,16 @@ const Reports: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KPICard
             title="Faturamento Total"
-            value={formatCurrency(totalRevenue)}
-            subtitle={getTimeRangeLabel(timeRange)}
-            icon={DollarSign}
+            value={isRevenueLoading ? '...' : formatCurrency(totalRevenue)}
+            subtitle={isRevenueLoading ? 'Carregando...' : getTimeRangeLabel(timeRange)}
+            icon={isRevenueLoading ? Loader2 : DollarSign}
             variant="success"
           />
           <KPICard
             title="Atendimentos"
-            value={appointmentStats.completed}
-            subtitle={`${appointmentStats.total} agendados`}
-            icon={CalendarCheck}
+            value={isAppointmentsLoading ? '...' : appointmentStats.completed}
+            subtitle={isAppointmentsLoading ? 'Carregando...' : `${appointmentStats.total} agendados`}
+            icon={isAppointmentsLoading ? Loader2 : CalendarCheck}
             variant="primary"
           />
           <KPICard
@@ -662,8 +689,8 @@ const Reports: React.FC = () => {
           />
           <KPICard
             title="Taxa de Retenção"
-            value={`${retentionMetrics.rate}%`}
-            subtitle={`${retentionMetrics.returning} recorrentes`}
+            value={isAppointmentsLoading ? '...' : `${retentionMetrics.rate}%`}
+            subtitle={isAppointmentsLoading ? 'Carregando...' : `${retentionMetrics.returning} recorrentes`}
             icon={UserCheck}
             variant={Number(retentionMetrics.rate) >= 30 ? 'success' : 'warning'}
           />
@@ -722,7 +749,16 @@ const Reports: React.FC = () => {
               <span className="text-slate-600">Receita</span>
             </div>
           </div>
-          <RevenueAreaChart data={monthlyRevenueData} height={260} color="#10b981" />
+          {isRevenueLoading ? (
+            <div className="h-[260px] flex items-center justify-center">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-2" />
+                <p className="text-sm text-slate-400">Carregando dados...</p>
+              </div>
+            </div>
+          ) : (
+            <RevenueAreaChart data={monthlyRevenueData} height={260} color="#10b981" />
+          )}
         </div>
       </section>
 
@@ -736,7 +772,13 @@ const Reports: React.FC = () => {
             </div>
             <h3 className="font-bold text-slate-800">Mais Vendidos</h3>
           </div>
-          <HorizontalBarChart data={topProceduresByClinic} color="#8b5cf6" height={200} />
+          {isAppointmentsLoading ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-purple-500 animate-spin" />
+            </div>
+          ) : (
+            <HorizontalBarChart data={topProceduresByClinic} color="#8b5cf6" height={200} />
+          )}
         </div>
 
         {/* RETENÇÃO DONUT */}
@@ -748,30 +790,38 @@ const Reports: React.FC = () => {
             <h3 className="font-bold text-slate-800">Retenção de Pacientes</h3>
           </div>
 
-          <div className="flex items-center justify-center py-4">
-            <MetricDonutChart
-              data={[
-                { name: 'Recorrentes', value: retentionMetrics.returning, color: '#6366f1' },
-                { name: 'Única Visita', value: retentionMetrics.single, color: '#e2e8f0' }
-              ]}
-              centerValue={`${retentionMetrics.rate}%`}
-              centerLabel="Retenção"
-              size={180}
-              innerRadius={55}
-              outerRadius={80}
-            />
-          </div>
+          {isAppointmentsLoading ? (
+            <div className="h-[220px] flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-center py-4">
+                <MetricDonutChart
+                  data={[
+                    { name: 'Recorrentes', value: retentionMetrics.returning, color: '#6366f1' },
+                    { name: 'Única Visita', value: retentionMetrics.single, color: '#e2e8f0' }
+                  ]}
+                  centerValue={`${retentionMetrics.rate}%`}
+                  centerLabel="Retenção"
+                  size={180}
+                  innerRadius={55}
+                  outerRadius={80}
+                />
+              </div>
 
-          <div className="flex justify-center gap-6 mt-2">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-indigo-500" />
-              <span className="text-xs text-slate-600">Recorrentes ({retentionMetrics.returning})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-slate-200" />
-              <span className="text-xs text-slate-600">Únicos ({retentionMetrics.single})</span>
-            </div>
-          </div>
+              <div className="flex justify-center gap-6 mt-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                  <span className="text-xs text-slate-600">Recorrentes ({retentionMetrics.returning})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-slate-200" />
+                  <span className="text-xs text-slate-600">Únicos ({retentionMetrics.single})</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* CANCELAMENTOS DONUT */}
@@ -783,19 +833,25 @@ const Reports: React.FC = () => {
             <h3 className="font-bold text-slate-800">Status de Agendamentos</h3>
           </div>
 
-          <div className="flex items-center justify-center py-4">
-            <MetricDonutChart
-              data={[
-                { name: 'Realizados', value: appointmentStats.completed, color: '#10b981' },
-                { name: 'Cancelados', value: appointmentStats.canceled, color: '#f43f5e' }
-              ]}
-              centerValue={appointmentStats.total}
-              centerLabel="Total"
-              size={180}
-              innerRadius={55}
-              outerRadius={80}
-            />
-          </div>
+          {isAppointmentsLoading ? (
+            <div className="h-[220px] flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-rose-500 animate-spin" />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-4">
+              <MetricDonutChart
+                data={[
+                  { name: 'Realizados', value: appointmentStats.completed, color: '#10b981' },
+                  { name: 'Cancelados', value: appointmentStats.canceled, color: '#f43f5e' }
+                ]}
+                centerValue={appointmentStats.total}
+                centerLabel="Total"
+                size={180}
+                innerRadius={55}
+                outerRadius={80}
+              />
+            </div>
+          )}
 
           <div className="flex justify-center gap-6 mt-2">
             <div className="flex items-center gap-2">

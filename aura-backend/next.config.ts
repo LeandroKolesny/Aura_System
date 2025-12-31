@@ -1,32 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Configurações de segurança e CORS
+  // Configurações de segurança (CORS é tratado no middleware.ts)
   headers: async () => [
-    {
-      // CORS para API - permite requisições do frontend
-      source: "/api/:path*",
-      headers: [
-        {
-          key: "Access-Control-Allow-Origin",
-          value: process.env.NODE_ENV === "development"
-            ? "http://localhost:3000"
-            : process.env.FRONTEND_URL || "*",
-        },
-        {
-          key: "Access-Control-Allow-Methods",
-          value: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-        },
-        {
-          key: "Access-Control-Allow-Headers",
-          value: "Content-Type, Authorization, X-Requested-With",
-        },
-        {
-          key: "Access-Control-Allow-Credentials",
-          value: "true",
-        },
-      ],
-    },
     {
       source: "/:path*",
       headers: [

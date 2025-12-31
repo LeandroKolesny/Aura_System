@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus, User as UserIcon, AlertCircle, X, CheckCircle, Bell, Info, XCircle } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus, User as UserIcon, AlertCircle, X, CheckCircle, Bell, Info, XCircle, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NewAppointmentModal, CheckoutModal, ReviewAppointmentModal, PatientAppointmentViewModal } from '../components/Modals';
 import { Appointment, UserRole, AppNotification } from '../types';
@@ -7,7 +7,23 @@ import { isWithinBusinessHours, getUnavailabilityRule } from '../utils/availabil
 import { APPOINTMENT_VISUAL_CONFIG } from '../utils/statusUtils';
 
 const Schedule: React.FC = () => {
-  const { appointments, professionals, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead } = useApp();
+  const { appointments, professionals, patients, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead, loadAppointments, loadPatients, loadProcedures, loadingStates } = useApp();
+
+  // Para pacientes logados, encontrar seu patientId pelo email
+  const currentPatientId = useMemo(() => {
+    if (user?.role === UserRole.PATIENT && user?.email) {
+      const patientRecord = patients.find(p => p.email === user.email);
+      return patientRecord?.id || null;
+    }
+    return null;
+  }, [user, patients]);
+
+  // Lazy loading: carregar dados quando a página montar
+  useEffect(() => {
+    loadAppointments();
+    loadPatients();
+    loadProcedures();
+  }, [loadAppointments, loadPatients, loadProcedures]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<string>('all');
   const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
@@ -128,7 +144,7 @@ const Schedule: React.FC = () => {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 relative z-10 h-full">
                     {hourAppointments.map(appt => {
-                        const isOtherPatientAppt = isPatient && appt.patientId !== user?.id;
+                        const isOtherPatientAppt = isPatient && currentPatientId && appt.patientId !== currentPatientId;
                         const apptStart = new Date(appt.date);
                         const isContinuation = apptStart.getHours() < hour;
 
@@ -180,6 +196,19 @@ const Schedule: React.FC = () => {
   };
 
   const dateInputValue = selectedDate.toISOString().split('T')[0];
+
+  // Loading state
+  const isLoading = loadingStates.appointments && appointments.length === 0;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Carregando agenda...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">

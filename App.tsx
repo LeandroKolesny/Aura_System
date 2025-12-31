@@ -1,6 +1,8 @@
 
 import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { getClinicSlug } from './utils/subdomain';
+import PatientPortalApp from './apps/PatientPortalApp';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Patients from './pages/Patients';
@@ -23,8 +25,18 @@ import SystemAlerts from './pages/SystemAlerts';
 import Reports from './pages/Reports';
 import Marketing from './pages/Marketing';
 import Inventory from './pages/Inventory';
-import PatientHistory from './pages/PatientHistory'; // Novo Import
+import PatientHistory from './pages/PatientHistory';
 import Onboarding from './pages/Onboarding';
+// King (Owner) Pages
+import KingLayout from './pages/king/KingLayout';
+import KingDashboard from './pages/king/KingDashboard';
+import KingCompanies from './pages/king/KingCompanies';
+import KingPatients from './pages/king/KingPatients';
+import KingAppointments from './pages/king/KingAppointments';
+import KingLeads from './pages/king/KingLeads';
+import KingAlerts from './pages/king/KingAlerts';
+import KingRevenue from './pages/king/KingRevenue';
+import KingSettings from './pages/king/KingSettings';
 import { AppProvider, useApp } from './context/AppContext';
 import { UserRole } from './types';
 import { AlertTriangle } from 'lucide-react';
@@ -92,7 +104,8 @@ const PrivateLayout: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
+// Sistema Admin (rotas atuais)
+const AdminApp: React.FC = () => {
   return (
     <AppProvider>
       <Router>
@@ -101,10 +114,19 @@ const App: React.FC = () => {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/king" element={<KingLogin />} />
-          
-          {/* Rota Pública de Agendamento (SaaS) */}
-          <Route path="/booking/:companyId" element={<PublicBooking />} />
-          
+
+          {/* Rotas King (Owner) - Layout Exclusivo */}
+          <Route path="/king" element={<KingLayout />}>
+            <Route path="dashboard" element={<KingDashboard />} />
+            <Route path="companies" element={<KingCompanies />} />
+            <Route path="patients" element={<KingPatients />} />
+            <Route path="appointments" element={<KingAppointments />} />
+            <Route path="leads" element={<KingLeads />} />
+            <Route path="alerts" element={<KingAlerts />} />
+            <Route path="revenue" element={<KingRevenue />} />
+            <Route path="settings" element={<KingSettings />} />
+          </Route>
+
           {/* Rota de Onboarding (Privada mas sem Sidebar) */}
           <Route path="/onboarding" element={<OnboardingAuthWrapper />} />
 
@@ -123,23 +145,36 @@ const App: React.FC = () => {
             <Route path="/access-link" element={<AccessLink />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/business-hours" element={<BusinessHoursSettings />} />
-            
+
             {/* Rota de Histórico para Pacientes */}
             <Route path="/history" element={<PatientHistory />} />
-            
+
             {/* Novas Rotas SaaS */}
             <Route path="/leads" element={<Leads />} />
             <Route path="/support" element={<Support />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/system-alerts" element={<SystemAlerts />} />
           </Route>
-          
-          {/* Fallback */}
+
+          {/* Fallback - redireciona rotas não encontradas para landing */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </AppProvider>
   );
+};
+
+// App principal - decide qual aplicação carregar
+const App: React.FC = () => {
+  const clinicSlug = getClinicSlug();
+
+  // Se detectou um slug de clínica, carrega o Portal do Paciente
+  if (clinicSlug) {
+    return <PatientPortalApp clinicSlug={clinicSlug} />;
+  }
+
+  // Caso contrário, carrega o Sistema Admin
+  return <AdminApp />;
 };
 
 const OnboardingAuthWrapper = () => {

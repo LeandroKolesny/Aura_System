@@ -1,19 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Smartphone, CheckCircle, ArrowRight, Menu, X, Sparkles, Shield, 
-  TrendingUp, Mail, MapPin, Phone, Instagram, Facebook, Linkedin, 
-  Crown, AlertTriangle, Ghost, Clock, BarChart3, RefreshCw, 
+import {
+  Smartphone, CheckCircle, ArrowRight, Menu, X, Sparkles, Shield,
+  TrendingUp, Mail, MapPin, Phone, Instagram, Facebook, Linkedin,
+  Crown, AlertTriangle, Ghost, Clock, BarChart3, RefreshCw,
   ChevronDown, ChevronUp, Lock, Calendar, DollarSign, Star,
   Database, Server, Headphones, XCircle, Check
 } from 'lucide-react';
 import AuraLogo from '../components/AuraLogo';
 import { useApp } from '../context/AppContext';
+import { plansApi, SaasPlan } from '../services/api';
 
 const LandingPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { saasPlans } = useApp();
+  const { saasPlans: contextPlans } = useApp();
+  const [plansFromApi, setPlansFromApi] = useState<SaasPlan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const navigate = useNavigate();
+
+  // Carregar planos da API ao montar
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const response = await plansApi.list(true); // only active plans
+        if (response.success && response.data && response.data.length > 0) {
+          setPlansFromApi(response.data);
+        }
+        // Se não houver planos na API, mantém contextPlans (DEFAULT_PLANS)
+      } catch (error) {
+        console.error('Erro ao carregar planos:', error);
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+    fetchPlans();
+  }, []);
+
+  // Usar planos da API se disponíveis, senão fallback para context (DEFAULT_PLANS)
+  const saasPlans = plansFromApi.length > 0 ? plansFromApi : contextPlans;
 
   // States para a Demo Interativa
   const [activeDemoTab, setActiveDemoTab] = useState<'dashboard' | 'agenda' | 'financeiro' | 'retorno'>('dashboard');
@@ -639,7 +663,12 @@ const LandingPage: React.FC = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {sortedPlans.length > 0 ? (
+            {loadingPlans ? (
+                <div className="col-span-3 text-center py-12">
+                    <RefreshCw className="w-8 h-8 text-stone-300 animate-spin mx-auto mb-4" />
+                    <p className="text-stone-400">Carregando planos...</p>
+                </div>
+            ) : sortedPlans.length > 0 ? (
                 sortedPlans.map(plan => {
                     const isStarter = plan.id === 'starter' || plan.name.toLowerCase().includes('starter');
                     return (

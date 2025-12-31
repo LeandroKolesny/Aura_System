@@ -207,6 +207,20 @@ export const appointmentsApi = {
     });
   },
 
+  // Booking público (sem autenticação)
+  async createPublic(data: {
+    companyId: string;
+    procedureId: string;
+    professionalId: string;
+    date: string;
+    patientInfo: { name: string; email: string; phone: string; password?: string };
+  }) {
+    return fetchApi<{ appointment: any; patient: any }>('/api/public/booking', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   async update(id: string, data: any) {
     return fetchApi<{ appointment: any }>(`/api/appointments/${id}`, {
       method: 'PUT',
@@ -259,6 +273,27 @@ export const transactionsApi = {
     return fetchApi<{ transaction: any; commission?: any }>('/api/transactions/checkout', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async backfillExpenses(forceRecreate = true) {
+    return fetchApi<{ success: boolean; message: string; results: any }>('/api/transactions/backfill-expenses', {
+      method: 'POST',
+      body: JSON.stringify({ forceRecreate }),
+    });
+  },
+
+  async getMissingExpenses() {
+    return fetchApi<{ total: number; missingExpenses: number; appointments: any[] }>('/api/transactions/backfill-expenses');
+  },
+
+  async diagnoseExpenses() {
+    return fetchApi<any>('/api/transactions/diagnose');
+  },
+
+  async resetExpenses() {
+    return fetchApi<{ success: boolean; deleted: number; created: number; details: any[] }>('/api/transactions/diagnose', {
+      method: 'DELETE',
     });
   },
 };
@@ -344,10 +379,29 @@ export const productsApi = {
 // DASHBOARD API
 // ============================================
 
+export interface DashboardData {
+  kpis: {
+    revenue: number;
+    ticketMedio: number;
+    seenPatients: number;
+    cancelRate: number;
+    appointmentsTotal: number;
+    appointmentsConfirmed: number;
+    appointmentsCanceled: number;
+  };
+  charts: {
+    revenueChart: { date: string; name: string; value: number }[];
+    topProcedures: { name: string; count: number }[];
+  };
+  alerts: {
+    lowStock: { id: string; title: string; message: string; type: string }[];
+  };
+  days: number;
+}
+
 export const dashboardApi = {
-  async getStats(period?: string) {
-    const query = period ? `?period=${period}` : '';
-    return fetchApi<{ metrics: any; charts: any; alerts: any; recentActivities: any }>(`/api/dashboard${query}`);
+  async getStats(days: number = 7) {
+    return fetchApi<DashboardData>(`/api/dashboard?days=${days}`);
   },
 };
 
@@ -491,6 +545,34 @@ export const companiesApi = {
     const query = params ? new URLSearchParams(params as any).toString() : '';
     return fetchApi<{ companies: any[] }>(`/api/companies${query ? `?${query}` : ''}`);
   },
+
+  async get(id: string) {
+    return fetchApi<{ company: any }>(`/api/companies/${id}`);
+  },
+
+  async update(id: string, data: any) {
+    return fetchApi<{ company: any }>(`/api/companies/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ============================================
+// PUBLIC API (sem autenticação)
+// ============================================
+
+export const publicApi = {
+  // Buscar empresa pelo slug (para página de booking)
+  async getCompanyBySlug(slug: string) {
+    return fetchApi<{
+      company: any;
+      procedures: any[];
+      professionals: any[];
+      appointments: any[];
+      unavailabilityRules: any[];
+    }>(`/api/public/company/${slug}`);
+  },
 };
 
 // ============================================
@@ -507,6 +589,106 @@ export const usersApi = {
     return fetchApi<{ user: any }>('/api/users', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+};
+
+// ============ KING APIs (Owner Only) ============
+export const kingApi = {
+  // Dashboard global stats
+  dashboard: async () => {
+    return fetchApi('/api/king/dashboard');
+  },
+
+  // Todas as empresas
+  companies: async (params?: { page?: number; limit?: number; search?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.search) query.set('search', params.search);
+    if (params?.status) query.set('status', params.status);
+    return fetchApi(`/api/king/companies?${query.toString()}`);
+  },
+
+  // Todos os pacientes (global)
+  patients: async (params?: { page?: number; limit?: number; search?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.search) query.set('search', params.search);
+    if (params?.status) query.set('status', params.status);
+    return fetchApi(`/api/king/patients?${query.toString()}`);
+  },
+
+  // Todos os agendamentos (global)
+  appointments: async (params?: { page?: number; limit?: number; startDate?: string; endDate?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.startDate) query.set('startDate', params.startDate);
+    if (params?.endDate) query.set('endDate', params.endDate);
+    if (params?.status) query.set('status', params.status);
+    return fetchApi(`/api/king/appointments?${query.toString()}`);
+  },
+};
+
+// ============================================
+// SYSTEM API (Maintenance Mode)
+// ============================================
+
+export const systemApi = {
+  async getStatus() {
+    return fetchApi<{ maintenanceMode: boolean; maintenanceMessage?: string }>('/api/system/status');
+  },
+
+  async getMaintenance() {
+    return fetchApi<{ maintenanceMode: boolean; maintenanceMessage?: string; maintenanceStartedAt?: string }>('/api/system/maintenance');
+  },
+
+  async setMaintenance(enabled: boolean, message?: string) {
+    return fetchApi<{ success: boolean; maintenanceMode: boolean; message: string }>('/api/system/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ enabled, message }),
+    });
+  },
+};
+
+// ============================================
+// PLANS API (SaaS Plans - Owner Only)
+// ============================================
+
+export interface SaasPlan {
+  id: string;
+  name: string;
+  price: number;
+  features: string[];
+  active: boolean;
+  stripePaymentLink: string;
+}
+
+export const plansApi = {
+  async list(activeOnly = false) {
+    const query = activeOnly ? '?active=true' : '';
+    return fetchApi<SaasPlan[]>(`/api/plans${query}`);
+  },
+
+  async create(data: { name: string; price: number; features: string[]; active?: boolean; stripePaymentLink?: string }) {
+    return fetchApi<{ success: boolean; plan: SaasPlan }>('/api/plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: string, data: Partial<{ name: string; price: number; features: string[]; active: boolean; stripePaymentLink: string }>) {
+    return fetchApi<{ success: boolean; plan: SaasPlan }>(`/api/plans/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(id: string) {
+    return fetchApi<{ success: boolean }>(`/api/plans/${id}`, {
+      method: 'DELETE',
     });
   },
 };
@@ -531,6 +713,10 @@ export const api = {
   health: healthApi,
   companies: companiesApi,
   users: usersApi,
+  public: publicApi,
+  king: kingApi,
+  system: systemApi,
+  plans: plansApi,
 };
 
 export default api;

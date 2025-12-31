@@ -20,7 +20,8 @@ import {
   photosApi,
   ticketsApi,
   systemAlertsApi,
-  notificationsApi
+  notificationsApi,
+  plansApi
 } from '../services/api';
 
 interface AppContextType {
@@ -31,7 +32,7 @@ interface AppContextType {
   
   companies: Company[];
   currentCompany: Company | null;
-  updateCompany: (companyId: string, data: Partial<Company>) => void;
+  updateCompany: (companyId: string, data: Partial<Company>) => Promise<{ success: boolean; company?: Company; error?: string }>;
   completeOnboarding: () => void;
 
   patients: Patient[];
@@ -67,9 +68,10 @@ interface AppContextType {
   removePhoto: (id: string) => void;
 
   saasPlans: SaasPlan[];
-  addPlan: (plan: SaasPlan) => void;
-  updatePlan: (id: string, data: Partial<SaasPlan>) => void;
-  removePlan: (id: string) => void;
+  addPlan: (plan: Omit<SaasPlan, 'id'>) => Promise<{ success: boolean; plan?: SaasPlan; error?: string }>;
+  updatePlan: (id: string, data: Partial<SaasPlan>) => Promise<{ success: boolean; error?: string }>;
+  removePlan: (id: string) => Promise<{ success: boolean; error?: string }>;
+  loadPlans: (forceReload?: boolean) => Promise<void>;
 
   leads: Lead[];
   addLead: (lead: Omit<Lead, 'id'>) => void;
@@ -116,6 +118,37 @@ interface AppContextType {
   setIsSubscriptionModalOpen: (val: boolean) => void;
 
   getPublicData: (companyId: string) => any;
+  isLoading: boolean;
+
+  // Lazy Loading - funções para carregar dados sob demanda
+  loadPatients: (forceReload?: boolean) => Promise<void>;
+  loadAppointments: (forceReload?: boolean) => Promise<void>;
+  loadTransactions: (forceReload?: boolean) => Promise<void>;
+  loadProcedures: (forceReload?: boolean) => Promise<void>;
+  loadProfessionals: (forceReload?: boolean) => Promise<void>;
+  loadInventory: (forceReload?: boolean) => Promise<void>;
+
+  // Estados de loading individuais
+  loadingStates: {
+    patients: boolean;
+    appointments: boolean;
+    transactions: boolean;
+    procedures: boolean;
+    professionals: boolean;
+    inventory: boolean;
+    plans: boolean;
+  };
+
+  // Estados de "já carregado" para evitar recarregar
+  loadedStates: {
+    patients: boolean;
+    appointments: boolean;
+    transactions: boolean;
+    procedures: boolean;
+    professionals: boolean;
+    inventory: boolean;
+    plans: boolean;
+  };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -179,23 +212,299 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Carrega dados da API quando o usuário loga via API
+  // Estados de loading individuais para lazy loading
+  const [loadingStates, setLoadingStates] = useState({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+  });
+
+  // Estados de "já carregado" para evitar recarregar
+  const [loadedStates, setLoadedStates] = useState({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+  });
+
+  // Helper para atualizar loading state
+  const setLoading = (key: keyof typeof loadingStates, value: boolean) => {
+    setLoadingStates(prev => ({ ...prev, [key]: value }));
+  };
+
+  const setLoaded = (key: keyof typeof loadedStates, value: boolean) => {
+    setLoadedStates(prev => ({ ...prev, [key]: value }));
+  };
+
+  // ============================================
+  // FUNÇÕES DE LAZY LOADING INDIVIDUAIS
+  // ============================================
+
+  // Refs para controle de loading (evita loop infinito)
+  const loadingRef = React.useRef({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+  });
+
+  const loadedRef = React.useRef({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+  });
+
+  const loadPatients = useCallback(async () => {
+    if (loadedRef.current.patients || loadingRef.current.patients) return;
+    loadingRef.current.patients = true;
+    setLoading('patients', true);
+    try {
+      const res = await patientsApi.list({ limit: 100 });
+      if (res.success && res.data?.patients) {
+        const mapped = res.data.patients.map((p: any) => ({
+          ...p,
+          status: p.status?.toLowerCase() || 'active'
+        }));
+        setPatients(mapped);
+        loadedRef.current.patients = true;
+        setLoaded('patients', true);
+        console.log('✅ Pacientes carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar pacientes:', error);
+    } finally {
+      loadingRef.current.patients = false;
+      setLoading('patients', false);
+    }
+  }, []);
+
+  // Cache timestamps para evitar reloads desnecessários
+  const cacheTimestamps = React.useRef<Record<string, number>>({});
+  const CACHE_TTL_MS = 30000; // 30 segundos de cache no frontend
+
+  const isCacheValid = (key: string) => {
+    const timestamp = cacheTimestamps.current[key];
+    if (!timestamp) return false;
+    return Date.now() - timestamp < CACHE_TTL_MS;
+  };
+
+  const loadAppointments = useCallback(async (forceReload = false) => {
+    // Se não forçar e cache ainda válido, não recarregar
+    if (!forceReload && isCacheValid('appointments')) return;
+    if (!forceReload && (loadedRef.current.appointments || loadingRef.current.appointments)) return;
+    if (forceReload) {
+      loadedRef.current.appointments = false;
+    }
+    loadingRef.current.appointments = true;
+    setLoading('appointments', true);
+    try {
+      const res = await appointmentsApi.list({ limit: 100 });
+      if (res.success && res.data?.appointments) {
+        const mapped = res.data.appointments.map((a: any) => ({
+          ...a,
+          price: Number(a.price) || 0,
+          durationMinutes: Number(a.durationMinutes) || 60,
+          status: a.status?.toLowerCase() || 'scheduled',
+          patientId: a.patientId || a.patient?.id,
+          patientName: a.patient?.name || a.patientName,
+          professionalId: a.professionalId || a.professional?.id,
+          professionalName: a.professional?.name || a.professionalName,
+          procedureId: a.procedureId || a.procedure?.id,
+          service: a.procedure?.name || a.service
+        }));
+        setAppointments(mapped);
+        loadedRef.current.appointments = true;
+        setLoaded('appointments', true);
+        cacheTimestamps.current.appointments = Date.now();
+        console.log('✅ Agendamentos carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar agendamentos:', error);
+    } finally {
+      loadingRef.current.appointments = false;
+      setLoading('appointments', false);
+    }
+  }, []);
+
+  const loadTransactions = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.transactions || loadingRef.current.transactions)) return;
+    if (forceReload) {
+      loadedRef.current.transactions = false;
+    }
+    loadingRef.current.transactions = true;
+    setLoading('transactions', true);
+    try {
+      const res = await transactionsApi.list({ limit: 100 });
+      if (res.success && res.data?.transactions) {
+        const mapped = res.data.transactions.map((t: any) => ({
+          ...t,
+          amount: Number(t.amount) || 0,
+          type: t.type?.toLowerCase() || 'income',
+          status: t.status?.toLowerCase() || 'paid'
+        }));
+        setTransactions(mapped);
+        loadedRef.current.transactions = true;
+        setLoaded('transactions', true);
+        console.log('✅ Transações carregadas (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar transações:', error);
+    } finally {
+      loadingRef.current.transactions = false;
+      setLoading('transactions', false);
+    }
+  }, []);
+
+  const loadProcedures = useCallback(async () => {
+    if (loadedRef.current.procedures || loadingRef.current.procedures) return;
+    loadingRef.current.procedures = true;
+    setLoading('procedures', true);
+    try {
+      const res = await proceduresApi.list({ limit: 100 });
+      if (res.success && res.data?.procedures) {
+        const mapped = res.data.procedures.map((p: any) => ({
+          ...p,
+          price: Number(p.price) || 0,
+          cost: Number(p.cost) || 0,
+          supplies: p.supplies?.map((s: any) => ({
+            id: s.id,
+            inventoryItemId: s.inventoryItemId || s.inventoryItem?.id,
+            name: s.inventoryItem?.name || s.name || 'Insumo',
+            quantityUsed: Number(s.quantityUsed) || 1,
+            cost: Number(s.inventoryItem?.costPerUnit || 0) * Number(s.quantityUsed || 1),
+            unit: s.inventoryItem?.unit || 'un'
+          })) || []
+        }));
+        setProcedures(mapped);
+        loadedRef.current.procedures = true;
+        setLoaded('procedures', true);
+        console.log('✅ Procedimentos carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar procedimentos:', error);
+    } finally {
+      loadingRef.current.procedures = false;
+      setLoading('procedures', false);
+    }
+  }, []);
+
+  const loadProfessionals = useCallback(async () => {
+    if (loadedRef.current.professionals || loadingRef.current.professionals) return;
+    loadingRef.current.professionals = true;
+    setLoading('professionals', true);
+    try {
+      const res = await usersApi.list({ limit: 100 });
+      if (res.success && res.data?.users) {
+        const remunerationMap: Record<string, string> = {
+          'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
+          'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
+        };
+        const mapped = res.data.users.map((u: any) => ({
+          ...u,
+          role: u.role || 'ESTHETICIAN',
+          contractType: u.contractType?.toLowerCase() || 'pj',
+          remunerationType: remunerationMap[u.remunerationType] || u.remunerationType?.toLowerCase() || 'comissao',
+          commissionRate: Number(u.commissionRate) || 0,
+          fixedSalary: Number(u.fixedSalary) || 0
+        }));
+        setProfessionals(mapped);
+        loadedRef.current.professionals = true;
+        setLoaded('professionals', true);
+        console.log('✅ Profissionais carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar profissionais:', error);
+    } finally {
+      loadingRef.current.professionals = false;
+      setLoading('professionals', false);
+    }
+  }, []);
+
+  const loadInventory = useCallback(async () => {
+    if (loadedRef.current.inventory || loadingRef.current.inventory) return;
+    loadingRef.current.inventory = true;
+    setLoading('inventory', true);
+    try {
+      const res = await inventoryApi.list({ limit: 100 });
+      if (res.success && res.data?.items) {
+        setInventory(res.data.items);
+        loadedRef.current.inventory = true;
+        setLoaded('inventory', true);
+        console.log('✅ Estoque carregado (lazy):', res.data.items.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar estoque:', error);
+    } finally {
+      loadingRef.current.inventory = false;
+      setLoading('inventory', false);
+    }
+  }, []);
+
+  const loadPlans = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.plans || loadingRef.current.plans)) return;
+    if (forceReload) {
+      loadedRef.current.plans = false;
+    }
+    loadingRef.current.plans = true;
+    setLoading('plans', true);
+    try {
+      const res = await plansApi.list();
+      if (res.success && res.data) {
+        const mappedPlans = res.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          price: Number(p.price) || 0,
+          features: p.features || [],
+          active: p.active ?? true,
+          stripePaymentLink: p.stripePaymentLink || '',
+        }));
+        // Só atualiza se houver planos no banco, senão mantém os padrão
+        if (mappedPlans.length > 0) {
+          setSaasPlans(mappedPlans);
+          console.log('✅ Planos carregados (lazy):', mappedPlans.length);
+        } else {
+          console.log('ℹ️ Nenhum plano no banco, mantendo planos padrão');
+        }
+        loadedRef.current.plans = true;
+        setLoaded('plans', true);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar planos:', error);
+    } finally {
+      loadingRef.current.plans = false;
+      setLoading('plans', false);
+    }
+  }, []);
+
+  // ============================================
+  // CARREGAMENTO INICIAL (apenas dados essenciais)
+  // ============================================
+
   const loadDataFromApi = useCallback(async () => {
     if (!user) return;
 
     setApiLoading(true);
-    console.log('📡 Carregando dados da API...');
+    console.log('📡 Carregando dados essenciais...');
 
     try {
-      // Carregar dados em paralelo
-      const [companiesRes, usersRes, patientsRes, appointmentsRes, transactionsRes, proceduresRes, inventoryRes] = await Promise.all([
+      // Carregar APENAS dados essenciais no login (empresa e profissionais para sidebar)
+      const [companiesRes, usersRes] = await Promise.all([
         companiesApi.list({ limit: 100 }),
-        usersApi.list({ limit: 100 }),
-        patientsApi.list({ limit: 100 }),
-        appointmentsApi.list({ limit: 100 }),
-        transactionsApi.list({ limit: 100 }),
-        proceduresApi.list({ limit: 100 }),
-        inventoryApi.list({ limit: 100 })
+        usersApi.list({ limit: 100 })
       ]);
 
       if (companiesRes.success && companiesRes.data?.companies) {
@@ -219,17 +528,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       if (usersRes.success && usersRes.data?.users) {
-        // Mapeamento de tipos de remuneração (banco -> frontend)
         const remunerationMap: Record<string, string> = {
-          'COMMISSION': 'comissao',
-          'FIXED': 'fixo',
-          'MIXED': 'misto',
-          'commission': 'comissao',
-          'fixed': 'fixo',
-          'mixed': 'misto'
+          'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
+          'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
         };
-
-        const mappedUsers = usersRes.data.users.map((u: any) => ({
+        const mapped = usersRes.data.users.map((u: any) => ({
           ...u,
           role: u.role || 'ESTHETICIAN',
           contractType: u.contractType?.toLowerCase() || 'pj',
@@ -237,72 +540,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           commissionRate: Number(u.commissionRate) || 0,
           fixedSalary: Number(u.fixedSalary) || 0
         }));
-        setProfessionals(mappedUsers);
-        console.log('✅ Profissionais carregados:', mappedUsers.length, mappedUsers);
+        setProfessionals(mapped);
+        setLoaded('professionals', true);
+        console.log('✅ Profissionais carregados:', mapped.length);
       }
 
-      if (patientsRes.success && patientsRes.data?.patients) {
-        const mappedPatients = patientsRes.data.patients.map((p: any) => ({
-          ...p,
-          status: p.status?.toLowerCase() || 'active'
-        }));
-        setPatients(mappedPatients);
-        console.log('✅ Pacientes carregados:', mappedPatients.length);
-      }
-
-      if (appointmentsRes.success && appointmentsRes.data?.appointments) {
-        const mappedAppts = appointmentsRes.data.appointments.map((a: any) => ({
-          ...a,
-          price: Number(a.price) || 0,
-          durationMinutes: Number(a.durationMinutes) || 60,
-          status: a.status?.toLowerCase() || 'scheduled',
-          patientId: a.patientId || a.patient?.id,
-          patientName: a.patient?.name || a.patientName,
-          professionalId: a.professionalId || a.professional?.id,
-          professionalName: a.professional?.name || a.professionalName,
-          procedureId: a.procedureId || a.procedure?.id,
-          service: a.procedure?.name || a.service
-        }));
-        setAppointments(mappedAppts);
-        console.log('✅ Agendamentos carregados:', mappedAppts.length, 'Exemplo:', mappedAppts[0]);
-      }
-
-      if (transactionsRes.success && transactionsRes.data?.transactions) {
-        const mappedTrans = transactionsRes.data.transactions.map((t: any) => ({
-          ...t,
-          amount: Number(t.amount) || 0,
-          type: t.type?.toLowerCase() || 'income',
-          status: t.status?.toLowerCase() || 'paid'
-        }));
-        setTransactions(mappedTrans);
-        console.log('✅ Transações carregadas:', mappedTrans.length);
-      }
-
-      if (proceduresRes.success && proceduresRes.data?.procedures) {
-        const mappedProcs = proceduresRes.data.procedures.map((p: any) => ({
-          ...p,
-          price: Number(p.price) || 0,
-          cost: Number(p.cost) || 0,
-          // Mapear supplies do formato API para formato frontend
-          supplies: p.supplies?.map((s: any) => ({
-            id: s.id,
-            inventoryItemId: s.inventoryItemId || s.inventoryItem?.id,
-            name: s.inventoryItem?.name || s.name || 'Insumo',
-            quantityUsed: Number(s.quantityUsed) || 1,
-            cost: Number(s.inventoryItem?.costPerUnit || 0) * Number(s.quantityUsed || 1),
-            unit: s.inventoryItem?.unit || 'un'
-          })) || []
-        }));
-        setProcedures(mappedProcs);
-        console.log('✅ Procedimentos carregados:', mappedProcs.length, 'Exemplo:', mappedProcs[0]);
-      }
-
-      if (inventoryRes.success && inventoryRes.data?.items) {
-        setInventory(inventoryRes.data.items);
-        console.log('✅ Estoque carregado:', inventoryRes.data.items.length);
-      }
-
-      console.log('🎉 Dados carregados com sucesso!');
+      console.log('🎉 Dados essenciais carregados! Outros dados serão carregados sob demanda.');
       setApiError(null);
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
@@ -387,8 +630,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch (error) {
         console.error('Erro no logout via API:', error);
       }
+      // Reset dos refs de lazy loading
+      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false };
+      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false };
+      setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false });
+      // Limpar dados
+      setPatients([]);
+      setAppointments([]);
+      setTransactions([]);
+      setProcedures([]);
+      setProfessionals([]);
+      setInventory([]);
+      setCompanies([]);
+      setSaasPlans(DEFAULT_PLANS); // Reset para planos padrão
       setUser(null);
-      setDismissedAlertIds([]); // Limpa os alertas fechados ao deslogar
+      setDismissedAlertIds([]);
   };
 
   const registerCompany = (companyName: string, adminData: any) => {
@@ -440,9 +696,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLeads(prev => [...prev, newLead]);
   };
 
-  const updateCompany = (companyId: string, data: Partial<Company>) => {
+  const updateCompany = async (companyId: string, data: Partial<Company>) => {
       if (user?.role !== UserRole.OWNER) checkWriteAccess();
+
+      // Atualiza local state imediatamente para UI responsiva
       setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, ...data } : c));
+
+      // Persiste no banco de dados via API
+      try {
+        const response = await companiesApi.update(companyId, data);
+        if (response.success && response.data?.company) {
+          // Atualiza com dados confirmados do servidor
+          const updatedCompany = {
+            ...response.data.company,
+            plan: response.data.company.plan?.toLowerCase() || 'basic',
+            subscriptionStatus: response.data.company.subscriptionStatus?.toLowerCase() || 'active',
+            targetAudience: {
+              female: response.data.company.targetFemale ?? true,
+              male: response.data.company.targetMale ?? true,
+              kids: response.data.company.targetKids ?? false
+            },
+            socialMedia: {
+              instagram: response.data.company.instagram || '',
+              facebook: response.data.company.facebook || '',
+              website: response.data.company.website || ''
+            }
+          };
+          setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, ...updatedCompany } : c));
+          console.log('✅ Empresa atualizada no banco:', companyId);
+          return { success: true, company: updatedCompany };
+        }
+        console.error('❌ Erro ao atualizar empresa na API:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao atualizar empresa:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
   const completeOnboarding = () => {
@@ -539,33 +828,60 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!companyId) return { success: false, error: 'Company ID missing' };
 
       try {
-        // Preparar dados para API
-        const apiData = {
-          ...appt,
-          companyId,
-          patientInfo: isPublic ? patientInfo : undefined,
-        };
+        let response;
 
-        const response = await appointmentsApi.create(apiData);
+        if (isPublic && patientInfo) {
+          // Usar endpoint público para booking
+          response = await appointmentsApi.createPublic({
+            companyId,
+            procedureId: appt.procedureId || appt.service, // fallback
+            professionalId: appt.professionalId,
+            date: appt.date,
+            patientInfo: {
+              name: patientInfo.name || appt.patientName,
+              email: patientInfo.email,
+              phone: patientInfo.phone,
+              password: patientInfo.password,
+            },
+          });
+        } else {
+          // Usar endpoint autenticado
+          const apiData = {
+            ...appt,
+            companyId,
+          };
+          response = await appointmentsApi.create(apiData);
+        }
+
         if (response.success && response.data?.appointment) {
           const newAppt = response.data.appointment;
-          setAppointments(prev => [...prev, {
+          // Mapear os campos corretamente (igual ao loadAppointments)
+          const mappedAppt = {
             ...newAppt,
+            price: Number(newAppt.price) || 0,
+            durationMinutes: Number(newAppt.durationMinutes) || 60,
             status: newAppt.status?.toLowerCase() || 'scheduled',
-          }]);
+            patientId: newAppt.patientId || newAppt.patient?.id,
+            patientName: newAppt.patient?.name || newAppt.patientName,
+            professionalId: newAppt.professionalId || newAppt.professional?.id,
+            professionalName: newAppt.professional?.name || newAppt.professionalName,
+            procedureId: newAppt.procedureId || newAppt.procedure?.id,
+            service: newAppt.procedure?.name || newAppt.service
+          };
+          setAppointments(prev => [...prev, mappedAppt]);
 
           // Se criou novo paciente, adicionar ao estado local
           if (response.data.patient) {
             setPatients(prev => [...prev, response.data!.patient]);
           }
 
-          console.log('✅ Agendamento criado:', newAppt.id);
-          return { success: true, appointment: newAppt };
+          console.log('✅ Agendamento criado:', mappedAppt.id);
+          return { success: true, appointment: mappedAppt };
         }
 
         // Verificar se é conflito
-        if (response.error?.includes('conflito') || response.error?.includes('conflict')) {
-          return { success: false, conflict: true };
+        if (response.error?.includes('conflito') || response.error?.includes('conflict') || response.error?.includes('CONFLICT')) {
+          return { success: false, conflict: true, error: 'Horário não disponível' };
         }
 
         console.error('❌ Erro ao criar agendamento:', response.error);
@@ -915,21 +1231,78 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  // --- Plans ---
-  const addPlan = (plan: SaasPlan) => {
+  // --- Plans (SEMPRE via API) ---
+  const addPlan = async (plan: Omit<SaasPlan, 'id'>): Promise<{ success: boolean; plan?: SaasPlan; error?: string }> => {
       checkPermission([UserRole.OWNER]);
-      const newPlan = { ...plan, id: plan.name.toLowerCase().replace(/\s/g, '-') as any }; 
-      setSaasPlans(prev => [...prev, newPlan]);
+      try {
+        const response = await plansApi.create({
+          name: plan.name,
+          price: plan.price,
+          features: plan.features,
+          active: plan.active,
+          stripePaymentLink: plan.stripePaymentLink,
+        });
+        if (response.success && response.data?.plan) {
+          const newPlan: SaasPlan = {
+            id: response.data.plan.id,
+            name: response.data.plan.name,
+            price: Number(response.data.plan.price),
+            features: response.data.plan.features || [],
+            active: response.data.plan.active ?? true,
+            stripePaymentLink: response.data.plan.stripePaymentLink || '',
+          };
+          setSaasPlans(prev => [...prev, newPlan]);
+          console.log('✅ Plano criado:', newPlan.name);
+          return { success: true, plan: newPlan };
+        }
+        console.error('❌ Erro ao criar plano:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao criar plano:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
-  const updatePlan = (id: string, data: Partial<SaasPlan>) => {
+  const updatePlan = async (id: string, data: Partial<SaasPlan>): Promise<{ success: boolean; error?: string }> => {
       checkPermission([UserRole.OWNER]);
-      setSaasPlans(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      try {
+        const response = await plansApi.update(id, data);
+        if (response.success && response.data?.plan) {
+          const updatedPlan: SaasPlan = {
+            id: response.data.plan.id,
+            name: response.data.plan.name,
+            price: Number(response.data.plan.price),
+            features: response.data.plan.features || [],
+            active: response.data.plan.active ?? true,
+            stripePaymentLink: response.data.plan.stripePaymentLink || '',
+          };
+          setSaasPlans(prev => prev.map(p => p.id === id ? updatedPlan : p));
+          console.log('✅ Plano atualizado:', updatedPlan.name);
+          return { success: true };
+        }
+        console.error('❌ Erro ao atualizar plano:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao atualizar plano:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
-  const removePlan = (id: string) => {
+  const removePlan = async (id: string): Promise<{ success: boolean; error?: string }> => {
       checkPermission([UserRole.OWNER]);
-      setSaasPlans(prev => prev.filter(p => p.id !== id));
+      try {
+        const response = await plansApi.delete(id);
+        if (response.success) {
+          setSaasPlans(prev => prev.filter(p => p.id !== id));
+          console.log('✅ Plano removido:', id);
+          return { success: true };
+        }
+        console.error('❌ Erro ao remover plano:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao remover plano:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
   // --- Leads (SEMPRE via API) ---
@@ -1259,6 +1632,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addPlan,
       updatePlan,
       removePlan,
+      loadPlans,
       leads,
       addLead,
       moveLead,
@@ -1292,7 +1666,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setPendingNavigationPath,
       isSubscriptionModalOpen,
       setIsSubscriptionModalOpen,
-      getPublicData
+      getPublicData,
+      isLoading: apiLoading,
+
+      // Lazy Loading
+      loadPatients,
+      loadAppointments,
+      loadTransactions,
+      loadProcedures,
+      loadProfessionals,
+      loadInventory,
+      loadingStates,
+      loadedStates
     }}>
       {children}
     </AppContext.Provider>

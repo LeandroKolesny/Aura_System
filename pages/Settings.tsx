@@ -16,12 +16,46 @@ const Settings: React.FC = () => {
   // States for Business Profile
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
+  const [companyCity, setCompanyCity] = useState('');
+  const [companyState, setCompanyState] = useState('');
   const [logo, setLogo] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [presentation, setPresentation] = useState('');
   const [phones, setPhones] = useState<string[]>(['']);
   const [targetAudience, setTargetAudience] = useState({ female: false, male: false, kids: false });
   const [socialMedia, setSocialMedia] = useState({ website: '', facebook: '', instagram: '' });
+
+  // Lista de estados brasileiros
+  const BRAZILIAN_STATES = [
+    { value: '', label: 'Selecione...' },
+    { value: 'AC', label: 'Acre (AC)' },
+    { value: 'AL', label: 'Alagoas (AL)' },
+    { value: 'AP', label: 'Amapá (AP)' },
+    { value: 'AM', label: 'Amazonas (AM)' },
+    { value: 'BA', label: 'Bahia (BA)' },
+    { value: 'CE', label: 'Ceará (CE)' },
+    { value: 'DF', label: 'Distrito Federal (DF)' },
+    { value: 'ES', label: 'Espírito Santo (ES)' },
+    { value: 'GO', label: 'Goiás (GO)' },
+    { value: 'MA', label: 'Maranhão (MA)' },
+    { value: 'MT', label: 'Mato Grosso (MT)' },
+    { value: 'MS', label: 'Mato Grosso do Sul (MS)' },
+    { value: 'MG', label: 'Minas Gerais (MG)' },
+    { value: 'PA', label: 'Pará (PA)' },
+    { value: 'PB', label: 'Paraíba (PB)' },
+    { value: 'PR', label: 'Paraná (PR)' },
+    { value: 'PE', label: 'Pernambuco (PE)' },
+    { value: 'PI', label: 'Piauí (PI)' },
+    { value: 'RJ', label: 'Rio de Janeiro (RJ)' },
+    { value: 'RN', label: 'Rio Grande do Norte (RN)' },
+    { value: 'RS', label: 'Rio Grande do Sul (RS)' },
+    { value: 'RO', label: 'Rondônia (RO)' },
+    { value: 'RR', label: 'Roraima (RR)' },
+    { value: 'SC', label: 'Santa Catarina (SC)' },
+    { value: 'SP', label: 'São Paulo (SP)' },
+    { value: 'SE', label: 'Sergipe (SE)' },
+    { value: 'TO', label: 'Tocantins (TO)' },
+  ];
 
   // Track if initial load is done to avoid setting dirty state on mount
   const isLoaded = useRef(false);
@@ -30,6 +64,8 @@ const Settings: React.FC = () => {
     if (currentCompany && !isLoaded.current) {
         setCompanyName(currentCompany.name || '');
         setCompanyAddress(currentCompany.address || '');
+        setCompanyCity(currentCompany.city || '');
+        setCompanyState(currentCompany.state || '');
         setLogo(currentCompany.logo || '');
         setCnpj(currentCompany.cnpj || '');
         setPresentation(currentCompany.presentation || '');
@@ -40,7 +76,7 @@ const Settings: React.FC = () => {
             facebook: currentCompany.socialMedia?.facebook || '',
             instagram: currentCompany.socialMedia?.instagram || ''
         });
-        
+
         isLoaded.current = true;
     }
   }, [currentCompany]);
@@ -50,7 +86,7 @@ const Settings: React.FC = () => {
       if (isLoaded.current) {
           setHasUnsavedChanges(true);
       }
-  }, [companyName, companyAddress, logo, cnpj, presentation, phones, targetAudience, socialMedia, setHasUnsavedChanges]);
+  }, [companyName, companyAddress, companyCity, companyState, logo, cnpj, presentation, phones, targetAudience, socialMedia, setHasUnsavedChanges]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -79,9 +115,11 @@ const Settings: React.FC = () => {
              throw new Error('CNPJ/CPF inválido. Verifique os números digitados.');
         }
 
-        updateCompany(currentCompany.id, { 
-            name: companyName, 
+        updateCompany(currentCompany.id, {
+            name: companyName,
             address: companyAddress,
+            city: companyCity,
+            state: companyState,
             logo,
             cnpj,
             presentation,
@@ -354,6 +392,32 @@ const Settings: React.FC = () => {
                       <div className="relative">
                         <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input type="text" className="w-full pl-9 p-2.5 border border-slate-200 rounded-lg" placeholder="Endereço Completo" value={companyAddress} onChange={e => setCompanyAddress(e.target.value)} />
+                      </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Cidade</label>
+                          <input
+                            type="text"
+                            className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                            placeholder="Ex: São Paulo"
+                            value={companyCity}
+                            onChange={e => setCompanyCity(e.target.value)}
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                          <select
+                            className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none bg-white"
+                            value={companyState}
+                            onChange={e => setCompanyState(e.target.value)}
+                          >
+                            {BRAZILIAN_STATES.map(state => (
+                              <option key={state.value} value={state.value}>{state.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-slate-400 mt-1">Usado para gerar o link de agendamento único da sua clínica.</p>
                       </div>
                   </div>
                </div>

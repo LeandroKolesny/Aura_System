@@ -1,11 +1,24 @@
 // Aura System - API de Dashboard
-// Métricas e estatísticas consolidadas
+// Métricas e estatísticas consolidadas - OTIMIZADA
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
-// GET - Obter métricas do dashboard
+// Cache headers helper
+function createCachedResponse(data: any, cacheSeconds: number = 30) {
+  const response = NextResponse.json(data);
+  // Cache por 30 segundos, stale-while-revalidate por 60 segundos
+  response.headers.set(
+    "Cache-Control",
+    `private, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`
+  );
+  return response;
+}
+
+// GET - Obter métricas do dashboard (otimizado para performance)
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const user = await getAuthUser(request);
 
@@ -18,69 +31,31 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get("period") || "month"; // day, week, month, year
+    const days = parseInt(searchParams.get("days") || "7"); // 7 ou 30 dias
 
-    // Calcular datas do período
     const now = new Date();
-    let startDate: Date;
+    const startDate = new Date(now);
+    startDate.setDate(now.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
 
-    switch (period) {
-      case "day":
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-      case "week":
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "year":
-        startDate = new Date(now.getFullYear(), 0, 1);
-        break;
-      default: // month
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-
-    // Executar todas as queries em paralelo
+    // Executar todas as queries em paralelo para máxima performance
     const [
-      appointmentsToday,
-      appointmentsTotal,
-      patientsTotal,
-      newPatientsMonth,
-      revenueData,
-      expenseData,
+      // KPIs principais
+      periodTransactions,
+      periodAppointments,
+      completedAppointments,
+      canceledAppointments,
+
+      // Estoque baixo
       lowStockItems,
-      recentActivities,
-      appointmentsByStatus,
-      topProcedures,
+
+      // Top procedimentos
+      topProceduresRaw,
+
+      // Receita diária para gráfico
+      dailyRevenue,
     ] = await Promise.all([
-      // Agendamentos de hoje
-      prisma.appointment.count({
-        where: {
-          companyId: user.companyId,
-          date: {
-            gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-            lt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
-          },
-          status: { in: ["SCHEDULED", "CONFIRMED"] },
-        },
-      }),
-
-      // Total de agendamentos no período
-      prisma.appointment.count({
-        where: { companyId: user.companyId, date: { gte: startDate } },
-      }),
-
-      // Total de pacientes
-      prisma.patient.count({ where: { companyId: user.companyId } }),
-
-      // Novos pacientes no mês
-      prisma.patient.count({
-        where: {
-          companyId: user.companyId,
-          createdAt: { gte: new Date(now.getFullYear(), now.getMonth(), 1) },
-        },
-      }),
-
-      // Receita do período
+      // Transações do período (receita)
       prisma.transaction.aggregate({
         where: {
           companyId: user.companyId,
@@ -89,17 +64,32 @@ export async function GET(request: NextRequest) {
           date: { gte: startDate },
         },
         _sum: { amount: true },
+        _count: true,
       }),
 
-      // Despesas do período
-      prisma.transaction.aggregate({
+      // Total de agendamentos no período
+      prisma.appointment.count({
+        where: { companyId: user.companyId, date: { gte: startDate } },
+      }),
+
+      // Agendamentos concluídos (pacientes atendidos únicos)
+      prisma.appointment.findMany({
         where: {
           companyId: user.companyId,
-          type: "EXPENSE",
-          status: "PAID",
           date: { gte: startDate },
+          status: "COMPLETED"
         },
-        _sum: { amount: true },
+        select: { patientId: true },
+        distinct: ["patientId"],
+      }),
+
+      // Agendamentos cancelados
+      prisma.appointment.count({
+        where: {
+          companyId: user.companyId,
+          date: { gte: startDate },
+          status: "CANCELED"
+        },
       }),
 
       // Itens com estoque baixo
@@ -108,72 +98,112 @@ export async function GET(request: NextRequest) {
         select: { id: true, name: true, currentStock: true, minStock: true, unit: true },
       }),
 
-      // Atividades recentes
-      prisma.activity.findMany({
-        where: { user: { companyId: user.companyId } },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        include: { user: { select: { name: true } } },
-      }),
-
-      // Agendamentos por status
-      prisma.appointment.groupBy({
-        by: ["status"],
-        where: { companyId: user.companyId, date: { gte: startDate } },
-        _count: true,
-      }),
-
-      // Top procedimentos
+      // Top 5 procedimentos
       prisma.appointment.groupBy({
         by: ["procedureId"],
-        where: { companyId: user.companyId, date: { gte: startDate }, status: "COMPLETED" },
-        _count: true,
+        where: {
+          companyId: user.companyId,
+          date: { gte: startDate },
+          status: { not: "CANCELED" }
+        },
+        _count: { procedureId: true },
         orderBy: { _count: { procedureId: "desc" } },
         take: 5,
       }),
+
+      // Receita diária para gráfico (agregação por dia)
+      prisma.$queryRaw<{ date: Date; total: number }[]>`
+        SELECT
+          DATE("date") as date,
+          COALESCE(SUM(amount), 0) as total
+        FROM "transactions"
+        WHERE "companyId" = ${user.companyId}
+          AND "type" = 'INCOME'
+          AND "status" = 'PAID'
+          AND "date" >= ${startDate}
+        GROUP BY DATE("date")
+        ORDER BY date ASC
+      `,
     ]);
 
-    // Filtrar itens com estoque baixo
+    // Processar estoque baixo
     const lowStock = lowStockItems.filter(
       (item) => Number(item.currentStock) <= Number(item.minStock)
     );
 
-    // Buscar nomes dos procedimentos top
-    const procedureIds = topProcedures.map((p) => p.procedureId);
-    const procedures = await prisma.procedure.findMany({
-      where: { id: { in: procedureIds } },
-      select: { id: true, name: true },
-    });
+    // Buscar nomes dos procedimentos
+    const procedureIds = topProceduresRaw.map((p) => p.procedureId).filter(Boolean);
+    const procedures = procedureIds.length > 0
+      ? await prisma.procedure.findMany({
+          where: { id: { in: procedureIds } },
+          select: { id: true, name: true },
+        })
+      : [];
 
-    const topProceduresWithNames = topProcedures.map((p) => ({
-      ...p,
-      name: procedures.find((proc) => proc.id === p.procedureId)?.name || "Desconhecido",
+    const topProcedures = topProceduresRaw.map((p) => ({
+      name: procedures.find((proc) => proc.id === p.procedureId)?.name || "Outro",
+      count: p._count.procedureId,
     }));
 
-    const revenue = Number(revenueData._sum.amount || 0);
-    const expenses = Number(expenseData._sum.amount || 0);
+    // Calcular KPIs
+    const revenue = Number(periodTransactions._sum.amount || 0);
+    const transactionCount = periodTransactions._count || 0;
+    const seenPatients = completedAppointments.length;
+    const cancelRate = periodAppointments > 0
+      ? (canceledAppointments / periodAppointments) * 100
+      : 0;
+    const ticketMedio = transactionCount > 0 ? revenue / transactionCount : 0;
 
-    return NextResponse.json({
-      metrics: {
-        appointmentsToday,
-        appointmentsTotal,
-        patientsTotal,
-        newPatientsMonth,
+    // Formatar receita diária para o gráfico
+    const revenueChart = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const dateKey = d.toISOString().split('T')[0];
+
+      const dayData = dailyRevenue.find(
+        (r) => new Date(r.date).toISOString().split('T')[0] === dateKey
+      );
+
+      revenueChart.push({
+        date: dateKey,
+        name: days <= 7
+          ? d.toLocaleDateString('pt-BR', { weekday: 'short' })
+          : d.toLocaleDateString('pt-BR', { day: '2-digit' }),
+        value: Number(dayData?.total || 0),
+      });
+    }
+
+    const responseData = {
+      kpis: {
         revenue,
-        expenses,
-        profit: revenue - expenses,
-        lowStockCount: lowStock.length,
+        ticketMedio,
+        seenPatients,
+        cancelRate: Math.round(cancelRate * 10) / 10,
+        appointmentsTotal: periodAppointments,
+        appointmentsConfirmed: periodAppointments - canceledAppointments,
+        appointmentsCanceled: canceledAppointments,
       },
       charts: {
-        appointmentsByStatus,
-        topProcedures: topProceduresWithNames,
+        revenueChart,
+        topProcedures,
       },
       alerts: {
-        lowStock,
+        lowStock: lowStock.map(item => ({
+          id: `inv_${item.id}`,
+          title: `Estoque Baixo: ${item.name}`,
+          message: `${item.currentStock} ${item.unit} restantes (mínimo: ${item.minStock})`,
+          type: 'warning',
+        })),
       },
-      recentActivities,
-      period,
-    });
+      days,
+      _meta: {
+        queryTimeMs: Date.now() - startTime,
+      },
+    };
+
+    // Retorna com cache headers (30 segundos)
+    return createCachedResponse(responseData, 30);
   } catch (error) {
     console.error("Erro ao buscar métricas:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

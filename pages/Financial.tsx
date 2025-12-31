@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, Save, CreditCard } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, Save, CreditCard, Loader2, Package } from 'lucide-react';
 import { UserRole, Transaction } from '../types';
 import { NewExpenseModal } from '../components/Modals';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
 import StatusBadge from '../components/StatusBadge';
-import { PAYMENT_LABELS, PAYMENT_METHODS_LIST } from '../constants';
+import { PAYMENT_METHODS_LIST } from '../constants';
+import { FinancialSkeleton } from '../components/LoadingSkeleton';
 
 const TransactionDetailModal: React.FC<{ transaction: any; onClose: () => void }> = ({ transaction, onClose }) => (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
@@ -72,20 +73,62 @@ const SaaSFinancial: React.FC = () => {
 }
 
 const ClinicFinancial: React.FC = () => {
-  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly } = useApp();
+  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadingStates } = useApp();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isPaymentMethodsOpen, setIsPaymentMethodsOpen] = useState(false);
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
 
+  // Lazy loading
+  useEffect(() => {
+    loadTransactions();
+    loadAppointments();
+  }, [loadTransactions, loadAppointments]);
+
   useEffect(() => { if (currentCompany?.paymentMethods) setSelectedPaymentMethods(currentCompany.paymentMethods); }, [currentCompany]);
+
   const visibleTransactions = useMemo(() => {
     if (!user || user.role === UserRole.ADMIN) return transactions;
     const myAppIds = appointments.filter(a => a.patientId === user.id).map(a => a.id);
     return transactions.filter(t => t.appointmentId && myAppIds.includes(t.appointmentId) && t.type === 'income');
   }, [transactions, user, appointments]);
 
+  // Agrupar transações por appointmentId para mostrar receita + despesa juntas
+  const groupedTransactions = useMemo(() => {
+    const groups: Record<string, { income?: Transaction; expense?: Transaction; standalone?: Transaction }> = {};
+
+    visibleTransactions.forEach(t => {
+      if (t.appointmentId) {
+        if (!groups[t.appointmentId]) {
+          groups[t.appointmentId] = {};
+        }
+        if (t.type === 'income') {
+          groups[t.appointmentId].income = t;
+        } else {
+          groups[t.appointmentId].expense = t;
+        }
+      } else {
+        // Transações sem appointmentId (despesas avulsas)
+        groups[t.id] = { standalone: t };
+      }
+    });
+
+    // Converter para array e ordenar por data
+    return Object.entries(groups)
+      .map(([key, group]) => ({
+        key,
+        ...group,
+        date: group.income?.date || group.expense?.date || group.standalone?.date || '',
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [visibleTransactions]);
+
   const balance = visibleTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
+
+  // Loading state - usar skeleton
+  if (loadingStates.transactions && transactions.length === 0) {
+    return <FinancialSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
@@ -104,14 +147,89 @@ const ClinicFinancial: React.FC = () => {
                               <label key={method.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:border-primary-300 transition-all bg-slate-50/50">
                                   <input type="checkbox" className="w-5 h-5 text-primary-600 rounded border-gray-300" checked={selectedPaymentMethods.includes(method.id)} onChange={() => { if (selectedPaymentMethods.includes(method.id)) setSelectedPaymentMethods(selectedPaymentMethods.filter(m => m !== method.id)); else setSelectedPaymentMethods([...selectedPaymentMethods, method.id]); }} disabled={isReadOnly} /><span className="text-sm font-medium text-slate-700">{method.label}</span></label>))}</div>
                       <div className="flex justify-end">{saveMsg && <span className="text-green-600 font-medium text-sm mr-4 animate-fade-in">{saveMsg}</span>}<button onClick={() => { if (currentCompany && !isReadOnly) { updateCompany(currentCompany.id, { paymentMethods: selectedPaymentMethods }); setSaveMsg('Salvo!'); setTimeout(() => setSaveMsg(''), 2000); } }} disabled={isReadOnly} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold ${isReadOnly ? 'bg-slate-300 text-white cursor-not-allowed' : 'bg-slate-800 text-white'}`}><Save className="w-4 h-4" /> Salvar</button></div></div>)}</section>)}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><th className="px-6 py-3">Data</th><th className="px-6 py-3">Descrição</th><th className="px-6 py-3 text-right">Valor</th><th className="px-6 py-3 text-center">Status</th><th className="px-6 py-3 text-center">Recibo</th></tr></thead><tbody className="divide-y divide-slate-100">{visibleTransactions.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+
+      {/* Tabela de transações agrupadas */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+              <th className="px-6 py-3">Data</th>
+              <th className="px-6 py-3">Procedimento</th>
+              <th className="px-6 py-3 text-right">Receita</th>
+              <th className="px-6 py-3 text-right">Custo Insumos</th>
+              <th className="px-6 py-3 text-right">Lucro</th>
+              <th className="px-6 py-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {groupedTransactions.map((group) => {
+              // Transação standalone (despesa avulsa)
+              if (group.standalone) {
+                const t = group.standalone;
+                return (
+                  <tr key={group.key} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 text-sm text-slate-600">{formatDate(t.date)}</td>
-                    <td className="px-6 py-4"><div className="flex items-center gap-2">{t.type === 'expense' ? <ArrowDownCircle className="w-4 h-4 text-red-500" /> : <ArrowUpCircle className="w-4 h-4 text-green-500" />}<span className="font-medium text-slate-800 text-sm">{t.description.replace('Atendimento: ', '')}</span></div></td>
-                    <td className={`px-6 py-4 text-right text-sm font-bold ${t.type === 'expense' ? 'text-red-600' : 'text-green-600'}`}>{t.type === 'expense' ? '- ' : '+ '} {formatCurrency(t.amount)}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <ArrowDownCircle className="w-4 h-4 text-red-500" />
+                        <span className="font-medium text-slate-800 text-sm">{t.description}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm text-slate-400">-</td>
+                    <td className="px-6 py-4 text-right text-sm font-bold text-red-600">- {formatCurrency(t.amount)}</td>
+                    <td className="px-6 py-4 text-right text-sm font-bold text-red-600">- {formatCurrency(t.amount)}</td>
                     <td className="px-6 py-4 text-center"><StatusBadge status={t.status} type="financial" /></td>
-                    <td className="px-6 py-4 text-center"><button className="text-slate-400 hover:text-primary-600"><FileText className="w-4 h-4 mx-auto" /></button></td>
-                </tr>))}</tbody></table></div>
+                  </tr>
+                );
+              }
+
+              // Transação de procedimento (com receita e possivelmente despesa)
+              const income = group.income;
+              const expense = group.expense;
+              const revenue = income ? Number(income.amount) : 0;
+              const cost = expense ? Number(expense.amount) : 0;
+              const profit = revenue - cost;
+              const description = income?.description?.replace('Atendimento: ', '') || expense?.description?.replace('Custo Insumos: ', '') || '';
+
+              return (
+                <tr key={group.key} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 text-sm text-slate-600">{formatDate(group.date)}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpCircle className="w-4 h-4 text-green-500" />
+                      <span className="font-medium text-slate-800 text-sm">{description}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right text-sm font-bold text-green-600">+ {formatCurrency(revenue)}</td>
+                  <td className="px-6 py-4 text-right">
+                    {cost > 0 ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Package className="w-3 h-3 text-red-400" />
+                        <span className="text-sm font-medium text-red-600">- {formatCurrency(cost)}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className={`px-6 py-4 text-right text-sm font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(profit)}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <StatusBadge status={income?.status || expense?.status || 'paid'} type="financial" />
+                  </td>
+                </tr>
+              );
+            })}
+            {groupedTransactions.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  Nenhuma transação encontrada.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
       {isExpenseModalOpen && !isReadOnly && <NewExpenseModal onClose={() => setIsExpenseModalOpen(false)} />}
     </div>
   );

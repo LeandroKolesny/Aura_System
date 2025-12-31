@@ -1,13 +1,30 @@
-
 import { GoogleGenAI } from "@google/genai";
 
-// Initialization following @google/genai guidelines: assume API_KEY is pre-configured
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization to prevent app crash when API_KEY is not set
+let ai: GoogleGenAI | null = null;
+
+const getAI = (): GoogleGenAI | null => {
+  if (ai) return ai;
+
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("Gemini API Key not configured. AI features will be disabled.");
+    return null;
+  }
+
+  ai = new GoogleGenAI({ apiKey });
+  return ai;
+};
 
 export const summarizeAnamnesis = async (notes: string): Promise<string> => {
   try {
-    // Using gemini-3-flash-preview for Basic Text Tasks
-    const model = 'gemini-3-flash-preview';
+    const aiInstance = getAI();
+    if (!aiInstance) {
+      return "Funcionalidade de IA não disponível. Configure a API Key do Gemini.";
+    }
+
+    // Using gemini-2.0-flash for Basic Text Tasks
+    const model = 'gemini-2.0-flash';
     const prompt = `
       Você é um assistente médico especialista em estética.
       Analise as seguintes anotações de anamnese de um paciente e crie um resumo clínico conciso e profissional.
@@ -18,7 +35,7 @@ export const summarizeAnamnesis = async (notes: string): Promise<string> => {
       ${notes}
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model,
       contents: prompt,
     });
@@ -33,16 +50,21 @@ export const summarizeAnamnesis = async (notes: string): Promise<string> => {
 
 export const generateFollowUpMessage = async (patientName: string, procedure: string, clinicName: string): Promise<string> => {
   try {
-    // Using gemini-3-flash-preview for text generation
-    const model = 'gemini-3-flash-preview';
+    const aiInstance = getAI();
+    if (!aiInstance) {
+      return "Funcionalidade de IA não disponível. Configure a API Key do Gemini.";
+    }
+
+    // Using gemini-2.0-flash for text generation
+    const model = 'gemini-2.0-flash';
     const prompt = `
       Aja como um sistema de automação. Gere APENAS o texto de uma mensagem de WhatsApp para pós-venda estético.
-      
+
       Dados:
       - Paciente: ${patientName}
       - Procedimento: ${procedure}
       - Clínica: ${clinicName}
-      
+
       Instruções Obrigatórias:
       1. A mensagem deve ser atenciosa, perguntar como está a recuperação e lembrar de evitar sol (se aplicável).
       2. Tom de voz: Premium, acolhedor e profissional.
@@ -54,7 +76,7 @@ export const generateFollowUpMessage = async (patientName: string, procedure: st
       8. **REGRA CRÍTICA:** NUNCA ofereça "avaliação gratuita", "retorno grátis", "cortesia" ou qualquer serviço sem custo. Se sugerir um retorno, use termos como "agendar um acompanhamento" ou "marcar uma revisão".
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model,
       contents: prompt,
     });
@@ -78,19 +100,23 @@ export const generateFollowUpMessage = async (patientName: string, procedure: st
 
 export const generateReturnMessage = async (patientName: string, lastProcedure: string, daysAgo: number, clinicName: string): Promise<string> => {
   try {
-    // Using gemini-3-flash-preview for text generation
-    const model = 'gemini-3-flash-preview';
+    const aiInstance = getAI();
+    if (!aiInstance) {
+      return `Olá ${patientName}, já faz ${daysAgo} dias desde o seu ${lastProcedure}. Que tal agendar uma manutenção? - ${clinicName}`;
+    }
+
+    const model = 'gemini-2.0-flash';
     const prompt = `
       Aja como um especialista em marketing para clínicas de estética. Gere APENAS o texto de uma mensagem de WhatsApp para convidar um cliente a retornar.
-      
+
       Dados:
       - Paciente: ${patientName}
       - Último Procedimento: ${lastProcedure}
       - Tempo desde a visita: ${daysAgo} dias
       - Clínica: ${clinicName}
-      
+
       Objetivo: Convidar o paciente para uma nova visita de manutenção ou novo ciclo de tratamento.
-      
+
       Instruções Obrigatórias:
       1. A mensagem deve ser curta, persuasiva e elegante (Premium).
       2. **CRUCIAL:** Mencione explicitamente que já se passaram ${daysAgo} dias (ou converta para meses se fizer sentido) desde o procedimento "${lastProcedure}" e relacione isso à necessidade de manutenção ou perda do efeito.
@@ -103,7 +129,7 @@ export const generateReturnMessage = async (patientName: string, lastProcedure: 
       9. **DIRECIONAMENTO:** Sempre convide para "agendar uma avaliação especializada", "consultar nossos valores atuais", "verificar disponibilidade" ou "fazer um agendamento". O tom deve valorizar o serviço médico/estético.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model,
       contents: prompt,
     });
@@ -126,8 +152,12 @@ export const generateReturnMessage = async (patientName: string, lastProcedure: 
 
 export const generateRetentionMessage = async (clinicName: string, daysCount: number, planName: string, scenario: 'overdue' | 'expiring' | 'upsell' | 'winback'): Promise<string> => {
   try {
-    // Using gemini-3-flash-preview for text generation
-    const model = 'gemini-3-flash-preview';
+    const aiInstance = getAI();
+    if (!aiInstance) {
+      return `Olá equipe ${clinicName}, entre em contato conosco sobre o plano ${planName}. - Aura System`;
+    }
+
+    const model = 'gemini-2.0-flash';
     let promptContext = "";
 
     switch (scenario) {
@@ -181,7 +211,7 @@ export const generateRetentionMessage = async (clinicName: string, daysCount: nu
       5. Termine com uma pergunta ou link para ação.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model,
       contents: prompt,
     });

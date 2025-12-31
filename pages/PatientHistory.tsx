@@ -1,21 +1,36 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Calendar, Clock, CheckCircle, XCircle, MapPin, ChevronRight, X, ImageIcon, Shield, PenTool, Info, Maximize2 } from 'lucide-react';
 import { formatCurrency, formatDateTime, formatDate, getFriendlyDeviceInfo } from '../utils/formatUtils';
 import { SignatureModal } from '../components/Modals';
-import { Appointment, PhotoRecord } from '../types';
+import { Appointment, PhotoRecord, UserRole } from '../types';
 import StatusBadge from '../components/StatusBadge';
 
 const PatientHistory: React.FC = () => {
-  const { appointments, user, currentCompany, photos, signAppointmentConsent } = useApp();
+  const { appointments, patients, user, currentCompany, photos, signAppointmentConsent, loadAppointments, loadPatients } = useApp();
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<PhotoRecord | null>(null);
 
+  // Carregar dados ao montar
+  useEffect(() => {
+    loadAppointments(true); // Força reload para pegar dados atualizados
+    loadPatients();
+  }, [loadAppointments, loadPatients]);
+
   if (!user) return null;
 
+  // Para pacientes, encontrar o patientId pelo email
+  const currentPatientId = useMemo(() => {
+    if (user.role === UserRole.PATIENT && user.email) {
+      const patientRecord = patients.find(p => p.email === user.email);
+      return patientRecord?.id || null;
+    }
+    return null;
+  }, [user, patients]);
+
   const myAppointments = appointments
-    .filter(a => a.patientId === user.id)
+    .filter(a => currentPatientId && a.patientId === currentPatientId)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const now = new Date();

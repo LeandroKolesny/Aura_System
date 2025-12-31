@@ -48,6 +48,10 @@ model User {
   notifications     Notification[]
   assignedLeads     Lead[]
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, role])
+  @@index([companyId, isActive])
   @@map("users")
 }
 
@@ -81,6 +85,8 @@ model Company {
   slug        String   @unique
   logo        String?
   address     String?
+  city        String?   // Cidade da clínica
+  state       String?   // Estado (sigla: SP, RJ, RS...)
   cnpj        String?
   presentation String?
   phones      String[] @default([])
@@ -177,6 +183,10 @@ model Patient {
   photos          PhotoRecord[]
   transactions    Transaction[]
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, email])
   @@unique([email, companyId])
   @@map("patients")
 }
@@ -214,6 +224,9 @@ model Procedure {
   supplies        ProcedureSupply[]
   appointments    Appointment[]
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, isActive])
   @@map("procedures")
 }
 
@@ -261,8 +274,14 @@ model Appointment {
   professionalId  String
   procedure       Procedure @relation(fields: [procedureId], references: [id])
   procedureId     String
-  transaction     Transaction?
+  transactions    Transaction[]  // Múltiplas transações: INCOME (receita) + EXPENSE (custo insumos)
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, status])
+  @@index([companyId, professionalId, date])
+  @@index([patientId])
   @@map("appointments")
 }
 
@@ -297,10 +316,15 @@ model Transaction {
   patient     Patient?    @relation(fields: [patientId], references: [id])
   patientId   String?
   appointment Appointment? @relation(fields: [appointmentId], references: [id])
-  appointmentId String?   @unique
+  appointmentId String?   // Removido @unique para permitir múltiplas transações por agendamento (INCOME + EXPENSE)
   professional User?      @relation("ProfessionalTransactions", fields: [professionalId], references: [id])
   professionalId String?
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, type, status])
+  @@index([companyId, type, status, date])
   @@map("transactions")
 }
 
@@ -339,6 +363,9 @@ model InventoryItem {
   procedureSupplies ProcedureSupply[]
   stockMovements  StockMovement[]
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, isActive])
   @@map("inventory_items")
 }
 
@@ -621,5 +648,20 @@ model SystemAlert {
 enum AlertStatus {
   ACTIVE
   INACTIVE
+}
+
+// ============================================
+// MÓDULO: CONFIGURAÇÕES GLOBAIS DO SISTEMA
+// ============================================
+
+model SystemSettings {
+  id                   String    @id @default("global")
+  maintenanceMode      Boolean   @default(false)
+  maintenanceMessage   String?   // Mensagem customizada opcional
+  maintenanceStartedAt DateTime?
+  maintenanceStartedBy String?   // userId do Owner que ativou
+  updatedAt            DateTime  @updatedAt
+
+  @@map("system_settings")
 }
 

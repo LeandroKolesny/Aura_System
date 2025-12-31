@@ -99,6 +99,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verificar modo de manutencao (exceto para OWNER)
+    if (user.role !== "OWNER") {
+      const systemSettings = await prisma.systemSettings.findUnique({
+        where: { id: "global" },
+      });
+
+      if (systemSettings?.maintenanceMode) {
+        logLoginFailure(email, "Sistema em manutencao", request);
+        return NextResponse.json(
+          {
+            error: "Sistema em manutencao",
+            maintenance: true,
+            message: systemSettings.maintenanceMessage || "Sistema em manutencao. Retorne mais tarde."
+          },
+          { status: 503 }
+        );
+      }
+    }
+
     // Login bem-sucedido - resetar rate limit
     resetRateLimit(clientIP, "login");
 

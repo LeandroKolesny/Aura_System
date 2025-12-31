@@ -73,6 +73,28 @@ export async function PUT(
 
     const { supplies, ...procedureData } = validation.data;
 
+    // Calcular custo total dos insumos se supplies foram enviados
+    let calculatedCost = 0;
+    if (supplies && supplies.length > 0) {
+      const inventoryIds = supplies.map((s) => s.inventoryItemId);
+      const existingItems = await prisma.inventoryItem.findMany({
+        where: { id: { in: inventoryIds }, companyId: user.companyId },
+      });
+
+      calculatedCost = supplies.reduce((total, supply) => {
+        const item = existingItems.find((i) => i.id === supply.inventoryItemId);
+        if (item) {
+          return total + (Number(item.costPerUnit) * supply.quantityUsed);
+        }
+        return total;
+      }, 0);
+    }
+
+    // Usar o custo calculado ou o enviado pelo frontend (o maior)
+    const finalCost = supplies !== undefined
+      ? Math.max(calculatedCost, procedureData.cost || 0)
+      : procedureData.cost;
+
     // Atualizar procedimento
     // Primeiro, remover supplies antigos se novos foram enviados
     if (supplies !== undefined) {
@@ -83,6 +105,7 @@ export async function PUT(
       where: { id },
       data: {
         ...procedureData,
+        ...(finalCost !== undefined && { cost: finalCost }),
         supplies: supplies && supplies.length > 0 ? {
           create: supplies.map((s) => ({
             inventoryItemId: s.inventoryItemId,

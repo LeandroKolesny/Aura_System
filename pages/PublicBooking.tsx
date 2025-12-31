@@ -1,28 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Procedure, User, Appointment, UserRole, PublicLayoutConfig, BusinessHours, UnavailabilityRule, OnlineBookingConfig } from '../types';
 import AuraLogo from '../components/AuraLogo';
-import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, MapPin, Clock, Lock, Calendar as CalendarIcon, AlertTriangle, Info, XCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, MapPin, Clock, Lock, Calendar as CalendarIcon, AlertTriangle, Info, XCircle, ArrowRight, RefreshCw, User as UserIcon } from 'lucide-react';
 import { maskPhone } from '../utils/maskUtils';
 import { formatCurrency } from '../utils/formatUtils';
+import { publicApi, appointmentsApi } from '../services/api';
+import { getClinicSlug, getPortalBasePath } from '../utils/subdomain';
 
-const PublicBooking: React.FC = () => {
-  const { companyId } = useParams<{ companyId: string }>();
-  const { getPublicData, addAppointment, user, logout } = useApp();
+interface PublicBookingProps {
+  clinicSlug?: string; // Pode receber o slug como prop
+}
+
+const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
+  // Tenta pegar o slug de múltiplas fontes:
+  // 1. Prop passada diretamente
+  // 2. Parâmetro da URL (/:slug)
+  // 3. Detecção automática (subdomínio ou path)
+  const { slug: urlSlug } = useParams<{ slug: string }>();
+  const slug = clinicSlug || urlSlug || getClinicSlug();
+  const { user, logout } = useApp();
   const navigate = useNavigate();
 
+  const [companyId, setCompanyId] = useState('');
+  const [companySlug, setCompanySlug] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
-  const [companyLogo, setCompanyLogo] = useState(''); 
+  const [companyLogo, setCompanyLogo] = useState('');
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [professionals, setProfessionals] = useState<User[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [unavailabilityRules, setUnavailabilityRules] = useState<UnavailabilityRule[]>([]);
   const [layoutConfig, setLayoutConfig] = useState<PublicLayoutConfig | undefined>(undefined);
   const [businessHours, setBusinessHours] = useState<BusinessHours | undefined>(undefined);
-  const [onlineConfig, setOnlineConfig] = useState<OnlineBookingConfig | undefined>(undefined); 
+  const [onlineConfig, setOnlineConfig] = useState<OnlineBookingConfig | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   // Wizard State
   const [step, setStep] = useState(1);
@@ -35,33 +49,68 @@ const PublicBooking: React.FC = () => {
   const [bookingError, setBookingError] = useState<string | null>(null);
 
   const canGoBackToSystem = user && (
-    user.role === UserRole.ADMIN || 
-    user.role === UserRole.OWNER || 
-    user.role === UserRole.RECEPTIONIST || 
+    user.role === UserRole.ADMIN ||
+    user.role === UserRole.OWNER ||
+    user.role === UserRole.RECEPTIONIST ||
     user.role === UserRole.ESTHETICIAN
   );
 
+  // Verifica se é um paciente logado
+  const isLoggedInPatient = user && user.role === UserRole.PATIENT;
+
   useEffect(() => {
-    if (companyId) {
-      const data = getPublicData(companyId);
-      if (data) {
-        setCompanyName(data.company.name);
-        setCompanyAddress(data.company.address || '');
-        setCompanyLogo(data.company.logo || '');
-        setProcedures(data.procedures);
-        setProfessionals(data.professionals);
-        setAppointments(data.appointments);
-        setUnavailabilityRules(data.unavailabilityRules || []);
-        setLayoutConfig(data.company.layoutConfig);
-        setBusinessHours(data.company.businessHours);
-        setOnlineConfig(data.company.onlineBookingConfig);
+    const loadCompanyData = async () => {
+      if (!slug) {
+        setLoadError('Link inválido');
+        setLoading(false);
+        return;
       }
+
+      try {
+        const response = await publicApi.getCompanyBySlug(slug);
+
+        if (response.success && response.data) {
+          const { company, procedures: procs, professionals: profs, appointments: appts, unavailabilityRules: rules } = response.data;
+
+          setCompanyId(company.id);
+          setCompanySlug(company.slug);
+          setCompanyName(company.name);
+          setCompanyAddress(company.address || '');
+          setCompanyLogo(company.logo || '');
+          setProcedures(procs);
+          setProfessionals(profs);
+          setAppointments(appts);
+          setUnavailabilityRules(rules || []);
+          setLayoutConfig(company.layoutConfig);
+          setBusinessHours(company.businessHours);
+          setOnlineConfig(company.onlineBookingConfig);
+        } else {
+          setLoadError('Clínica não encontrada');
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        setLoadError('Erro ao carregar dados da clínica');
+      }
+
       setLoading(false);
+    };
+
+    loadCompanyData();
+  }, [slug]);
+
+  // Preenche dados do paciente quando está logado
+  useEffect(() => {
+    if (isLoggedInPatient && user) {
+      setPatientData(prev => ({
+        ...prev,
+        name: user.name || prev.name,
+        email: user.email || prev.email,
+      }));
     }
-  }, [companyId, getPublicData]);
+  }, [isLoggedInPatient, user]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50">Carregando...</div>;
-  if (!companyName) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">Clínica não encontrada.</div>;
+  if (loadError || !companyName) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">{loadError || 'Clínica não encontrada.'}</div>;
 
   const isDarkBackground = (hex?: string) => {
     if (!hex) return false;
@@ -89,11 +138,27 @@ const PublicBooking: React.FC = () => {
   };
 
   const customStyles = getCustomStyles();
-  const primaryColor = layoutConfig?.primaryColor || '#bd7b65'; 
-  const textColor = layoutConfig?.textColor || (isDark ? '#ffffff' : '#1e293b'); 
+  const primaryColor = layoutConfig?.primaryColor || '#bd7b65';
+  const textColor = layoutConfig?.textColor || (isDark ? '#ffffff' : '#1e293b');
   const cardBgColor = layoutConfig?.cardBackgroundColor || (isDark ? '#171717' : '#ffffff');
   const cardTxtColor = layoutConfig?.cardTextColor || (isDark ? '#e5e5e5' : '#334155');
-  const headerBgColor = layoutConfig?.headerBackgroundColor || (isDark ? '#0a0a0a' : cardBgColor);
+
+  // Função para derivar cor do header a partir do backgroundColor
+  const deriveHeaderColor = (bgColor?: string): string => {
+    if (!bgColor) return isDark ? '#0a0a0a' : '#ffffff';
+    const hex = bgColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    // Se fundo escuro, header fica um pouco mais claro. Se claro, fica mais escuro.
+    const adjustment = isDark ? 15 : -10;
+    const newR = Math.min(255, Math.max(0, r + adjustment));
+    const newG = Math.min(255, Math.max(0, g + adjustment));
+    const newB = Math.min(255, Math.max(0, b + adjustment));
+    return `rgb(${newR}, ${newG}, ${newB})`;
+  };
+
+  const headerBgColor = layoutConfig?.headerBackgroundColor || deriveHeaderColor(layoutConfig?.backgroundColor);
   const headerTxtColor = layoutConfig?.headerTextColor || textColor;
 
   const cardStyle = { 
@@ -207,41 +272,63 @@ const PublicBooking: React.FC = () => {
     return slots;
   };
 
-  const handleBooking = (e: React.FormEvent) => {
+  const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
 
-    // Validação de senha antes de prosseguir
-    if (patientData.password !== patientData.confirmPassword) {
+    // Validação de senha apenas para novos pacientes (não logados)
+    if (!isLoggedInPatient && patientData.password !== patientData.confirmPassword) {
       setBookingError("As senhas informadas não coincidem. Por favor, verifique.");
       return;
     }
 
     if (!selectedProcedure || !selectedTimeSlot || !companyId) return;
+
     try {
-        const [hours, minutes] = selectedTimeSlot.split(':').map(Number);
-        const isoDate = new Date(selectedDate);
-        isoDate.setHours(hours, minutes, 0, 0);
-        const finalPro = selectedProfessional || professionals[0];
-        const result = addAppointment({
-            patientId: `temp-${Date.now()}`, 
-            patientName: patientData.name,
-            professionalId: finalPro.id,
-            professionalName: finalPro.name,
-            service: selectedProcedure.name,
-            price: selectedProcedure.price,
-            durationMinutes: selectedProcedure.durationMinutes,
-            date: isoDate.toISOString(),
-            status: 'pending_approval',
-            roomId: 0 
-        }, true, companyId, {
+      const [hours, minutes] = selectedTimeSlot.split(':').map(Number);
+      const isoDate = new Date(selectedDate);
+      isoDate.setHours(hours, minutes, 0, 0);
+      const finalPro = selectedProfessional || professionals[0];
+
+      let result;
+
+      if (isLoggedInPatient) {
+        // Paciente logado: usar API autenticada
+        // O backend vai buscar o patientId pelo email do usuário logado
+        result = await appointmentsApi.create({
+          patientId: '', // O backend vai sobrescrever com o ID correto
+          procedureId: selectedProcedure.id,
+          professionalId: finalPro.id,
+          date: isoDate.toISOString(),
+          durationMinutes: selectedProcedure.durationMinutes,
+          price: selectedProcedure.price,
+          notes: `Agendamento via portal - ${patientData.phone || user?.email}`,
+        });
+      } else {
+        // Novo paciente: usar API pública
+        result = await appointmentsApi.createPublic({
+          companyId,
+          procedureId: selectedProcedure.id,
+          professionalId: finalPro.id,
+          date: isoDate.toISOString(),
+          patientInfo: {
+            name: patientData.name,
             email: patientData.email,
             phone: patientData.phone,
-            password: patientData.password 
+            password: patientData.password,
+          },
         });
-        if (result.success) setBookingSuccess(true);
-        else setBookingError(result.error || "Desculpe, este horário não está disponível.");
-    } catch (err) { setBookingError("Erro ao processar sua solicitação."); }
+      }
+
+      if (result.success) {
+        setBookingSuccess(true);
+      } else {
+        setBookingError(result.error || "Desculpe, este horário não está disponível.");
+      }
+    } catch (err) {
+      console.error('Erro ao agendar:', err);
+      setBookingError("Erro ao processar sua solicitação.");
+    }
   };
 
   const changeDate = (days: number) => {
@@ -328,7 +415,36 @@ const PublicBooking: React.FC = () => {
            {companyLogo ? <img src={companyLogo} alt={companyName} className="h-9 w-auto max-w-[140px] object-contain" /> : <AuraLogo className="w-9 h-9" />}
            <span className="font-serif font-bold truncate max-w-[200px] text-lg">{companyName}</span>
         </div>
-        {step > 1 && <button onClick={() => setStep(step - 1)} className="text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 px-5 py-2 hover:bg-white/5 rounded-full transition-all border border-transparent hover:border-white/10">Voltar</button>}
+        <div className="flex items-center gap-3">
+          {step > 1 && <button onClick={() => setStep(step - 1)} className="text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 px-5 py-2 hover:bg-white/5 rounded-full transition-all border border-transparent hover:border-white/10">Voltar</button>}
+          {isLoggedInPatient ? (
+            <Link
+              to={`${getPortalBasePath()}/minha-conta`}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all hover:scale-105"
+              style={{
+                backgroundColor: primaryColor,
+                color: '#ffffff',
+                boxShadow: `0 4px 14px -3px ${primaryColor}66`
+              }}
+            >
+              <UserIcon className="w-4 h-4" />
+              <span>{user?.name?.split(' ')[0]}</span>
+            </Link>
+          ) : (
+            <Link
+              to={`${getPortalBasePath()}/login`}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all hover:scale-105"
+              style={{
+                backgroundColor: primaryColor,
+                color: '#ffffff',
+                boxShadow: `0 4px 14px -3px ${primaryColor}66`
+              }}
+            >
+              <UserIcon className="w-4 h-4" />
+              <span>Entrar</span>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto p-4 pb-24 relative z-10">
@@ -438,7 +554,18 @@ const PublicBooking: React.FC = () => {
 
         {step === 4 && (
             <div className="space-y-10 animate-fade-in max-w-xl mx-auto py-6">
-                <h2 className="text-4xl font-serif font-bold text-center" style={headingStyle}>Dados Pessoais</h2>
+                <h2 className="text-4xl font-serif font-bold text-center" style={headingStyle}>
+                    {isLoggedInPatient ? 'Confirmar Agendamento' : 'Dados Pessoais'}
+                </h2>
+
+                {/* Aviso para paciente logado */}
+                {isLoggedInPatient && (
+                    <div className="p-4 rounded-2xl flex items-center gap-3 text-sm" style={{ backgroundColor: `${primaryColor}15`, color: primaryColor }}>
+                        <CheckCircle className="w-5 h-5 shrink-0" />
+                        <span>Você está logado como <strong>{user?.name}</strong>. Seu agendamento ficará pendente até aprovação.</span>
+                    </div>
+                )}
+
                 <div className="p-10 rounded-[3rem] border border-dashed text-sm mb-12 glass-card shadow-inner" style={{ ...cardStyle, borderLeft: `10px solid ${primaryColor}`, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
                     <p className="font-bold text-3xl mb-2" style={headingStyle}>{selectedProcedure?.name}</p>
                     <p className="opacity-70 text-xl font-medium" style={descriptionStyle}>{selectedDate.toLocaleDateString()} às {selectedTimeSlot}</p>
@@ -446,7 +573,16 @@ const PublicBooking: React.FC = () => {
                 <form onSubmit={handleBooking} className="space-y-6">
                     <div>
                         <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Nome Completo</label>
-                        <input required type="text" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} placeholder="Ex: Maria Oliveira" value={patientData.name} onChange={e => setPatientData({...patientData, name: e.target.value})} />
+                        <input
+                            required
+                            type="text"
+                            className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl"
+                            style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44`, opacity: isLoggedInPatient ? 0.7 : 1 } as any}
+                            placeholder="Ex: Maria Oliveira"
+                            value={patientData.name}
+                            onChange={e => setPatientData({...patientData, name: e.target.value})}
+                            readOnly={isLoggedInPatient}
+                        />
                     </div>
                     <div>
                         <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>WhatsApp para Confirmação</label>
@@ -454,19 +590,31 @@ const PublicBooking: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>E-mail Principal</label>
-                        <input required type="email" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} placeholder="seu@email.com" value={patientData.email} onChange={e => setPatientData({...patientData, email: e.target.value})} />
+                        <input
+                            required
+                            type="email"
+                            className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl"
+                            style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44`, opacity: isLoggedInPatient ? 0.7 : 1 } as any}
+                            placeholder="seu@email.com"
+                            value={patientData.email}
+                            onChange={e => setPatientData({...patientData, email: e.target.value})}
+                            readOnly={isLoggedInPatient}
+                        />
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Sua Senha</label>
-                            <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} value={patientData.password} onChange={e => setPatientData({...patientData, password: e.target.value})} />
+
+                    {/* Campos de senha apenas para novos pacientes */}
+                    {!isLoggedInPatient && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Sua Senha</label>
+                                <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} value={patientData.password} onChange={e => setPatientData({...patientData, password: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Confirmar Senha</label>
+                                <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} value={patientData.confirmPassword} onChange={e => setPatientData({...patientData, confirmPassword: e.target.value})} />
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Confirmar Senha</label>
-                            <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} value={patientData.confirmPassword} onChange={e => setPatientData({...patientData, confirmPassword: e.target.value})} />
-                        </div>
-                    </div>
+                    )}
 
                     {bookingError && (
                         <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-[1.5rem] flex items-center gap-3 text-rose-500 text-sm animate-fade-in font-bold">
@@ -474,16 +622,16 @@ const PublicBooking: React.FC = () => {
                             {bookingError}
                         </div>
                     )}
-                    
-                    <button 
-                        type="submit" 
-                        className="w-full py-6 mt-12 font-bold text-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-transform text-white shadow-2xl" 
+
+                    <button
+                        type="submit"
+                        className="w-full py-6 mt-12 font-bold text-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-transform text-white shadow-2xl"
                         style={{ backgroundColor: '#16a34a', borderRadius: '2rem', boxShadow: '0 20px 40px -10px rgba(22,163,74,0.4)' }}
                     >
                         Solicitar Agendamento <ArrowRight className="w-6 h-6" />
                     </button>
 
-                    <p 
+                    <p
                         className="text-[11px] text-center font-bold uppercase tracking-tight px-12 leading-relaxed mt-6"
                         style={{ color: isDark ? primaryColor : '#64748b' }}
                     >

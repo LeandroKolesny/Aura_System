@@ -1,17 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { InventoryModal } from '../components/Modals';
 import { InventoryItem } from '../types';
-import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Filter } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Filter, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
 
 const Inventory: React.FC = () => {
-  const { inventory, removeInventoryItem, isReadOnly } = useApp();
+  const { inventory, removeInventoryItem, isReadOnly, loadInventory, loadingStates } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
+
+  // Lazy loading
+  useEffect(() => {
+    loadInventory();
+  }, [loadInventory]);
 
   const filteredItems = inventory.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -36,6 +41,18 @@ const Inventory: React.FC = () => {
       setEditingItem(undefined);
       setIsModalOpen(false);
   };
+
+  // Loading state
+  if (loadingStates.inventory && inventory.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Carregando estoque...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

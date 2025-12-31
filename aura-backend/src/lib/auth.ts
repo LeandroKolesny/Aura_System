@@ -151,3 +151,15 @@ export function clearUserCache(token?: string): void {
   }
 }
 
+/**
+ * Verifica autenticacao e retorna resultado estruturado
+ * Usado por APIs que precisam verificar auth de forma simples
+ */
+export async function verifyAuth(request: NextRequest): Promise<{ success: boolean; user: AuthUser | null }> {
+  const user = await getAuthUser(request);
+  return {
+    success: user !== null,
+    user,
+  };
+}
+
