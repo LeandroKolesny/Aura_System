@@ -7,6 +7,7 @@ import { UserRole, Procedure } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatUtils';
 import { ProceduresSkeleton } from '../components/LoadingSkeleton';
+import { getPortalBasePath, isPatientPortal } from '../utils/subdomain';
 
 const Procedures: React.FC = () => {
   const { procedures, user, removeProcedure, isReadOnly, loadProcedures, loadInventory, loadingStates } = useApp();
@@ -27,7 +28,10 @@ const Procedures: React.FC = () => {
 
   const handleCardClick = (proc: Procedure) => {
     if (isPatient) {
-        navigate('/schedule', { state: { procedureId: proc.id } });
+        // No portal do paciente, usa path dinâmico baseado no slug da clínica
+        const basePath = getPortalBasePath();
+        const schedulePath = isPatientPortal() ? `${basePath}/agendamentos` : '/schedule';
+        navigate(schedulePath, { state: { procedureId: proc.id, procedureName: proc.name } });
     } else if (canEdit) {
         handleEdit(proc);
     }

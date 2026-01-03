@@ -1,8 +1,12 @@
 // Guard para rotas exclusivas do OWNER (King)
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "./auth";
+import { getAuthUser, AuthUser } from "./auth";
 
-export async function requireOwner(request: NextRequest) {
+type OwnerGuardResult =
+  | { authorized: false; response: NextResponse; user: null }
+  | { authorized: true; response: null; user: AuthUser };
+
+export async function requireOwner(request: NextRequest): Promise<OwnerGuardResult> {
   const user = await getAuthUser(request);
 
   if (!user) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool } from 'lucide-react';
+import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool, Loader2 } from 'lucide-react';
 import { Patient, Appointment, UserRole, User, Procedure, Supply, PhotoRecord, SystemAlert, BusinessHours, InventoryItem } from '../types';
 import { useApp } from '../context/AppContext';
 import { maskCpf, maskPhone, validateCPF, validateBirthDate } from '../utils/maskUtils';
@@ -705,14 +705,19 @@ export const InventoryModal: React.FC<{ onClose: () => void; initialData?: Inven
   );
 };
 
+// Constantes de validação de upload
+const MAX_FILE_SIZE_MB = 5; // Tamanho máximo em MB
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg'];
+
 export const NewPhotoModal: React.FC<{
-  patientId: string; 
-  onClose: () => void; 
-  initialType: 'before' | 'after'; 
-  initialProcedure: string; 
+  patientId: string;
+  onClose: () => void;
+  initialType: 'before' | 'after';
+  initialProcedure: string;
   lockFields: boolean;
   initialGroupId?: string;
-  availableProcedures?: string[]; 
+  availableProcedures?: string[];
 }> = ({ patientId, onClose, initialType, initialProcedure, lockFields, initialGroupId, availableProcedures }) => {
   const { addPhoto } = useApp();
   const [url, setUrl] = useState('');
@@ -720,45 +725,90 @@ export const NewPhotoModal: React.FC<{
   const [procedure, setProcedure] = useState(initialProcedure || '');
   const [type, setType] = useState<'before' | 'after'>(initialType);
   const [groupId] = useState(initialGroupId || `group_${Date.now()}`);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setUrl(reader.result as string);
-      reader.readAsDataURL(file);
+    setUploadError(null);
+
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setUploadError('Só é permitido enviar imagens (JPEG, PNG, GIF ou WebP).');
+      e.target.value = ''; // Limpa o input
+      return;
     }
+
+    // Validar tamanho do arquivo
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setUploadError(`Arquivo muito grande. Tamanho máximo: ${MAX_FILE_SIZE_MB}MB.`);
+      e.target.value = ''; // Limpa o input
+      return;
+    }
+
+    // Arquivo válido - converter para base64
+    const reader = new FileReader();
+    reader.onloadend = () => setUrl(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url || !procedure) return;
-    addPhoto({ patientId, date, url, type, procedure, groupId });
-    onClose();
+    if (!url || !procedure || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await addPhoto({ patientId, date, url, type, procedure, groupId });
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar foto:', error);
+      setIsSaving(false);
+    }
   };
 
   return (
     <BaseModal title="Registrar Evolução Fotográfica" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex justify-center mb-6">
+        <div className="flex flex-col items-center mb-6">
           <div className="relative group">
-            <div className={`w-64 h-64 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50 ${!url ? 'hover:bg-slate-100' : ''}`}>
+            <div className={`w-64 h-64 rounded-2xl border-2 border-dashed ${uploadError ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-slate-50'} flex items-center justify-center overflow-hidden ${!url ? 'hover:bg-slate-100' : ''}`}>
               {url ? <img src={url} alt="Evolução" className="w-full h-full object-cover" /> : (
                 <div className="text-center text-slate-400">
                   <Camera className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm font-bold uppercase tracking-wider">Selecionar Foto</p>
+                  <p className="text-xs mt-1 opacity-60">Máx. {MAX_FILE_SIZE_MB}MB</p>
                 </div>
               )}
             </div>
-            <label className="absolute inset-0 cursor-pointer opacity-0"><input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} /></label>
+            <label className={`absolute inset-0 ${isSaving ? 'cursor-not-allowed' : 'cursor-pointer'} opacity-0`}><input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isSaving} /></label>
           </div>
+          {uploadError && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-600 text-sm max-w-xs">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{uploadError}</span>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Procedimento Referente</label>{availableProcedures && availableProcedures.length > 0 ? (<select required className="w-full p-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50 disabled:text-slate-500 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields}><option value="">Selecione o procedimento realizado...</option>{availableProcedures.map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input required type="text" className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" placeholder="Ex: Preenchimento Labial" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields} />)}</div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">Data do Registro</label><input required type="date" className="w-full p-2 border border-slate-200 rounded-lg" value={date} onChange={e => setDate(e.target.value)} /></div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">Fase</label><select className="w-full p-2 border border-slate-200 rounded-lg bg-white" value={type} onChange={e => setType(e.target.value as any)} disabled={lockFields}><option value="before">Antes do Procedimento</option><option value="after">Depois / Resultado</option></select></div>
+          <div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Procedimento Referente</label>{availableProcedures && availableProcedures.length > 0 ? (<select required className="w-full p-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50 disabled:text-slate-500 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields || isSaving}><option value="">Selecione o procedimento realizado...</option>{availableProcedures.map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input required type="text" className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" placeholder="Ex: Preenchimento Labial" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields || isSaving} />)}</div>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">Data do Registro</label><input required type="date" className="w-full p-2 border border-slate-200 rounded-lg disabled:bg-slate-50" value={date} onChange={e => setDate(e.target.value)} disabled={isSaving} /></div>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">Fase</label><select className="w-full p-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50" value={type} onChange={e => setType(e.target.value as any)} disabled={lockFields || isSaving}><option value="before">Antes do Procedimento</option><option value="after">Depois / Resultado</option></select></div>
         </div>
-        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold" disabled={!url}>Salvar Foto</button></div>
+        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50" disabled={isSaving}>Cancelar</button>
+          <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 min-w-[120px] justify-center" disabled={!url || isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              'Salvar Foto'
+            )}
+          </button>
+        </div>
       </form>
     </BaseModal>
   );

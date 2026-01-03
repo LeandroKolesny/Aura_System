@@ -1,12 +1,13 @@
 // apps/PatientPortalApp.tsx
-// Aplicação do Portal do Paciente
+// Aplicação do Portal do Paciente - Responsivo
 
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
 import { ClinicProvider, useClinic } from '../context/ClinicContext';
 import { AppProvider, useApp } from '../context/AppContext';
 import { UserRole, PublicLayoutConfig } from '../types';
 import { getPortalBasePath } from '../utils/subdomain';
+import { Menu } from 'lucide-react';
 
 // Páginas reutilizadas
 import PublicBooking from '../pages/PublicBooking';
@@ -63,6 +64,7 @@ const PatientPortalLayout: React.FC = () => {
   const { user } = useApp();
   const { clinic } = useClinic();
   const basePath = getPortalBasePath();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Se não está logado, redireciona para login do portal
   if (!user) {
@@ -77,7 +79,9 @@ const PatientPortalLayout: React.FC = () => {
   // Cores do layout
   const layoutConfig = clinic?.layoutConfig;
   const backgroundColor = layoutConfig?.backgroundColor || '#fafaf9';
+  const primaryColor = layoutConfig?.primaryColor || '#8b5cf6';
   const isDark = isDarkBackground(backgroundColor);
+  const mainTextColor = layoutConfig?.textColor || (isDark ? '#f5f5f5' : '#1e293b');
 
   const mainStyle: React.CSSProperties = {
     backgroundColor: backgroundColor,
@@ -85,10 +89,35 @@ const PatientPortalLayout: React.FC = () => {
 
   return (
     <div className="flex min-h-screen" style={mainStyle}>
-      <PatientSidebar />
-      <main className="flex-1 ml-64 p-8">
-        <div className="max-w-[1200px] mx-auto">
-          <Outlet />
+      <PatientSidebar isMobileOpen={isMobileMenuOpen} onMobileClose={() => setIsMobileMenuOpen(false)} />
+
+      {/* Main content - responsivo */}
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+        {/* Header Mobile com Hamburger */}
+        <div
+          className="lg:hidden px-4 py-3 flex items-center justify-between sticky top-0 z-30 border-b"
+          style={{
+            backgroundColor: backgroundColor,
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+          }}
+        >
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 rounded-lg transition-colors"
+            style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}
+          >
+            <Menu className="w-6 h-6" style={{ color: mainTextColor }} />
+          </button>
+          <span className="font-semibold" style={{ color: mainTextColor }}>
+            {clinic?.name || 'Portal'}
+          </span>
+          <div className="w-10" />
+        </div>
+
+        <div className="flex-1 p-4 lg:p-8">
+          <div className="max-w-[1200px] mx-auto">
+            <Outlet />
+          </div>
         </div>
       </main>
     </div>
@@ -113,11 +142,12 @@ const ClinicWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 // Rotas do portal
 const PatientPortalRoutes: React.FC<{ clinicSlug: string }> = ({ clinicSlug }) => {
   const basePath = getPortalBasePath();
-  const isLocalhost = window.location.host.includes('localhost');
+  const host = window.location.host;
 
-  // Em localhost: rotas incluem o slug no path (/clinica-aura/login)
-  // Em produção: rotas são diretas (/login) pois o slug está no subdomínio
-  const prefix = isLocalhost ? `/${clinicSlug}` : '';
+  // Localhost e Vercel usam path-based routing (/clinica-aura/login)
+  // Produção com domínio próprio usa subdomínio (clinica-aura.dominio.com/login)
+  const usePathBasedRouting = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('vercel.app');
+  const prefix = usePathBasedRouting ? `/${clinicSlug}` : '';
 
   return (
     <Routes>

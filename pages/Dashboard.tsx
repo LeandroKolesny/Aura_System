@@ -457,54 +457,54 @@ const ClinicDashboard: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-amber-400/20 via-transparent to-rose-400/20 animate-pulse"></div>
               <div className="relative bg-white rounded-[22px] overflow-hidden">
                   {/* Header com gradiente */}
-                  <div className="relative px-6 py-5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
+                  <div className="relative px-4 lg:px-6 py-4 lg:py-5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
                       <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-3 lg:gap-4">
                               <div className="relative">
-                                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                                      <UserPlus className="w-6 h-6 text-white" />
+                                  <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                                      <UserPlus className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
                                   </div>
-                                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center animate-bounce">
-                                      <span className="text-[10px] text-white font-bold">{pendingApprovals.length}</span>
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-red-500 rounded-full flex items-center justify-center animate-bounce">
+                                      <span className="text-[8px] lg:text-[10px] text-white font-bold">{pendingApprovals.length}</span>
                                   </div>
                               </div>
                               <div>
-                                  <h3 className="text-lg font-bold text-slate-800">Novas Solicitações</h3>
-                                  <p className="text-sm text-slate-500">Clientes aguardando sua aprovação</p>
+                                  <h3 className="text-base lg:text-lg font-bold text-slate-800">Novas Solicitações</h3>
+                                  <p className="text-xs lg:text-sm text-slate-500">Clientes aguardando aprovação</p>
                               </div>
                           </div>
-                          <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-amber-100/50 rounded-full">
+                          <div className="hidden sm:flex items-center gap-2 px-3 lg:px-4 py-1.5 lg:py-2 bg-amber-100/50 rounded-full">
                               <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
-                              <span className="text-xs font-semibold text-amber-700">Ação necessária</span>
+                              <span className="text-[10px] lg:text-xs font-semibold text-amber-700">Ação necessária</span>
                           </div>
                       </div>
                   </div>
 
                   {/* Lista de solicitações */}
-                  <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="p-3 lg:p-4 space-y-3 max-h-[400px] overflow-y-auto">
                       {pendingApprovals.map((appt, index) => (
                           <div
                               key={appt.id}
-                              className="group relative bg-gradient-to-r from-slate-50 to-white p-5 rounded-2xl border border-slate-100 hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100 transition-all duration-300"
+                              className="group relative bg-gradient-to-r from-slate-50 to-white p-3 lg:p-5 rounded-xl lg:rounded-2xl border border-slate-100 hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100 transition-all duration-300"
                               style={{ animationDelay: `${index * 100}ms` }}
                           >
-                              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                              <div className="flex flex-col gap-3 lg:gap-4">
                                   {/* Info do paciente */}
-                                  <div className="flex items-center gap-4 flex-1">
-                                      <div className="relative">
-                                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-primary-500/30">
+                                  <div className="flex items-center gap-3 lg:gap-4 flex-1">
+                                      <div className="relative shrink-0">
+                                          <div className="w-10 h-10 lg:w-14 lg:h-14 rounded-xl lg:rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-base lg:text-xl font-bold shadow-lg shadow-primary-500/30">
                                               {appt.patientName.charAt(0).toUpperCase()}
                                           </div>
-                                          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center border-2 border-white">
-                                              <Clock className="w-3 h-3 text-white" />
+                                          <div className="absolute -bottom-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-amber-400 rounded-full flex items-center justify-center border-2 border-white">
+                                              <Clock className="w-2 h-2 lg:w-3 lg:h-3 text-white" />
                                           </div>
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                          <p className="font-bold text-slate-800 text-base truncate">{appt.patientName}</p>
-                                          <p className="text-sm text-primary-600 font-medium">{appt.service}</p>
-                                          <div className="flex items-center gap-2 mt-1">
-                                              <CalendarCheck className="w-3.5 h-3.5 text-slate-400" />
-                                              <span className="text-xs text-slate-500">
+                                          <p className="font-bold text-slate-800 text-sm lg:text-base truncate">{appt.patientName}</p>
+                                          <p className="text-xs lg:text-sm text-primary-600 font-medium truncate">{appt.service}</p>
+                                          <div className="flex items-center gap-1.5 lg:gap-2 mt-0.5 lg:mt-1">
+                                              <CalendarCheck className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-slate-400 shrink-0" />
+                                              <span className="text-[10px] lg:text-xs text-slate-500 truncate">
                                                   {new Date(appt.date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })} às {new Date(appt.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                               </span>
                                           </div>
@@ -512,27 +512,27 @@ const ClinicDashboard: React.FC = () => {
                                   </div>
 
                                   {/* Botões de ação */}
-                                  <div className="flex items-center gap-3 lg:pl-4 lg:border-l lg:border-slate-100">
+                                  <div className="flex items-center gap-2 lg:gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 lg:pl-4 lg:border-l border-slate-100">
                                       <button
                                           onClick={() => updateAppointmentStatus(appt.id, 'canceled')}
-                                          className="flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 hover:border-red-200 transition-all duration-200"
+                                          className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 lg:gap-2 px-3 lg:px-5 py-2 lg:py-2.5 text-xs lg:text-sm font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg lg:rounded-xl border border-slate-200 hover:border-red-200 transition-all duration-200"
                                       >
-                                          <XCircle className="w-4 h-4" />
+                                          <XCircle className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
                                           <span>Recusar</span>
                                       </button>
                                       <button
                                           onClick={() => handleQuickApprove(appt)}
                                           disabled={approvingId === appt.id}
-                                          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                          className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 lg:gap-2 px-3 lg:px-6 py-2 lg:py-2.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white text-xs lg:text-sm font-bold rounded-lg lg:rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                           {approvingId === appt.id ? (
                                               <>
-                                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                                  <RefreshCw className="w-3.5 h-3.5 lg:w-4 lg:h-4 animate-spin" />
                                                   <span>Aprovando...</span>
                                               </>
                                           ) : (
                                               <>
-                                                  <CheckCircle className="w-4 h-4" />
+                                                  <CheckCircle className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
                                                   <span>Aprovar</span>
                                               </>
                                           )}
@@ -569,32 +569,32 @@ const ClinicDashboard: React.FC = () => {
         <StatCard title="Taxa de Cancelamento" value={`${kpis.cancelRate}%`} icon={UserCheck} color="bg-indigo-500" subtitle="Performance" />
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><History className="w-6 h-6" /></div>
-              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Agendamentos</p><p className="text-xl font-bold text-slate-800">{kpis.appointmentsTotal}</p></div>
+      <div className="bg-white p-4 lg:p-6 rounded-xl lg:rounded-2xl border border-slate-200 shadow-sm grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
+          <div className="flex items-center gap-2 lg:gap-4">
+              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100 shrink-0"><History className="w-5 h-5 lg:w-6 lg:h-6" /></div>
+              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Agendamentos</p><p className="text-lg lg:text-xl font-bold text-slate-800">{kpis.appointmentsTotal}</p></div>
           </div>
-          <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500 border border-green-100"><CheckCircle className="w-6 h-6" /></div>
-              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Confirmadas</p><p className="text-xl font-bold text-slate-800">{kpis.appointmentsConfirmed}</p></div>
+          <div className="flex items-center gap-2 lg:gap-4">
+              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500 border border-green-100 shrink-0"><CheckCircle className="w-5 h-5 lg:w-6 lg:h-6" /></div>
+              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Confirmadas</p><p className="text-lg lg:text-xl font-bold text-slate-800">{kpis.appointmentsConfirmed}</p></div>
           </div>
-          <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100"><XCircle className="w-6 h-6" /></div>
-              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Canceladas</p><p className="text-xl font-bold text-slate-800">{kpis.appointmentsCanceled}</p></div>
+          <div className="flex items-center gap-2 lg:gap-4">
+              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100 shrink-0"><XCircle className="w-5 h-5 lg:w-6 lg:h-6" /></div>
+              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Canceladas</p><p className="text-lg lg:text-xl font-bold text-slate-800">{kpis.appointmentsCanceled}</p></div>
           </div>
-          <div className="flex items-center gap-4 bg-slate-50 rounded-xl p-3 border border-slate-100">
-              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Taxa de Falta</p><p className={`text-xl font-bold ${kpis.cancelRate > 20 ? 'text-red-600' : 'text-slate-800'}`}>{kpis.cancelRate}%</p></div>
+          <div className="flex items-center gap-2 lg:gap-4 bg-slate-50 rounded-lg lg:rounded-xl p-2 lg:p-3 border border-slate-100">
+              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Taxa de Falta</p><p className={`text-lg lg:text-xl font-bold ${kpis.cancelRate > 20 ? 'text-red-600' : 'text-slate-800'}`}>{kpis.cancelRate}%</p></div>
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div className="lg:col-span-2 bg-white p-4 lg:p-6 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-primary-500 opacity-20"></div>
-          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary-500" /> Histórico de Receita</h3>
+          <h3 className="text-base lg:text-lg font-bold text-slate-800 mb-4 lg:mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 lg:w-5 lg:h-5 text-primary-500" /> Histórico de Receita</h3>
           <SimpleRevenueChart data={charts.revenueChart} />
         </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Procedimentos Populares</h3>
+        <div className="bg-white p-4 lg:p-6 rounded-xl border border-slate-100 shadow-sm">
+          <h3 className="text-base lg:text-lg font-bold text-slate-800 mb-4 lg:mb-6">Procedimentos Populares</h3>
           <SimpleBarChart data={charts.topProcedures} />
         </div>
       </div>

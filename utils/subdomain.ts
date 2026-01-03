@@ -52,7 +52,8 @@ function extractSlugFromPath(pathname: string): string | null {
 /**
  * Detecta o slug da clínica baseado no ambiente:
  * - LOCALHOST: usa o PATH (/clinica-aura/...)
- * - PRODUÇÃO: usa o SUBDOMÍNIO (clinica-aura.aurasystem.com)
+ * - VERCEL (free): usa o PATH (/clinica-aura/...)
+ * - PRODUÇÃO com domínio próprio: usa o SUBDOMÍNIO (clinica-aura.aurasystem.com)
  *
  * @returns O slug da clínica ou null se for o sistema admin
  */
@@ -62,12 +63,13 @@ export function getClinicSlug(): string | null {
   const host = window.location.host;
   const pathname = window.location.pathname;
 
-  // LOCALHOST - detecta pelo PATH
-  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+  // LOCALHOST ou VERCEL - detecta pelo PATH
+  // Vercel free não suporta wildcard subdomains, então usamos path-based
+  if (host.includes('localhost') || host.includes('127.0.0.1') || host.includes('vercel.app')) {
     return extractSlugFromPath(pathname);
   }
 
-  // PRODUÇÃO - detecta pelo SUBDOMÍNIO
+  // PRODUÇÃO com domínio próprio - detecta pelo SUBDOMÍNIO
   // Ex: clinica-aura.aurasystem.com → "clinica-aura"
   // Ex: www.aurasystem.com → null
   // Ex: aurasystem.com → null
@@ -100,21 +102,21 @@ export function isAdminSystem(): boolean {
 
 /**
  * Retorna o base path para links internos do portal
- * - LOCALHOST: /clinica-aura
- * - PRODUÇÃO: "" (vazio, pois o slug está no subdomínio)
+ * - LOCALHOST/VERCEL: /clinica-aura
+ * - PRODUÇÃO com domínio próprio: "" (vazio, pois o slug está no subdomínio)
  */
 export function getPortalBasePath(): string {
   if (typeof window === 'undefined') return '';
 
   const host = window.location.host;
 
-  // Em localhost, o base path inclui o slug
-  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+  // Em localhost ou Vercel, o base path inclui o slug
+  if (host.includes('localhost') || host.includes('127.0.0.1') || host.includes('vercel.app')) {
     const slug = getClinicSlug();
     return slug ? `/${slug}` : '';
   }
 
-  // Em produção, não precisa de base path (slug está no subdomínio)
+  // Em produção com domínio próprio, não precisa de base path (slug está no subdomínio)
   return '';
 }
 
@@ -129,12 +131,12 @@ export function getPortalUrl(slug: string, path: string = ''): string {
   const host = window.location.host;
   const protocol = window.location.protocol;
 
-  // LOCALHOST - usa path
-  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+  // LOCALHOST ou VERCEL - usa path
+  if (host.includes('localhost') || host.includes('127.0.0.1') || host.includes('vercel.app')) {
     return `${protocol}//${host}/${slug}${path}`;
   }
 
-  // PRODUÇÃO - usa subdomínio
+  // PRODUÇÃO com domínio próprio - usa subdomínio
   // Extrai o domínio base (remove www se existir)
   const parts = host.split('.');
   let baseDomain: string;
@@ -152,7 +154,7 @@ export function getPortalUrl(slug: string, path: string = ''): string {
 }
 
 /**
- * Remove o prefixo do slug do pathname (para uso em localhost)
+ * Remove o prefixo do slug do pathname (para uso em localhost/Vercel)
  * Ex: /clinica-aura/login → /login
  */
 export function getPathWithoutSlug(pathname: string): string {
@@ -162,8 +164,8 @@ export function getPathWithoutSlug(pathname: string): string {
 
   const host = window.location.host;
 
-  // Só remove o prefixo em localhost
-  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+  // Remove o prefixo em localhost ou Vercel (path-based routing)
+  if (host.includes('localhost') || host.includes('127.0.0.1') || host.includes('vercel.app')) {
     const prefix = `/${slug}`;
     if (pathname.startsWith(prefix)) {
       const newPath = pathname.slice(prefix.length);

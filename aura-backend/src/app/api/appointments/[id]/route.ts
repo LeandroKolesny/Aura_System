@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         patient: true,
         professional: { select: { id: true, name: true, email: true, phone: true } },
         procedure: true,
-        transaction: true,
+        transactions: true,
       },
     });
 

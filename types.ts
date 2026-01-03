@@ -119,6 +119,7 @@ export interface User {
   avatar?: string;
   phone?: string;
   isActive?: boolean; // Status do usuário
+  patientId?: string; // Para usuários com role PATIENT, referência ao registro Patient
 
   title?: string;
   contractType?: 'CLT' | 'PJ' | 'Freelancer';

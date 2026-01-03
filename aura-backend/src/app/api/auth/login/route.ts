@@ -130,9 +130,25 @@ export async function POST(request: NextRequest) {
     // Remover senha da resposta
     const { password: _, ...userWithoutPassword } = user;
 
+    // Para pacientes, buscar o patientId correspondente
+    let patientId = null;
+    if (user.role === "PATIENT") {
+      const patientRecord = await prisma.patient.findFirst({
+        where: {
+          email: user.email,
+          companyId: user.company?.id,
+        },
+        select: { id: true },
+      });
+      patientId = patientRecord?.id || null;
+    }
+
     const response = NextResponse.json({
       message: "Login realizado com sucesso!",
-      user: userWithoutPassword,
+      user: {
+        ...userWithoutPassword,
+        patientId, // Incluir patientId para pacientes
+      },
       token,
     });
 

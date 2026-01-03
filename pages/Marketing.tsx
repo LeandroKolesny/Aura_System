@@ -1,10 +1,10 @@
-
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Sparkles, Zap, MessageCircle, RefreshCw, DollarSign, Filter, Search, Share2, Check, Crown, AlertTriangle, XCircle, TrendingUp, Building, ArrowRight, ArrowUpRight, Copy, X } from 'lucide-react';
 import { generateReturnMessage, generateRetentionMessage } from '../services/geminiService';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
 import { UserRole } from '../types';
+import { UpgradeOverlay } from '../components/UpgradeOverlay';
 
 // --- COMPONENTE 1: VISÃO DA CLÍNICA (Admin/Staff) ---
 const ClinicMarketing: React.FC = () => {
@@ -676,13 +676,22 @@ const SaaSMarketing: React.FC = () => {
 
 // --- MAIN COMPONENT ---
 const Marketing: React.FC = () => {
-  const { user } = useApp();
+  const { user, checkModuleAccess } = useApp();
 
-  if (user?.role === UserRole.OWNER) {
-    return <SaaSMarketing />;
+  // Verifica tanto ai_features quanto crm - precisa de um dos dois
+  const hasMarketingAccess = checkModuleAccess('ai_features') || checkModuleAccess('crm');
+
+  const content = user?.role === UserRole.OWNER ? <SaaSMarketing /> : <ClinicMarketing />;
+
+  if (!hasMarketingAccess) {
+    return (
+      <UpgradeOverlay message="Ative a versão Pro ou superior para acessar Pós-vendas / Marketing com IA.">
+        {content}
+      </UpgradeOverlay>
+    );
   }
 
-  return <ClinicMarketing />;
+  return content;
 };
 
 export default Marketing;

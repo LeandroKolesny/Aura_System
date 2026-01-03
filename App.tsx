@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { getClinicSlug } from './utils/subdomain';
 import PatientPortalApp from './apps/PatientPortalApp';
@@ -39,12 +39,13 @@ import KingRevenue from './pages/king/KingRevenue';
 import KingSettings from './pages/king/KingSettings';
 import { AppProvider, useApp } from './context/AppContext';
 import { UserRole } from './types';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Menu } from 'lucide-react';
 import { SubscriptionModal } from './components/Modals';
 
 const PrivateLayout: React.FC = () => {
   const { user, isReadOnly, currentCompany, isSubscriptionModalOpen, setIsSubscriptionModalOpen } = useApp();
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -69,29 +70,43 @@ const PrivateLayout: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <Sidebar />
-      <main className="flex-1 ml-64 flex flex-col h-screen relative">
-        
+      <Sidebar isMobileOpen={isMobileMenuOpen} onMobileClose={() => setIsMobileMenuOpen(false)} />
+
+      {/* Main content - responsivo: sem margem no mobile, com margem no desktop */}
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen relative">
+
+        {/* Header Mobile com Hamburger */}
+        <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            <Menu className="w-6 h-6 text-slate-700" />
+          </button>
+          <span className="font-semibold text-slate-800">{currentCompany?.name || 'Aura System'}</span>
+          <div className="w-10" /> {/* Spacer para centralizar o título */}
+        </div>
+
         {/* Banner de Aviso para Plano Expirado / Básico (Apenas para Staff) */}
         {isReadOnly && user.role !== UserRole.OWNER && user.role !== UserRole.PATIENT && (
-            <div className="bg-red-600 text-white px-6 py-2 text-sm font-medium flex items-center justify-between shadow-md z-50">
+            <div className="bg-red-600 text-white px-4 lg:px-6 py-2 text-xs lg:text-sm font-medium flex items-center justify-between shadow-md z-20">
                 <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>
-                        {currentCompany?.plan === 'basic' ? 'Seu plano expirou.' : 'Modo de Leitura.'} 
-                        Você pode visualizar os dados, mas não pode criar ou editar registros.
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span className="line-clamp-2">
+                        {currentCompany?.plan === 'basic' ? 'Plano expirado.' : 'Modo Leitura.'}
+                        <span className="hidden sm:inline"> Você pode visualizar os dados, mas não pode criar ou editar registros.</span>
                     </span>
                 </div>
-                <button 
+                <button
                     onClick={() => setIsSubscriptionModalOpen(true)}
-                    className="bg-white text-red-600 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide hover:bg-red-50 transition-colors"
+                    className="bg-white text-red-600 px-2 lg:px-3 py-1 rounded text-[10px] lg:text-xs font-bold uppercase tracking-wide hover:bg-red-50 transition-colors shrink-0"
                 >
-                    Renovar Agora
+                    Renovar
                 </button>
             </div>
         )}
 
-        <div className="flex-1 p-8 overflow-y-auto">
+        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
             <div className="max-w-[1600px] mx-auto">
                 <Outlet />
             </div>

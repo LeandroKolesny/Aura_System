@@ -5,18 +5,28 @@ import { NewAppointmentModal, CheckoutModal, ReviewAppointmentModal, PatientAppo
 import { Appointment, UserRole, AppNotification } from '../types';
 import { isWithinBusinessHours, getUnavailabilityRule } from '../utils/availabilityUtils';
 import { APPOINTMENT_VISUAL_CONFIG } from '../utils/statusUtils';
+import { useLocation } from 'react-router-dom';
 
 const Schedule: React.FC = () => {
   const { appointments, professionals, patients, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead, loadAppointments, loadPatients, loadProcedures, loadingStates } = useApp();
+  const location = useLocation();
 
-  // Para pacientes logados, encontrar seu patientId pelo email
+  // Ler procedureId do state (vindo da página de procedimentos)
+  const preSelectedProcedureId = (location.state as { procedureId?: string })?.procedureId;
+
+  // Para pacientes logados, usar o patientId do user (vem do login)
   const currentPatientId = useMemo(() => {
-    if (user?.role === UserRole.PATIENT && user?.email) {
-      const patientRecord = patients.find(p => p.email === user.email);
-      return patientRecord?.id || null;
+    if (user?.role === UserRole.PATIENT) {
+      return user.patientId || null;
     }
     return null;
-  }, [user, patients]);
+  }, [user]);
+
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState<string>('all');
+  const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [preSelectedTime, setPreSelectedTime] = useState<Date | undefined>(undefined);
 
   // Lazy loading: carregar dados quando a página montar
   useEffect(() => {
@@ -24,11 +34,13 @@ const Schedule: React.FC = () => {
     loadPatients();
     loadProcedures();
   }, [loadAppointments, loadPatients, loadProcedures]);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedProfessionalId, setSelectedProfessionalId] = useState<string>('all');
-  const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [preSelectedTime, setPreSelectedTime] = useState<Date | undefined>(undefined);
+
+  // Se veio da página de procedimentos com um procedimento selecionado, abrir modal automaticamente
+  useEffect(() => {
+    if (preSelectedProcedureId) {
+      setIsNewAppointmentModalOpen(true);
+    }
+  }, [preSelectedProcedureId]);
 
   const changeDate = (days: number) => {
     const newDate = new Date(selectedDate);
@@ -122,25 +134,33 @@ const Schedule: React.FC = () => {
           const unavRule = getUnavailabilityRule(dateRef, unavailabilityRules, selectedProfessionalId);
           const isBlocked = !!unavRule;
 
+          // Verificar se é horário passado (para pacientes, bloquear agendamentos no passado)
+          const now = new Date();
+          const isPastTime = dateRef.getTime() < now.getTime();
+
           const hourAppointments = filteredAppointments.filter(appt => {
               const apptStart = new Date(appt.date).getTime();
               const apptEnd = apptStart + (appt.durationMinutes * 60000);
               return Math.max(hourStart, apptStart) < Math.min(hourEnd, apptEnd);
           });
 
+          // Determinar se o slot está disponível para clique
+          const isClickable = isBusinessHour && !isBlocked && !isPastTime && !isReadOnly;
+
           return (
-            <div key={hour} className={`flex min-h-[80px] border-b border-slate-100 relative ${!isBusinessHour ? 'bg-slate-50/50' : isBlocked ? 'bg-red-50/40' : ''}`}>
-              <div className="w-16 py-2 text-xs font-medium text-slate-400 text-center border-r border-slate-100 flex flex-col justify-between">
+            <div key={hour} className={`flex min-h-[80px] border-b border-slate-100 relative ${!isBusinessHour ? 'bg-slate-50/50' : isBlocked ? 'bg-red-50/40' : isPastTime ? 'bg-slate-100/60' : ''}`}>
+              <div className={`w-16 py-2 text-xs font-medium text-center border-r border-slate-100 flex flex-col justify-between ${isPastTime ? 'text-slate-300' : 'text-slate-400'}`}>
                 <span>{hour.toString().padStart(2, '0')}:00</span>
               </div>
-              
-              <div className="flex-1 p-2 relative group" onClick={() => {
-                    if (isReadOnly || isBlocked || !isBusinessHour) return;
+
+              <div className={`flex-1 p-2 relative group ${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={() => {
+                    if (!isClickable) return;
                     setPreSelectedTime(dateRef);
                     setIsNewAppointmentModalOpen(true);
                 }}>
                 {!isBusinessHour && <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-slate-50/30"><span className="text-[10px] text-slate-300 font-medium uppercase tracking-widest -rotate-12 select-none">Fechado</span></div>}
                 {isBlocked && <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(254, 202, 202, 0.2) 0, rgba(254, 202, 202, 0.2) 10px, transparent 10px, transparent 20px)' }}><div className="bg-white/90 px-3 py-1 rounded-full border border-red-100 shadow-sm flex items-center gap-1.5"><AlertCircle className="w-3 h-3 text-red-500" /><span className="text-xs text-red-600 font-medium">{unavRule?.description || 'Indisponível'}</span></div></div>}
+                {isPastTime && isBusinessHour && !isBlocked && <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-slate-100/40"><span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest -rotate-12 select-none opacity-50">Passado</span></div>}
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 relative z-10 h-full">
                     {hourAppointments.map(appt => {
@@ -186,7 +206,7 @@ const Schedule: React.FC = () => {
                         );
                     })}
                 </div>
-                {isBusinessHour && !isBlocked && !isReadOnly && hourAppointments.length === 0 && <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="bg-primary-50 text-primary-600 rounded-full p-1 shadow-sm"><Plus className="w-4 h-4" /></button></div>}
+                {isClickable && hourAppointments.length === 0 && <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="bg-primary-50 text-primary-600 rounded-full p-1 shadow-sm"><Plus className="w-4 h-4" /></button></div>}
               </div>
             </div>
           );
@@ -279,7 +299,7 @@ const Schedule: React.FC = () => {
             <div className="flex-1 overflow-y-auto custom-scrollbar p-1">{renderDayView()}</div>
         </div>
 
-        {isNewAppointmentModalOpen && !isReadOnly && <NewAppointmentModal onClose={() => setIsNewAppointmentModalOpen(false)} preSelectedDate={preSelectedTime || selectedDate} preSelectedProfessionalId={selectedProfessionalId} />}
+        {isNewAppointmentModalOpen && !isReadOnly && <NewAppointmentModal onClose={() => setIsNewAppointmentModalOpen(false)} preSelectedDate={preSelectedTime || selectedDate} preSelectedProfessionalId={selectedProfessionalId} preSelectedProcedureId={preSelectedProcedureId} />}
         
         {selectedAppointment && (
             isPatient ? (

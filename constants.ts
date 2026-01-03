@@ -9,13 +9,28 @@ export const SAAS_COMPANY_NAME = "Aura System";
 export const PLAN_PERMISSIONS: Record<PlanType, SystemModule[]> = {
     // Basic: Plano Expirado. Vê tudo para não perder histórico, mas Context bloqueia escrita (Read Only)
     basic: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'multi_user', 'reports', 'inventory'],
-    // Free: Agora é TRIAL (15 dias) - Acesso Total
-    free: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'multi_user', 'reports', 'inventory'],
+    // Free/Trial: Acesso limitado - sem reports, marketing (crm), suporte
+    free: ['online_booking', 'financial', 'inventory'],
     starter: ['online_booking', 'financial', 'support', 'inventory'],
-    pro: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'inventory'],
+    pro: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'inventory', 'reports'],
     clinic: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'multi_user', 'reports', 'inventory'],
     // Premium: Acesso Total (Plano Máximo)
     premium: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'multi_user', 'reports', 'inventory']
+};
+
+// --- LIMITES DE QUANTIDADE POR PLANO ---
+export interface PlanLimits {
+    maxPatients: number;      // Máximo de pacientes (-1 = ilimitado)
+    maxProfessionals: number; // Máximo de profissionais (-1 = ilimitado)
+}
+
+export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
+    basic: { maxPatients: 50, maxProfessionals: 1 },     // Plano expirado - limite mínimo
+    free: { maxPatients: 100, maxProfessionals: 1 },     // Trial - 100 pacientes, 1 profissional
+    starter: { maxPatients: 200, maxProfessionals: 2 },  // Starter - 200 pacientes, 2 profissionais
+    pro: { maxPatients: -1, maxProfessionals: 3 },       // Pro - ilimitado pacientes, 3 profissionais
+    clinic: { maxPatients: -1, maxProfessionals: -1 },   // Clinic - tudo ilimitado
+    premium: { maxPatients: -1, maxProfessionals: -1 },  // Premium - tudo ilimitado
 };
 
 export const PAYMENT_METHODS_LIST = [

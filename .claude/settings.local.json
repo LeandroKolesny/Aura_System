@@ -13,7 +13,11 @@
       "Bash(npx ts-node:*)",
       "Bash(npx prisma db execute:*)",
       "Bash(cat:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(vercel --prod:*)",
+      "Bash(VITE_API_URL=https://aura-backend-api.vercel.app vercel:*)",
+      "Bash(vercel env:*)"
     ]
   }
 }

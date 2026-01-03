@@ -26,6 +26,10 @@ export async function GET(request: NextRequest) {
 
     if (role) {
       where.role = role;
+    } else {
+      // Por padrão, excluir PATIENT da listagem de usuários/profissionais
+      // Pacientes são gerenciados pela tabela Patient separadamente
+      where.role = { not: "PATIENT" };
     }
 
     const users = await prisma.user.findMany({

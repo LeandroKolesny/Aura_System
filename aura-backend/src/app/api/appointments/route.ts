@@ -112,16 +112,19 @@ export async function GET(request: NextRequest) {
     if (patientId) where.patientId = patientId;
     if (status && status !== "all") where.status = status;
 
-    // Se for paciente, só ver seus próprios agendamentos
+    // Para pacientes: buscar TODOS os agendamentos (para mostrar slots ocupados)
+    // mas anonimizar dados de outros pacientes
+    let currentPatientId: string | null = null;
     if (user.role === "PATIENT") {
-      // Buscar paciente vinculado ao usuário
-      const patient = await prisma.patient.findFirst({
+      const patientRecord = await prisma.patient.findFirst({
         where: { email: user.email, companyId: user.companyId },
+        select: { id: true },
       });
-      if (patient) where.patientId = patient.id;
+      currentPatientId = patientRecord?.id || null;
+      // NÃO filtra por patientId - queremos ver todos para mostrar ocupados
     }
 
-    const [appointments, total] = await Promise.all([
+    const [allAppointments, total] = await Promise.all([
       prisma.appointment.findMany({
         where,
         skip,
@@ -150,6 +153,27 @@ export async function GET(request: NextRequest) {
       }),
       prisma.appointment.count({ where }),
     ]);
+
+    // Para pacientes, anonimizar dados de outros pacientes
+    let appointments: typeof allAppointments = allAppointments;
+    if (user.role === "PATIENT" && currentPatientId) {
+      appointments = allAppointments.map((appt) => {
+        if (appt.patientId === currentPatientId) {
+          // Próprio agendamento - retorna todos os dados
+          return appt;
+        } else {
+          // Agendamento de outro paciente - anonimiza dados sensíveis
+          // Mantém os campos obrigatórios mas oculta informações sensíveis
+          return {
+            ...appt,
+            patient: { id: appt.patientId, name: "Ocupado", phone: "", email: "" },
+            notes: "",
+            signatureUrl: "",
+            signatureMetadata: {},
+          };
+        }
+      });
+    }
 
     // Cache por 15 segundos (dados dinâmicos)
     return createCachedResponse({

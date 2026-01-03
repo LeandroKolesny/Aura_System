@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { ArrowRight, Lock, User, ArrowLeft, Building, Phone, Users, Mail, AlertTriangle, CheckCircle, Wrench } from 'lucide-react';
+import { ArrowRight, Lock, User, ArrowLeft, Building, Phone, Users, Mail, AlertTriangle, CheckCircle, Wrench, Loader2, MapPin } from 'lucide-react';
 import AuraLogo from '../components/AuraLogo';
 import { UserRole } from '../types';
 import { maskPhone } from '../utils/maskUtils';
@@ -44,6 +44,7 @@ const Login: React.FC = () => {
   const [regData, setRegData] = useState({
     name: '', // Novo campo
     companyName: '',
+    state: '', // Estado (UF)
     email: '',
     phone: '',
     professionalsCount: '1',
@@ -86,7 +87,9 @@ const Login: React.FC = () => {
       }
   }, [user, navigate]);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const [isRegistering2, setIsRegistering2] = useState(false); // Loading state para registro
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
@@ -101,25 +104,34 @@ const Login: React.FC = () => {
     }
 
     if (regData.email && regData.password && regData.companyName && regData.name) {
+      setIsRegistering2(true);
       try {
         // Cria uma nova empresa e o usuário admin dessa empresa com o nome correto
-        registerCompany(regData.companyName, {
+        const result = await registerCompany(regData.companyName, {
             name: regData.name,
             email: regData.email,
             password: regData.password,
-            phone: regData.phone
+            phone: regData.phone,
+            state: regData.state || undefined
         });
-        
+
+        if (!result.success) {
+          setLoginError(result.error || 'Erro ao criar a conta. Tente novamente.');
+          setIsRegistering2(false);
+          return;
+        }
+
         // Sucesso: Voltar para tela de login e mostrar mensagem
         setIsRegistering(false);
         setRegisterSuccess('Conta criada com sucesso! Faça login para continuar.');
         setEmail(regData.email); // Preenche o email automaticamente para facilitar
         setPassword(''); // Limpa a senha por segurança
-        
+
         // Limpa form de registro
         setRegData({
             name: '',
             companyName: '',
+            state: '',
             email: '',
             phone: '',
             professionalsCount: '1',
@@ -129,6 +141,8 @@ const Login: React.FC = () => {
 
       } catch (err) {
         setLoginError('Ocorreu um erro ao criar a conta. Tente novamente.');
+      } finally {
+        setIsRegistering2(false);
       }
     }
   };
@@ -215,18 +229,60 @@ const Login: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Sua empresa</label>
-                <div className="relative">
-                  <Building className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input 
-                    type="text" 
-                    required
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
-                    placeholder="Nome da sua clínica"
-                    value={regData.companyName}
-                    onChange={(e) => setRegData({...regData, companyName: e.target.value})}
-                  />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Sua empresa</label>
+                  <div className="relative">
+                    <Building className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
+                      placeholder="Nome da sua clínica"
+                      value={regData.companyName}
+                      onChange={(e) => setRegData({...regData, companyName: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Estado</label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <select
+                      className="w-full pl-10 pr-2 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm appearance-none"
+                      value={regData.state}
+                      onChange={(e) => setRegData({...regData, state: e.target.value})}
+                    >
+                      <option value="">UF</option>
+                      <option value="AC">AC</option>
+                      <option value="AL">AL</option>
+                      <option value="AP">AP</option>
+                      <option value="AM">AM</option>
+                      <option value="BA">BA</option>
+                      <option value="CE">CE</option>
+                      <option value="DF">DF</option>
+                      <option value="ES">ES</option>
+                      <option value="GO">GO</option>
+                      <option value="MA">MA</option>
+                      <option value="MT">MT</option>
+                      <option value="MS">MS</option>
+                      <option value="MG">MG</option>
+                      <option value="PA">PA</option>
+                      <option value="PB">PB</option>
+                      <option value="PR">PR</option>
+                      <option value="PE">PE</option>
+                      <option value="PI">PI</option>
+                      <option value="RJ">RJ</option>
+                      <option value="RN">RN</option>
+                      <option value="RS">RS</option>
+                      <option value="RO">RO</option>
+                      <option value="RR">RR</option>
+                      <option value="SC">SC</option>
+                      <option value="SP">SP</option>
+                      <option value="SE">SE</option>
+                      <option value="TO">TO</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -324,14 +380,22 @@ const Login: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={maintenanceMode}
+                disabled={maintenanceMode || isRegistering2}
                 className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all mt-2 ${
-                  maintenanceMode
+                  maintenanceMode || isRegistering2
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30 transform hover:-translate-y-0.5'
                 }`}
               >
-                <User className="w-4 h-4" /> {maintenanceMode ? 'Indisponivel' : 'Criar conta'}
+                {isRegistering2 ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Criando conta...
+                  </>
+                ) : (
+                  <>
+                    <User className="w-4 h-4" /> {maintenanceMode ? 'Indisponível' : 'Criar conta'}
+                  </>
+                )}
               </button>
 
               <div className="text-center mt-4">

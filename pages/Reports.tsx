@@ -10,6 +10,7 @@ import { formatCurrency } from '../utils/formatUtils';
 import { UserRole } from '../types';
 import { RevenueAreaChart, MetricDonutChart, HorizontalBarChart, KPICard, MiniSparkline } from '../components/charts';
 import { ReportsSkeleton } from '../components/LoadingSkeleton';
+import { UpgradeOverlay } from '../components/UpgradeOverlay';
 
 // --- COMPONENTES AUXILIARES MODERNOS ---
 
@@ -119,8 +120,10 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 const Reports: React.FC = () => {
   const {
     companies, saasPlans, patients, appointments, transactions, procedures, professionals, user, currentCompany,
-    loadPatients, loadAppointments, loadTransactions, loadProcedures, loadProfessionals, loadingStates
+    loadPatients, loadAppointments, loadTransactions, loadProcedures, loadProfessionals, loadingStates, checkModuleAccess
   } = useApp();
+
+  const hasReportsAccess = checkModuleAccess('reports');
   // State Initialization - Hook 1
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
   const [timeRange, setTimeRange] = useState<string>('6m');
@@ -563,7 +566,7 @@ const Reports: React.FC = () => {
 
   const roleLabel = isOwner ? 'Global Admin' : (currentCompany?.name || 'Gestão da Clínica');
 
-  return (
+  const reportsContent = (
     <div className="space-y-8 pb-12 animate-in fade-in duration-500">
       {/* HEADER MODERNO */}
       <div className="relative overflow-hidden">
@@ -1051,6 +1054,16 @@ const Reports: React.FC = () => {
       </section>
     </div>
   );
+
+  if (!hasReportsAccess) {
+    return (
+      <UpgradeOverlay message="Ative a versão Pro ou superior para acessar Relatórios de Inteligência.">
+        {reportsContent}
+      </UpgradeOverlay>
+    );
+  }
+
+  return reportsContent;
 };
 
 export default Reports;

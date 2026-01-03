@@ -4,8 +4,8 @@ import { requireOwner } from "@/lib/kingGuard";
 import { queryCompanies } from "@/lib/queries";
 
 export async function GET(request: NextRequest) {
-  const { authorized, response } = await requireOwner(request);
-  if (!authorized) return response;
+  const result = await requireOwner(request);
+  if (!result.authorized) return result.response;
 
   try {
     const { searchParams } = new URL(request.url);

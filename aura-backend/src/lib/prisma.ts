@@ -5,18 +5,13 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 // Configuração otimizada para Vercel/Serverless
-// - pool timeout maior para evitar erros de conexão
-// - connection limit otimizado para serverless
-const prismaClientOptions = {
-  log: process.env.NODE_ENV === "development"
-    ? ["error", "warn"] as const  // Removido "query" para menos overhead
-    : ["error"] as const,
-  // Configurações de datasource são passadas via URL
-};
-
 export const prisma =
   globalForPrisma.prisma ??
-  new PrismaClient(prismaClientOptions);
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development"
+      ? ["error", "warn"]
+      : ["error"],
+  });
 
 // Em development, reutilizar conexão para evitar hot-reload criar muitas conexões
 if (process.env.NODE_ENV !== "production") {

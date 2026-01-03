@@ -448,31 +448,31 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
       </div>
 
       <div className="max-w-3xl mx-auto p-4 pb-24 relative z-10">
-        <div className="flex gap-2 mb-14 mt-6 px-12">
+        <div className="flex gap-2 mb-8 lg:mb-14 mt-4 lg:mt-6 px-4 lg:px-12">
             {[1, 2, 3, 4].map(i => (
                 <div key={i} className="h-1 flex-1 rounded-full transition-all duration-700" style={{ backgroundColor: step >= i ? primaryColor : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)') }}></div>
             ))}
         </div>
 
         {step === 1 && (
-            <div className="space-y-10 animate-fade-in text-center">
-                <div className="mb-12">
-                    <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4" style={headingStyle}>Escolha o tratamento</h2>
-                    <p className="text-lg font-light" style={descriptionStyle}>Selecione um dos nossos procedimentos premium.</p>
+            <div className="space-y-6 lg:space-y-10 animate-fade-in text-center">
+                <div className="mb-6 lg:mb-12">
+                    <h2 className="text-2xl lg:text-4xl xl:text-5xl font-serif font-bold mb-2 lg:mb-4" style={headingStyle}>Escolha o tratamento</h2>
+                    <p className="text-sm lg:text-lg font-light" style={descriptionStyle}>Selecione um dos nossos procedimentos premium.</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-8">
                     {procedures.map(proc => (
-                        <div key={proc.id} onClick={() => { setSelectedProcedure(proc); setStep(2); }} className={`group relative overflow-hidden rounded-[3rem] h-72 border shadow-2xl hover:shadow-primary-500/20 transition-all duration-500 cursor-pointer bg-black/40 glass-card`}>
+                        <div key={proc.id} onClick={() => { setSelectedProcedure(proc); setStep(2); }} className={`group relative overflow-hidden rounded-2xl lg:rounded-[3rem] h-48 lg:h-72 border shadow-xl lg:shadow-2xl hover:shadow-primary-500/20 transition-all duration-500 cursor-pointer bg-black/40 glass-card`}>
                             {proc.imageUrl ? (
                                 <><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 group-hover:from-black/70 transition-all"></div><img src={proc.imageUrl} alt={proc.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s]" /></>
                             ) : (
                                 <div className="absolute inset-0 z-0" style={{ background: `linear-gradient(135deg, #121212, ${primaryColor}44)` }}></div>
                             )}
-                            <div className="relative z-20 h-full p-10 flex flex-col justify-end text-left text-white">
-                                <h3 className="font-serif font-bold text-2xl leading-tight mb-4 drop-shadow-md">{proc.name}</h3>
-                                <div className="flex items-center gap-4 text-white/95 text-[10px] font-bold uppercase tracking-widest">
-                                    <span className="bg-white/10 backdrop-blur-xl px-4 py-2 rounded-full flex items-center gap-2 border border-white/10"><Clock className="w-3.5 h-3.5 text-primary-400" /> {proc.durationMinutes} min</span>
-                                    <span className="px-4 py-2 rounded-full shadow-xl" style={{ backgroundColor: primaryColor }}>{formatCurrency(proc.price)}</span>
+                            <div className="relative z-20 h-full p-4 lg:p-10 flex flex-col justify-end text-left text-white">
+                                <h3 className="font-serif font-bold text-lg lg:text-2xl leading-tight mb-2 lg:mb-4 drop-shadow-md">{proc.name}</h3>
+                                <div className="flex items-center gap-2 lg:gap-4 text-white/95 text-[9px] lg:text-[10px] font-bold uppercase tracking-wider lg:tracking-widest">
+                                    <span className="bg-white/10 backdrop-blur-xl px-2 lg:px-4 py-1.5 lg:py-2 rounded-full flex items-center gap-1.5 lg:gap-2 border border-white/10"><Clock className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-primary-400" /> {proc.durationMinutes} min</span>
+                                    <span className="px-2 lg:px-4 py-1.5 lg:py-2 rounded-full shadow-xl" style={{ backgroundColor: primaryColor }}>{formatCurrency(proc.price)}</span>
                                 </div>
                             </div>
                         </div>
@@ -482,20 +482,20 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
         )}
 
         {step === 2 && (
-            <div className="space-y-10 animate-fade-in text-center py-10">
-                <h2 className="text-4xl font-serif font-bold mb-4" style={headingStyle}>Qual especialista?</h2>
-                <p className="mb-14 text-lg font-light" style={descriptionStyle}>Selecione seu especialista de preferência.</p>
-                <div className="grid grid-cols-2 gap-6 md:gap-10">
-                    <div onClick={() => { setSelectedProfessional(null); setStep(3); }} className="p-10 rounded-[3rem] border shadow-2xl cursor-pointer hover:shadow-primary-500/10 transition-all duration-500 group glass-card relative overflow-hidden" style={cardStyle}>
+            <div className="space-y-6 lg:space-y-10 animate-fade-in text-center py-6 lg:py-10">
+                <h2 className="text-2xl lg:text-4xl font-serif font-bold mb-2 lg:mb-4" style={headingStyle}>Qual especialista?</h2>
+                <p className="mb-8 lg:mb-14 text-sm lg:text-lg font-light" style={descriptionStyle}>Selecione seu especialista de preferência.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-10">
+                    <div onClick={() => { setSelectedProfessional(null); setStep(3); }} className="p-5 lg:p-10 rounded-2xl lg:rounded-[3rem] border shadow-xl lg:shadow-2xl cursor-pointer hover:shadow-primary-500/10 transition-all duration-500 group glass-card relative overflow-hidden" style={cardStyle}>
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 text-white shadow-lg group-hover:scale-110 transition-transform bg-gradient-to-br from-slate-700 to-slate-900" style={{ backgroundColor: primaryColor }}><Star className="w-8 h-8" /></div>
-                        <h3 className="font-bold text-xl">Próximo disponível</h3>
+                        <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full flex items-center justify-center mx-auto mb-3 lg:mb-6 text-white shadow-lg group-hover:scale-110 transition-transform bg-gradient-to-br from-slate-700 to-slate-900" style={{ backgroundColor: primaryColor }}><Star className="w-5 h-5 lg:w-8 lg:h-8" /></div>
+                        <h3 className="font-bold text-base lg:text-xl">Próximo disponível</h3>
                     </div>
                     {professionals.map(pro => (
-                        <div key={pro.id} onClick={() => { setSelectedProfessional(pro); setStep(3); }} className="p-10 rounded-[3rem] border shadow-2xl cursor-pointer hover:shadow-primary-500/10 transition-all duration-500 group glass-card relative overflow-hidden" style={cardStyle}>
+                        <div key={pro.id} onClick={() => { setSelectedProfessional(pro); setStep(3); }} className="p-5 lg:p-10 rounded-2xl lg:rounded-[3rem] border shadow-xl lg:shadow-2xl cursor-pointer hover:shadow-primary-500/10 transition-all duration-500 group glass-card relative overflow-hidden" style={cardStyle}>
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 font-bold text-2xl shadow-inner group-hover:scale-110 transition-transform" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', color: cardTxtColor, border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'transparent'}` }}>{pro.name.charAt(0)}</div>
-                            <h3 className="font-bold text-xl truncate">{pro.name}</h3>
+                            <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full flex items-center justify-center mx-auto mb-3 lg:mb-6 font-bold text-lg lg:text-2xl shadow-inner group-hover:scale-110 transition-transform" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', color: cardTxtColor, border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'transparent'}` }}>{pro.name.charAt(0)}</div>
+                            <h3 className="font-bold text-sm lg:text-xl leading-tight">{pro.name}</h3>
                         </div>
                     ))}
                 </div>
@@ -503,48 +503,48 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
         )}
 
         {step === 3 && (
-            <div className="space-y-10 animate-fade-in">
-                <h2 className="text-4xl font-serif font-bold text-center" style={headingStyle}>Escolha o melhor horário</h2>
-                <div className="p-8 rounded-[2.5rem] border shadow-2xl flex items-center justify-between glass-card mb-10" style={cardStyle}>
-                     <button onClick={() => changeDate(-1)} disabled={isTodayDate} className={`p-5 rounded-full transition-all ${isTodayDate ? 'opacity-10 cursor-not-allowed' : 'hover:bg-white/5 active:scale-90 border border-white/5'}`}><ChevronLeft className="w-8 h-8" /></button>
+            <div className="space-y-6 lg:space-y-10 animate-fade-in">
+                <h2 className="text-2xl lg:text-4xl font-serif font-bold text-center" style={headingStyle}>Escolha o melhor horário</h2>
+                <div className="p-4 lg:p-8 rounded-2xl lg:rounded-[2.5rem] border shadow-xl lg:shadow-2xl flex items-center justify-between glass-card mb-6 lg:mb-10" style={cardStyle}>
+                     <button onClick={() => changeDate(-1)} disabled={isTodayDate} className={`p-2 lg:p-5 rounded-full transition-all ${isTodayDate ? 'opacity-10 cursor-not-allowed' : 'hover:bg-white/5 active:scale-90 border border-white/5'}`}><ChevronLeft className="w-5 h-5 lg:w-8 lg:h-8" /></button>
                      <div className="text-center flex-1 relative cursor-pointer group">
                          <div className="pointer-events-none group-hover:scale-105 transition-transform">
-                             <p className="text-[10px] font-bold uppercase tracking-[0.4em] opacity-40 mb-3">{selectedDate.getFullYear()}</p>
-                             <p className="text-2xl font-bold capitalize flex items-center justify-center gap-3">{selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' })} <CalendarIcon className="w-5 h-5 text-primary-500" /></p>
+                             <p className="text-[8px] lg:text-[10px] font-bold uppercase tracking-[0.3em] lg:tracking-[0.4em] opacity-40 mb-1 lg:mb-3">{selectedDate.getFullYear()}</p>
+                             <p className="text-base lg:text-2xl font-bold capitalize flex items-center justify-center gap-2 lg:gap-3">{selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' })} <CalendarIcon className="w-4 h-4 lg:w-5 lg:h-5 text-primary-500" /></p>
                          </div>
                          <input type="date" className="custom-date-input" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 }} value={selectedDate.toISOString().split('T')[0]} onChange={handleDirectDateChange} />
                      </div>
-                     <button onClick={() => changeDate(1)} disabled={isMaxDateReached()} className={`p-5 rounded-full transition-all ${isMaxDateReached() ? 'opacity-10 cursor-not-allowed' : 'hover:bg-white/5 active:scale-90 border border-white/5'}`}><ChevronRight className="w-8 h-8" /></button>
+                     <button onClick={() => changeDate(1)} disabled={isMaxDateReached()} className={`p-2 lg:p-5 rounded-full transition-all ${isMaxDateReached() ? 'opacity-10 cursor-not-allowed' : 'hover:bg-white/5 active:scale-90 border border-white/5'}`}><ChevronRight className="w-5 h-5 lg:w-8 lg:h-8" /></button>
                 </div>
 
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-6">
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3 lg:gap-6">
                     {getAvailableSlots().map(slot => (
                         <button
                             key={slot.time}
                             onClick={() => slot.available && setSelectedTimeSlot(slot.time)}
                             disabled={!slot.available}
-                            className={`py-6 rounded-[1.5rem] border text-sm font-bold transition-all relative flex flex-col items-center justify-center overflow-hidden shadow-sm
-                                ${!slot.available 
-                                    ? 'bg-red-500/10 border-red-500/30 text-rose-500 cursor-not-allowed' 
+                            className={`py-3 lg:py-6 rounded-xl lg:rounded-[1.5rem] border text-xs lg:text-sm font-bold transition-all relative flex flex-col items-center justify-center overflow-hidden shadow-sm
+                                ${!slot.available
+                                    ? 'bg-red-500/10 border-red-500/30 text-rose-500 cursor-not-allowed'
                                     : selectedTimeSlot === slot.time
-                                        ? 'text-white shadow-primary-500/40 scale-110 z-10 border-transparent shadow-2xl'
+                                        ? 'text-white shadow-primary-500/40 scale-105 lg:scale-110 z-10 border-transparent shadow-2xl'
                                         : `hover:shadow-md ${isDark ? 'border-white/10 hover:border-white/30 bg-white/5 hover:bg-white/10' : 'border-slate-200 bg-white hover:border-primary-400'}`
                                 }
                             `}
                             style={slot.available && selectedTimeSlot === slot.time ? { backgroundColor: primaryColor } : { color: !slot.available ? '#f43f5e' : cardTxtColor }}
                         >
-                            <span className="text-base tracking-widest">{slot.time}</span>
+                            <span className="text-sm lg:text-base tracking-wider lg:tracking-widest">{slot.time}</span>
                             {!slot.available && (
-                                <span className="text-[9px] font-bold uppercase mt-2 opacity-80 tracking-tighter">Indisponível</span>
+                                <span className="text-[8px] lg:text-[9px] font-bold uppercase mt-1 lg:mt-2 opacity-80 tracking-tighter">Indisponível</span>
                             )}
                         </button>
                     ))}
                 </div>
 
-                <button 
-                    disabled={!selectedTimeSlot} 
-                    onClick={() => setStep(4)} 
-                    className="w-full text-white py-7 rounded-[2.5rem] font-bold text-xl disabled:opacity-30 mt-12 shadow-2xl transition-all active:scale-95 hover:scale-[1.02] btn-glow" 
+                <button
+                    disabled={!selectedTimeSlot}
+                    onClick={() => setStep(4)}
+                    className="w-full text-white py-4 lg:py-7 rounded-2xl lg:rounded-[2.5rem] font-bold text-base lg:text-xl disabled:opacity-30 mt-8 lg:mt-12 shadow-2xl transition-all active:scale-95 hover:scale-[1.02] btn-glow"
                     style={{ backgroundColor: primaryColor, boxShadow: `0 20px 40px -15px ${primaryColor}66` }}
                 >
                     Confirmar Horário Selecionado

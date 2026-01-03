@@ -4,7 +4,7 @@ import {
   PhotoRecord, SaasPlan, Lead, Ticket, SystemAlert, AppNotification,
   UserRole, SystemModule, UnavailabilityRule, LeadStatus, InventoryItem, SignatureMetadata
 } from '../types';
-import { DEFAULT_PLANS, PLAN_PERMISSIONS } from '../constants';
+import { DEFAULT_PLANS, PLAN_PERMISSIONS, PLAN_LIMITS } from '../constants';
 import {
   authApi,
   patientsApi,
@@ -28,7 +28,7 @@ interface AppContextType {
   user: User | null;
   login: (email: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  registerCompany: (companyName: string, adminData: any) => void;
+  registerCompany: (companyName: string, adminData: any) => Promise<{ success: boolean; error?: string }>;
   
   companies: Company[];
   currentCompany: Company | null;
@@ -127,6 +127,7 @@ interface AppContextType {
   loadProcedures: (forceReload?: boolean) => Promise<void>;
   loadProfessionals: (forceReload?: boolean) => Promise<void>;
   loadInventory: (forceReload?: boolean) => Promise<void>;
+  loadPhotos: (patientId?: string, forceReload?: boolean) => Promise<void>;
 
   // Estados de loading individuais
   loadingStates: {
@@ -137,6 +138,7 @@ interface AppContextType {
     professionals: boolean;
     inventory: boolean;
     plans: boolean;
+    photos: boolean;
   };
 
   // Estados de "já carregado" para evitar recarregar
@@ -148,6 +150,7 @@ interface AppContextType {
     professionals: boolean;
     inventory: boolean;
     plans: boolean;
+    photos: boolean;
   };
 }
 
@@ -194,7 +197,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const checkModuleAccess: any = (module: SystemModule): boolean => {
       if (!currentCompany) return false;
       if (user?.role === UserRole.OWNER) return true;
-      const permissions = PLAN_PERMISSIONS[currentCompany.plan] || [];
+      // Normaliza o plano para lowercase para compatibilidade com as constantes
+      const planKey = (currentCompany.plan?.toLowerCase() || 'free') as keyof typeof PLAN_PERMISSIONS;
+      const permissions = PLAN_PERMISSIONS[planKey] || PLAN_PERMISSIONS['free'];
       return permissions.includes(module);
   };
 
@@ -221,6 +226,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     professionals: false,
     inventory: false,
     plans: false,
+    photos: false,
   });
 
   // Estados de "já carregado" para evitar recarregar
@@ -232,6 +238,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     professionals: false,
     inventory: false,
     plans: false,
+    photos: false,
   });
 
   // Helper para atualizar loading state
@@ -256,6 +263,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     professionals: false,
     inventory: false,
     plans: false,
+    photos: false,
   });
 
   const loadedRef = React.useRef({
@@ -266,6 +274,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     professionals: false,
     inventory: false,
     plans: false,
+    photos: false,
   });
 
   const loadPatients = useCallback(async () => {
@@ -454,6 +463,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  const loadPhotos = useCallback(async (patientId?: string, forceReload = false) => {
+    // Se não for forceReload e já carregou, não recarrega
+    if (!forceReload && loadedRef.current.photos) return;
+    if (loadingRef.current.photos) return;
+
+    if (forceReload) {
+      loadedRef.current.photos = false;
+    }
+    loadingRef.current.photos = true;
+    setLoading('photos', true);
+    try {
+      // Sempre carrega todas as fotos da empresa (similar a outros recursos)
+      // O filtro por patientId é feito no frontend
+      const res = await photosApi.list({ limit: 500 });
+      if (res.success && res.data?.photos) {
+        const mapped = res.data.photos.map((p: any) => ({
+          id: p.id,
+          companyId: p.companyId,
+          patientId: p.patientId,
+          url: p.url,
+          type: p.type?.toLowerCase() as 'before' | 'after',
+          procedure: p.procedure,
+          date: p.date,
+          groupId: p.groupId,
+        }));
+        setPhotos(mapped);
+        loadedRef.current.photos = true;
+        setLoaded('photos', true);
+        console.log('✅ Fotos carregadas (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar fotos:', error);
+    } finally {
+      loadingRef.current.photos = false;
+      setLoading('photos', false);
+    }
+  }, []);
+
   const loadPlans = useCallback(async (forceReload = false) => {
     if (!forceReload && (loadedRef.current.plans || loadingRef.current.plans)) return;
     if (forceReload) {
@@ -589,6 +636,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             companyId: apiUser.company?.id || apiUser.companyId,
             avatar: apiUser.avatar,
             isActive: apiUser.isActive ?? true,
+            patientId: apiUser.patientId, // Para pacientes, inclui o ID do registro Patient
           };
 
           // Se tiver dados da empresa, adiciona à lista de companies
@@ -631,9 +679,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('Erro no logout via API:', error);
       }
       // Reset dos refs de lazy loading
-      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false };
-      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false };
-      setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false });
+      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false };
+      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false };
+      setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false });
       // Limpar dados
       setPatients([]);
       setAppointments([]);
@@ -641,59 +689,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setProcedures([]);
       setProfessionals([]);
       setInventory([]);
+      setPhotos([]);
       setCompanies([]);
       setSaasPlans(DEFAULT_PLANS); // Reset para planos padrão
       setUser(null);
       setDismissedAlertIds([]);
   };
 
-  const registerCompany = (companyName: string, adminData: any) => {
-      const newCompanyId = `c_${Date.now()}`;
-      const newCompany: Company = {
-          id: newCompanyId,
-          name: companyName,
-          plan: 'free', // Começa como free/trial
-          subscriptionStatus: 'trial',
-          subscriptionExpiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 dias
-          businessHours: {
-            monday: { isOpen: true, start: '08:00', end: '18:00' },
-            tuesday: { isOpen: true, start: '08:00', end: '18:00' },
-            wednesday: { isOpen: true, start: '08:00', end: '18:00' },
-            thursday: { isOpen: true, start: '08:00', end: '18:00' },
-            friday: { isOpen: true, start: '08:00', end: '18:00' },
-            saturday: { isOpen: true, start: '09:00', end: '13:00' },
-            sunday: { isOpen: false, start: '00:00', end: '00:00' }
-          },
-          onboardingCompleted: false
-      };
-
-      const newAdmin: User = {
-          id: `u_${Date.now()}`,
-          companyId: newCompanyId,
+  const registerCompany = async (companyName: string, adminData: any): Promise<{ success: boolean; error?: string }> => {
+      try {
+        // Chamar API de registro para salvar no banco de dados
+        const response = await authApi.register({
           name: adminData.name,
           email: adminData.email,
           password: adminData.password,
-          role: UserRole.ADMIN,
+          companyName: companyName,
+          state: adminData.state,
+        });
+
+        if (!response.success) {
+          console.error('❌ Erro no registro:', response.error);
+          return { success: false, error: response.error || 'Erro ao criar conta' };
+        }
+
+        console.log('✅ Empresa e usuário criados com sucesso!');
+
+        // Criar lead para o owner acompanhar
+        const newLead: Lead = {
+          id: `l_${Date.now()}`,
+          clinicName: companyName,
+          contactName: adminData.name,
+          email: adminData.email,
           phone: adminData.phone,
-          contractType: 'PJ',
-          remunerationType: 'fixo',
-          commissionRate: 0
-      };
+          status: 'new',
+          value: 0,
+          createdAt: new Date().toISOString()
+        };
+        setLeads(prev => [...prev, newLead]);
 
-      setCompanies(prev => [...prev, newCompany]);
-      setProfessionals(prev => [...prev, newAdmin]);
-
-      const newLead: Lead = {
-        id: `l_${Date.now()}`,
-        clinicName: companyName,
-        contactName: adminData.name,
-        email: adminData.email,
-        phone: adminData.phone,
-        status: 'new', 
-        value: 0, 
-        createdAt: new Date().toISOString()
-      };
-      setLeads(prev => [...prev, newLead]);
+        return { success: true };
+      } catch (error) {
+        console.error('❌ Erro de conexão no registro:', error);
+        return { success: false, error: 'Erro de conexão. Tente novamente.' };
+      }
   };
 
   const updateCompany = async (companyId: string, data: Partial<Company>) => {
@@ -743,6 +781,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // --- Patient Actions (SEMPRE via API) ---
   const addPatient = async (patientData: any) => {
       checkWriteAccess();
+
+      // Verificar limite de pacientes do plano
+      if (currentCompany && user?.role !== UserRole.OWNER) {
+        const planKey = (currentCompany.plan?.toLowerCase() || 'free') as keyof typeof PLAN_LIMITS;
+        const planLimits = PLAN_LIMITS[planKey] || PLAN_LIMITS['free'];
+        const currentPatientCount = patients.filter(p => p.companyId === currentCompany.id).length;
+
+        if (planLimits.maxPatients !== -1 && currentPatientCount >= planLimits.maxPatients) {
+          console.warn(`⚠️ Limite de pacientes atingido: ${currentPatientCount}/${planLimits.maxPatients}`);
+          return {
+            success: false,
+            error: `Limite de pacientes atingido (${planLimits.maxPatients}). Faça upgrade do seu plano para cadastrar mais pacientes.`,
+            limitReached: true
+          };
+        }
+      }
+
       try {
         const result = await patientsApi.create(patientData);
         if (result.success && result.data?.patient) {
@@ -1162,6 +1217,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // --- Professionals (SEMPRE via API) ---
   const addProfessional = async (prof: any) => {
       checkWriteAccess();
+
+      // Verificar limite de profissionais do plano
+      if (currentCompany && user?.role !== UserRole.OWNER) {
+        const planKey = (currentCompany.plan?.toLowerCase() || 'free') as keyof typeof PLAN_LIMITS;
+        const planLimits = PLAN_LIMITS[planKey] || PLAN_LIMITS['free'];
+        const currentProfCount = professionals.filter(p => p.companyId === currentCompany.id).length;
+
+        if (planLimits.maxProfessionals !== -1 && currentProfCount >= planLimits.maxProfessionals) {
+          console.warn(`⚠️ Limite de profissionais atingido: ${currentProfCount}/${planLimits.maxProfessionals}`);
+          return {
+            success: false,
+            error: `Limite de profissionais atingido (${planLimits.maxProfessionals}). Faça upgrade do seu plano para cadastrar mais profissionais.`,
+            limitReached: true
+          };
+        }
+      }
+
       try {
         const response = await usersApi.create(prof);
         if (response.success && response.data?.user) {
@@ -1201,9 +1273,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const response = await photosApi.create(photo);
         if (response.success && response.data?.photo) {
-          setPhotos(prev => [...prev, response.data!.photo]);
-          console.log('✅ Foto criada:', response.data.photo.id);
-          return { success: true, photo: response.data.photo };
+          const p = response.data.photo;
+          // Mapear a foto igual ao loadPhotos para consistência
+          const mappedPhoto: PhotoRecord = {
+            id: p.id,
+            companyId: p.companyId,
+            patientId: p.patientId,
+            url: p.url,
+            type: p.type?.toLowerCase() as 'before' | 'after',
+            procedure: p.procedure,
+            date: p.date,
+            groupId: p.groupId,
+          };
+          setPhotos(prev => [...prev, mappedPhoto]);
+          console.log('✅ Foto criada:', mappedPhoto.id);
+          return { success: true, photo: mappedPhoto };
         }
         console.error('❌ Erro ao criar foto:', response.error);
         return { success: false, error: response.error };
@@ -1676,6 +1760,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       loadProcedures,
       loadProfessionals,
       loadInventory,
+      loadPhotos,
       loadingStates,
       loadedStates
     }}>
