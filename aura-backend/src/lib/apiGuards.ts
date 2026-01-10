@@ -49,11 +49,13 @@ export async function checkModuleAccess(
     return NextResponse.json({ error: "Empresa não encontrada" }, { status: 404 });
   }
 
-  if (!hasModuleAccess(company, module)) {
+  const hasAccess = await hasModuleAccess(company, module);
+  if (!hasAccess) {
+    const errorMessage = await getPlanErrorMessage(company, module);
     return NextResponse.json(
       {
         error: "Acesso negado",
-        message: getPlanErrorMessage(company, module),
+        message: errorMessage,
         code: "MODULE_NOT_AVAILABLE",
       },
       { status: 403 }
@@ -86,10 +88,11 @@ export async function checkWriteAccess(user: AuthUser): Promise<NextResponse | n
   }
 
   if (isReadOnlyMode(company)) {
+    const errorMessage = await getPlanErrorMessage(company);
     return NextResponse.json(
       {
         error: "Modo somente leitura",
-        message: getPlanErrorMessage(company),
+        message: errorMessage,
         code: "READ_ONLY_MODE",
       },
       { status: 403 }
@@ -123,7 +126,8 @@ export async function checkPatientLimit(user: AuthUser): Promise<NextResponse | 
     return NextResponse.json({ error: "Empresa não encontrada" }, { status: 404 });
   }
 
-  if (!canCreatePatient(company, patientCount)) {
+  const canCreate = await canCreatePatient(company, patientCount);
+  if (!canCreate) {
     return NextResponse.json(
       {
         error: "Limite atingido",
@@ -160,7 +164,8 @@ export async function checkProfessionalLimit(user: AuthUser): Promise<NextRespon
     return NextResponse.json({ error: "Empresa não encontrada" }, { status: 404 });
   }
 
-  if (!canCreateProfessional(company, professionalCount)) {
+  const canCreateProf = await canCreateProfessional(company, professionalCount);
+  if (!canCreateProf) {
     return NextResponse.json(
       {
         error: "Limite atingido",

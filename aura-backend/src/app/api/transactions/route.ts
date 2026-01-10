@@ -65,7 +65,20 @@ export async function GET(request: NextRequest) {
         orderBy: { date: "desc" },
         include: {
           patient: { select: { id: true, name: true } },
-          appointment: { select: { id: true, date: true } },
+          appointment: {
+            select: {
+              id: true,
+              date: true,
+              procedure: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  cost: true,
+                }
+              }
+            }
+          },
           professional: { select: { id: true, name: true } },
         },
       }),

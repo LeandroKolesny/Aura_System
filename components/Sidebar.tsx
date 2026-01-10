@@ -100,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
   ];
 
   // Módulos que devem aparecer sempre no menu (bloqueio acontece dentro da página)
-  const alwaysShowModules: SystemModule[] = ['reports', 'crm', 'support', 'ai_features'];
+  const alwaysShowModules: SystemModule[] = ['reports', 'crm', 'support', 'ai_features', 'multi_user'];
 
   const filteredItems = navItems.filter(item => {
     if (!user) return false;
@@ -164,7 +164,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
 
         <aside
             className={`
-              w-64 h-screen fixed left-0 top-0 flex flex-col z-50 text-white shadow-2xl transition-all duration-300
+              w-64 h-screen fixed left-0 top-0 flex flex-col z-[9999] text-white shadow-2xl transition-all duration-300
               ${!isPatient ? 'bg-secondary-900' : ''}
 
               /* Mobile: escondido por padrão, aparece quando isMobileOpen */

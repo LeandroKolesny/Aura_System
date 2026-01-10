@@ -17,7 +17,9 @@
       "Bash(npm run build:*)",
       "Bash(vercel --prod:*)",
       "Bash(VITE_API_URL=https://aura-backend-api.vercel.app vercel:*)",
-      "Bash(vercel env:*)"
+      "Bash(vercel env:*)",
+      "WebSearch",
+      "Bash(npx tsx:*)"
     ]
   }
 }

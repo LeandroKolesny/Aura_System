@@ -30,6 +30,7 @@ export interface Company {
   lastPlan?: PlanType; // Plano anterior (para recuperação quando cair no Basic/Expirado)
   subscriptionStatus: SubscriptionStatus;
   subscriptionExpiresAt: string; // ISO Date para validação de duração
+  customPrice?: number; // Preço negociado (para ENTERPRISE)
   
   layoutConfig?: PublicLayoutConfig; 
   businessHours?: BusinessHours; 
@@ -286,11 +287,15 @@ export interface Ticket {
 
 export interface SaasPlan {
   id: string;
-  name: string;
+  name: string;           // Padronizado: FREE, BASIC, STARTER, PROFESSIONAL, PREMIUM, ENTERPRISE
+  displayName?: string;   // Nome amigável para exibição
   price: number;
-  features: string[];
+  maxProfessionals: number;  // -1 = ilimitado
+  maxPatients: number;       // -1 = ilimitado
+  modules: string[];         // Módulos habilitados neste plano
+  features: string[];        // Lista de features para marketing
   active: boolean;
-  stripePaymentLink?: string; 
+  stripePaymentLink?: string;
 }
 
 export interface SystemAlert {

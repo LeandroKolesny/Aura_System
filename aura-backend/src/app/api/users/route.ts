@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
+import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
   try {
@@ -126,19 +127,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Hash da senha (gera uma aleatória se não fornecida)
+    const passwordToHash = password || Math.random().toString(36).slice(-10);
+    const hashedPassword = await bcrypt.hash(passwordToHash, 10);
+
+    // Mapear valores para enums corretos (Prisma requer UPPERCASE)
+    const roleMap: Record<string, string> = {
+      'admin': 'ADMIN', 'owner': 'OWNER', 'receptionist': 'RECEPTIONIST',
+      'esthetician': 'ESTHETICIAN', 'patient': 'PATIENT',
+      'ADMIN': 'ADMIN', 'OWNER': 'OWNER', 'RECEPTIONIST': 'RECEPTIONIST',
+      'ESTHETICIAN': 'ESTHETICIAN', 'PATIENT': 'PATIENT',
+    };
+    const contractMap: Record<string, string> = {
+      'clt': 'CLT', 'pj': 'PJ', 'freelancer': 'FREELANCER',
+      'CLT': 'CLT', 'PJ': 'PJ', 'FREELANCER': 'FREELANCER',
+    };
+    const remunerationMap: Record<string, string> = {
+      'fixed': 'FIXED', 'fixo': 'FIXED',
+      'commission': 'COMMISSION', 'comissao': 'COMMISSION',
+      'mixed': 'MIXED', 'misto': 'MIXED',
+      'FIXED': 'FIXED', 'COMMISSION': 'COMMISSION', 'MIXED': 'MIXED',
+    };
+
+    const mappedRole = roleMap[role] || 'ESTHETICIAN';
+    const mappedContract = contractMap[contractType] || 'PJ';
+    const mappedRemuneration = remunerationMap[remunerationType] || 'COMMISSION';
+
     const user = await prisma.user.create({
       data: {
         name,
         email,
         phone,
-        role,
+        role: mappedRole as any,
         title,
-        contractType,
-        remunerationType,
+        contractType: mappedContract as any,
+        remunerationType: mappedRemuneration as any,
         commissionRate: commissionRate ? parseFloat(commissionRate) : null,
         fixedSalary: fixedSalary ? parseFloat(fixedSalary) : null,
         businessHours,
-        password: password || null, // Em produção, usar hash
+        password: hashedPassword,
         companyId: authUser.companyId,
         isActive: true,
       },

@@ -4,7 +4,7 @@ import {
   PhotoRecord, SaasPlan, Lead, Ticket, SystemAlert, AppNotification,
   UserRole, SystemModule, UnavailabilityRule, LeadStatus, InventoryItem, SignatureMetadata
 } from '../types';
-import { DEFAULT_PLANS, PLAN_PERMISSIONS, PLAN_LIMITS } from '../constants';
+import { PLAN_NAMES, PlanLimits } from '../constants';
 import {
   authApi,
   patientsApi,
@@ -21,15 +21,17 @@ import {
   ticketsApi,
   systemAlertsApi,
   notificationsApi,
-  plansApi
+  plansApi,
+  kingApi
 } from '../services/api';
 
 interface AppContextType {
   user: User | null;
+  isInitializing: boolean; // Loading enquanto valida sessão
   login: (email: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   registerCompany: (companyName: string, adminData: any) => Promise<{ success: boolean; error?: string }>;
-  
+
   companies: Company[];
   currentCompany: Company | null;
   updateCompany: (companyId: string, data: Partial<Company>) => Promise<{ success: boolean; company?: Company; error?: string }>;
@@ -62,6 +64,7 @@ interface AppContextType {
   addProfessional: (prof: any) => void;
   updateProfessional: (id: string, data: Partial<User>) => void;
   removeProfessional: (id: string) => void;
+  resetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 
   photos: PhotoRecord[];
   addPhoto: (photo: Omit<PhotoRecord, 'id' | 'companyId'>) => void;
@@ -128,6 +131,7 @@ interface AppContextType {
   loadProfessionals: (forceReload?: boolean) => Promise<void>;
   loadInventory: (forceReload?: boolean) => Promise<void>;
   loadPhotos: (patientId?: string, forceReload?: boolean) => Promise<void>;
+  loadLeads: (forceReload?: boolean) => Promise<void>;
 
   // Estados de loading individuais
   loadingStates: {
@@ -139,6 +143,7 @@ interface AppContextType {
     inventory: boolean;
     plans: boolean;
     photos: boolean;
+    leads: boolean;
   };
 
   // Estados de "já carregado" para evitar recarregar
@@ -151,6 +156,7 @@ interface AppContextType {
     inventory: boolean;
     plans: boolean;
     photos: boolean;
+    leads: boolean;
   };
 }
 
@@ -166,7 +172,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
-  const [saasPlans, setSaasPlans] = useState<SaasPlan[]>(DEFAULT_PLANS);
+  const [saasPlans, setSaasPlans] = useState<SaasPlan[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([]);
@@ -180,6 +186,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [triggerSave, setTriggerSave] = useState(false);
   const [pendingNavigationPath, setPendingNavigationPath] = useState<string | null>(null);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // Loading inicial enquanto valida sessão
 
   // Computed
   const currentCompany = user ? companies.find(c => c.id === user.companyId) || null : null;
@@ -197,10 +204,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const checkModuleAccess: any = (module: SystemModule): boolean => {
       if (!currentCompany) return false;
       if (user?.role === UserRole.OWNER) return true;
-      // Normaliza o plano para lowercase para compatibilidade com as constantes
-      const planKey = (currentCompany.plan?.toLowerCase() || 'free') as keyof typeof PLAN_PERMISSIONS;
-      const permissions = PLAN_PERMISSIONS[planKey] || PLAN_PERMISSIONS['free'];
-      return permissions.includes(module);
+
+      // Se planos ainda não carregaram, permitir acesso temporariamente (evita race condition)
+      if (saasPlans.length === 0) {
+        return true; // Permitir enquanto carrega
+      }
+
+      // Busca o plano atual do array de planos carregados da API (case-insensitive)
+      const companyPlanUpper = currentCompany.plan?.toUpperCase();
+      const currentPlan = saasPlans.find(p => p.name?.toUpperCase() === companyPlanUpper);
+      if (!currentPlan) {
+        console.warn(`⚠️ Plano não encontrado: ${currentCompany.plan} (planos: ${saasPlans.map(p => p.name).join(', ')})`);
+        return true; // Permitir se plano não encontrado (fallback seguro)
+      }
+      return currentPlan.modules.includes(module);
   };
 
   const checkWriteAccess = () => {
@@ -227,6 +244,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     inventory: false,
     plans: false,
     photos: false,
+    leads: false,
   });
 
   // Estados de "já carregado" para evitar recarregar
@@ -239,6 +257,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     inventory: false,
     plans: false,
     photos: false,
+    leads: false,
   });
 
   // Helper para atualizar loading state
@@ -249,6 +268,82 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const setLoaded = (key: keyof typeof loadedStates, value: boolean) => {
     setLoadedStates(prev => ({ ...prev, [key]: value }));
   };
+
+  // ============================================
+  // RESTAURAÇÃO DE SESSÃO NA INICIALIZAÇÃO
+  // ============================================
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem('aura_token');
+
+      if (!token) {
+        // Sem token, não há sessão para restaurar
+        setIsInitializing(false);
+        return;
+      }
+
+      try {
+        // Validar token e obter dados do usuário
+        const result = await authApi.me();
+
+        if (result.success && result.data?.user) {
+          const apiUser = result.data.user;
+
+          // Mapear role da API para o enum UserRole
+          const roleMap: Record<string, UserRole> = {
+            'ADMIN': UserRole.ADMIN,
+            'OWNER': UserRole.OWNER,
+            'RECEPTIONIST': UserRole.RECEPTIONIST,
+            'ESTHETICIAN': UserRole.ESTHETICIAN,
+            'PATIENT': UserRole.PATIENT,
+          };
+          const mappedRole = roleMap[apiUser.role?.toUpperCase()] || UserRole.ADMIN;
+
+          const mappedUser: User = {
+            id: apiUser.id,
+            name: apiUser.name,
+            email: apiUser.email,
+            role: mappedRole,
+            companyId: apiUser.company?.id || apiUser.companyId,
+            avatar: apiUser.avatar,
+            isActive: apiUser.isActive ?? true,
+            patientId: apiUser.patientId,
+          };
+
+          // Se tiver dados da empresa, adiciona à lista de companies
+          if (apiUser.company) {
+            const mappedCompany: Company = {
+              id: apiUser.company.id,
+              name: apiUser.company.name,
+              slug: apiUser.company.slug,
+              plan: apiUser.company.plan?.toLowerCase() || 'free',
+              subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
+              subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+              businessHours: apiUser.company.businessHours || {},
+              onboardingCompleted: apiUser.company.onboardingCompleted ?? true,
+            };
+            setCompanies([mappedCompany]);
+            console.log('🏢 Sessão restaurada - Empresa:', mappedCompany.name);
+          }
+
+          console.log('🔐 Sessão restaurada:', { email: apiUser.email, role: mappedRole });
+          setUser(mappedUser);
+        } else {
+          // Token inválido ou expirado - limpar
+          console.log('⚠️ Token inválido, limpando sessão...');
+          localStorage.removeItem('aura_token');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao restaurar sessão:', error);
+        localStorage.removeItem('aura_token');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
 
   // ============================================
   // FUNÇÕES DE LAZY LOADING INDIVIDUAIS
@@ -264,6 +359,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     inventory: false,
     plans: false,
     photos: false,
+    leads: false,
   });
 
   const loadedRef = React.useRef({
@@ -275,6 +371,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     inventory: false,
     plans: false,
     photos: false,
+    leads: false,
   });
 
   const loadPatients = useCallback(async () => {
@@ -514,7 +611,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const mappedPlans = res.data.map((p: any) => ({
           id: p.id,
           name: p.name,
+          displayName: p.displayName || p.name,
           price: Number(p.price) || 0,
+          maxProfessionals: p.maxProfessionals ?? 1,
+          maxPatients: p.maxPatients ?? 50,
+          modules: p.modules || [], // IMPORTANTE: necessário para checkModuleAccess
           features: p.features || [],
           active: p.active ?? true,
           stripePaymentLink: p.stripePaymentLink || '',
@@ -537,6 +638,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  const loadLeads = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.leads || loadingRef.current.leads)) return;
+    if (forceReload) {
+      loadedRef.current.leads = false;
+    }
+    loadingRef.current.leads = true;
+    setLoading('leads', true);
+    try {
+      // OWNER usa API de vendas (empresas FREE/TRIAL), outros usam leads da clínica
+      const isOwner = user?.role === UserRole.OWNER;
+      const res = isOwner
+        ? await kingApi.leads()
+        : await leadsApi.list({ limit: 200 });
+      if (res.success && res.data?.leads) {
+        const mapped = res.data.leads.map((l: any) => ({
+          ...l,
+          status: l.status?.toLowerCase() || 'new',
+          value: Number(l.value) || 0,
+        }));
+        setLeads(mapped);
+        loadedRef.current.leads = true;
+        setLoaded('leads', true);
+        console.log(`✅ Leads carregados (lazy, ${isOwner ? 'OWNER' : 'clinic'}):`, mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar leads:', error);
+    } finally {
+      loadingRef.current.leads = false;
+      setLoading('leads', false);
+    }
+  }, [user?.role]);
+
   // ============================================
   // CARREGAMENTO INICIAL (apenas dados essenciais)
   // ============================================
@@ -548,10 +681,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     console.log('📡 Carregando dados essenciais...');
 
     try {
-      // Carregar APENAS dados essenciais no login (empresa e profissionais para sidebar)
-      const [companiesRes, usersRes] = await Promise.all([
+      // Carregar dados essenciais no login (empresa, profissionais E planos para checkModuleAccess)
+      const [companiesRes, usersRes, plansRes] = await Promise.all([
         companiesApi.list({ limit: 100 }),
-        usersApi.list({ limit: 100 })
+        usersApi.list({ limit: 100 }),
+        plansApi.list() // CRÍTICO: Necessário para checkModuleAccess funcionar
       ]);
 
       if (companiesRes.success && companiesRes.data?.companies) {
@@ -590,6 +724,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setProfessionals(mapped);
         setLoaded('professionals', true);
         console.log('✅ Profissionais carregados:', mapped.length);
+      }
+
+      // CRÍTICO: Carregar planos para checkModuleAccess funcionar corretamente
+      if (plansRes.success && plansRes.data) {
+        const mappedPlans = plansRes.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          displayName: p.displayName || p.name,
+          price: Number(p.price) || 0,
+          maxProfessionals: p.maxProfessionals ?? 1,
+          maxPatients: p.maxPatients ?? 50,
+          modules: p.modules || [],
+          features: p.features || [],
+          active: p.active ?? true,
+          stripePaymentLink: p.stripePaymentLink || '',
+        }));
+        if (mappedPlans.length > 0) {
+          setSaasPlans(mappedPlans);
+          loadedRef.current.plans = true;
+          setLoaded('plans', true);
+          console.log('✅ Planos carregados:', mappedPlans.length);
+        }
       }
 
       console.log('🎉 Dados essenciais carregados! Outros dados serão carregados sob demanda.');
@@ -679,9 +835,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('Erro no logout via API:', error);
       }
       // Reset dos refs de lazy loading
-      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false };
-      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false };
-      setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false });
+      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false };
+      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false };
+      setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false });
       // Limpar dados
       setPatients([]);
       setAppointments([]);
@@ -691,7 +847,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setInventory([]);
       setPhotos([]);
       setCompanies([]);
-      setSaasPlans(DEFAULT_PLANS); // Reset para planos padrão
+      setSaasPlans([]); // Reset - planos serão carregados da API
       setUser(null);
       setDismissedAlertIds([]);
   };
@@ -782,17 +938,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addPatient = async (patientData: any) => {
       checkWriteAccess();
 
-      // Verificar limite de pacientes do plano
+      // Verificar limite de pacientes do plano (busca do estado saasPlans)
       if (currentCompany && user?.role !== UserRole.OWNER) {
-        const planKey = (currentCompany.plan?.toLowerCase() || 'free') as keyof typeof PLAN_LIMITS;
-        const planLimits = PLAN_LIMITS[planKey] || PLAN_LIMITS['free'];
+        const companyPlanUpper = currentCompany.plan?.toUpperCase();
+        const currentPlan = saasPlans.find(p => p.name?.toUpperCase() === companyPlanUpper);
+        const maxPatients = currentPlan?.maxPatients ?? 50; // Default 50 se não encontrar
         const currentPatientCount = patients.filter(p => p.companyId === currentCompany.id).length;
 
-        if (planLimits.maxPatients !== -1 && currentPatientCount >= planLimits.maxPatients) {
-          console.warn(`⚠️ Limite de pacientes atingido: ${currentPatientCount}/${planLimits.maxPatients}`);
+        if (maxPatients !== -1 && currentPatientCount >= maxPatients) {
+          console.warn(`⚠️ Limite de pacientes atingido: ${currentPatientCount}/${maxPatients}`);
           return {
             success: false,
-            error: `Limite de pacientes atingido (${planLimits.maxPatients}). Faça upgrade do seu plano para cadastrar mais pacientes.`,
+            error: `Limite de pacientes atingido (${maxPatients}). Faça upgrade do seu plano para cadastrar mais pacientes.`,
             limitReached: true
           };
         }
@@ -1218,17 +1375,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addProfessional = async (prof: any) => {
       checkWriteAccess();
 
-      // Verificar limite de profissionais do plano
+      // Verificar limite de profissionais do plano (busca do estado saasPlans)
       if (currentCompany && user?.role !== UserRole.OWNER) {
-        const planKey = (currentCompany.plan?.toLowerCase() || 'free') as keyof typeof PLAN_LIMITS;
-        const planLimits = PLAN_LIMITS[planKey] || PLAN_LIMITS['free'];
+        const companyPlanUpper = currentCompany.plan?.toUpperCase();
+        const currentPlan = saasPlans.find(p => p.name?.toUpperCase() === companyPlanUpper);
+        const maxProfessionals = currentPlan?.maxProfessionals ?? 1; // Default 1 se não encontrar
         const currentProfCount = professionals.filter(p => p.companyId === currentCompany.id).length;
 
-        if (planLimits.maxProfessionals !== -1 && currentProfCount >= planLimits.maxProfessionals) {
-          console.warn(`⚠️ Limite de profissionais atingido: ${currentProfCount}/${planLimits.maxProfessionals}`);
+        if (maxProfessionals !== -1 && currentProfCount >= maxProfessionals) {
+          console.warn(`⚠️ Limite de profissionais atingido: ${currentProfCount}/${maxProfessionals}`);
           return {
             success: false,
-            error: `Limite de profissionais atingido (${planLimits.maxProfessionals}). Faça upgrade do seu plano para cadastrar mais profissionais.`,
+            error: `Limite de profissionais atingido (${maxProfessionals}). Faça upgrade do seu plano para cadastrar mais profissionais.`,
             limitReached: true
           };
         }
@@ -1265,6 +1423,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       checkWriteAccess();
       // Remove localmente por enquanto - API de delete não existe ainda
       setProfessionals(prev => prev.filter(p => p.id !== id));
+  };
+
+  const resetUserPassword = async (userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+      checkWriteAccess();
+      try {
+        const response = await usersApi.resetPassword(userId, newPassword);
+        if (response.success) {
+          console.log('✅ Senha redefinida com sucesso');
+          return { success: true };
+        }
+        console.error('❌ Erro ao redefinir senha:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao redefinir senha:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
   // --- Photos (SEMPRE via API) ---
@@ -1412,7 +1586,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const moveLead = async (id: string, status: LeadStatus) => {
       try {
-        const response = await leadsApi.update(id, { status: status.toUpperCase() });
+        // OWNER usa kingApi (atualiza salesStatus da empresa)
+        // Outros usam leadsApi (atualiza Lead da clínica)
+        const isOwner = user?.role === UserRole.OWNER;
+        const response = isOwner
+          ? await kingApi.updateLead(id, { status })
+          : await leadsApi.update(id, { status: status.toUpperCase() });
+
         if (response.success) {
           setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
           return { success: true };
@@ -1679,6 +1859,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       user,
+      isInitializing,
       login,
       logout,
       registerCompany,
@@ -1709,6 +1890,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addProfessional,
       updateProfessional,
       removeProfessional,
+      resetUserPassword,
       photos: user?.role === UserRole.OWNER ? photos : photos.filter(p => p.companyId === user?.companyId),
       addPhoto,
       removePhoto,
@@ -1761,6 +1943,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       loadProfessionals,
       loadInventory,
       loadPhotos,
+      loadLeads,
       loadingStates,
       loadedStates
     }}>

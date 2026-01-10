@@ -621,11 +621,11 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
 };
 
 export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: User }> = ({ onClose, initialData }) => {
-  const { addProfessional, updateProfessional, currentCompany } = useApp();
+  const { addProfessional, updateProfessional, currentCompany, resetUserPassword } = useApp();
   const [formData, setFormData] = useState<Partial<User>>({
     name: initialData?.name || '',
     email: initialData?.email || '',
-    password: initialData?.password || '123456',
+    password: '',
     role: initialData?.role || UserRole.ESTHETICIAN,
     title: initialData?.title || '',
     phone: initialData?.phone || '',
@@ -643,10 +643,45 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
         sunday: { isOpen: false, start: '00:00', end: '00:00' }
     }
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const generatePassword = () => {
+    const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  };
+
+  const handleResetPassword = async () => {
+    if (!initialData?.id) return;
+    setIsResetting(true);
+    const tempPassword = generatePassword();
+    try {
+      const result = await resetUserPassword(initialData.id, tempPassword);
+      if (result.success) {
+        setNewPassword(tempPassword);
+      } else {
+        alert('Erro ao redefinir senha: ' + result.error);
+      }
+    } catch (error) {
+      alert('Erro ao redefinir senha');
+    }
+    setIsResetting(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (initialData) { updateProfessional(initialData.id, formData); } else { addProfessional(formData); }
+    if (!initialData && !formData.password) {
+      alert('Senha é obrigatória para novos usuários');
+      return;
+    }
+    if (initialData) {
+      // Na edição, não envia password (usa botão separado)
+      const { password, ...dataWithoutPassword } = formData;
+      updateProfessional(initialData.id, dataWithoutPassword);
+    } else {
+      addProfessional(formData);
+    }
     onClose();
   };
 
@@ -655,7 +690,52 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo</label><input required type="text" className="w-full p-2 border rounded-lg" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">E-mail (Login)</label><input required type="email" className="w-full p-2 border rounded-lg" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">E-mail (Login)</label><input required type="email" className="w-full p-2 border rounded-lg" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} disabled={!!initialData} /></div>
+          {/* Senha - apenas para novos usuários */}
+          {!initialData ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Senha de Acesso</label>
+              <div className="relative">
+                <input
+                  required
+                  type={showPassword ? "text" : "password"}
+                  className="w-full p-2 border rounded-lg pr-10"
+                  placeholder="Mínimo 6 caracteres"
+                  minLength={6}
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <XCircle className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
+              {newPassword ? (
+                <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="text-xs text-emerald-600 mb-1">Nova senha gerada:</p>
+                  <p className="font-mono font-bold text-emerald-800 text-lg">{newPassword}</p>
+                  <p className="text-xs text-slate-500 mt-1">Anote e envie para o funcionário</p>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={isResetting}
+                  className="w-full p-2 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 flex items-center justify-center gap-2 font-medium"
+                >
+                  {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {isResetting ? 'Gerando...' : 'Redefinir Senha'}
+                </button>
+              )}
+            </div>
+          )}
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Telefone</label><input type="text" className="w-full p-2 border rounded-lg" placeholder="(99) 99999-9999" value={formData.phone} onChange={e => setFormData({ ...formData, phone: maskPhone(e.target.value) })} maxLength={15} /></div>
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Cargo / Especialidade</label><input type="text" className="w-full p-2 border rounded-lg" placeholder="Ex: Biomédica Esteta" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} /></div>
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Nível de Acesso</label><select className="w-full p-2 border rounded-lg" value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value as UserRole })}><option value={UserRole.ADMIN}>Administrador (Gestão)</option><option value={UserRole.ESTHETICIAN}>Esteticista / Profissional</option><option value={UserRole.RECEPTIONIST}>Recepção</option></select></div>

@@ -39,8 +39,24 @@ import KingRevenue from './pages/king/KingRevenue';
 import KingSettings from './pages/king/KingSettings';
 import { AppProvider, useApp } from './context/AppContext';
 import { UserRole } from './types';
-import { AlertTriangle, Menu } from 'lucide-react';
+import { AlertTriangle, Menu, Loader2 } from 'lucide-react';
 import { SubscriptionModal } from './components/Modals';
+import AuraLogo from './components/AuraLogo';
+
+// Loading Screen enquanto valida sessão
+const InitializingScreen: React.FC = () => (
+  <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+    <div className="text-center">
+      <div className="flex justify-center mb-6">
+        <AuraLogo className="w-16 h-16 animate-pulse" />
+      </div>
+      <div className="flex items-center justify-center gap-2 text-slate-600">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm font-medium">Carregando...</span>
+      </div>
+    </div>
+  </div>
+);
 
 const PrivateLayout: React.FC = () => {
   const { user, isReadOnly, currentCompany, isSubscriptionModalOpen, setIsSubscriptionModalOpen } = useApp();
@@ -69,11 +85,13 @@ const PrivateLayout: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <>
+      {/* Sidebar fora do flex container para evitar problemas de z-index */}
       <Sidebar isMobileOpen={isMobileMenuOpen} onMobileClose={() => setIsMobileMenuOpen(false)} />
 
-      {/* Main content - responsivo: sem margem no mobile, com margem no desktop */}
-      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen relative">
+      <div className="min-h-screen bg-slate-50 overflow-x-clip">
+        {/* Main content - responsivo: sem margem no mobile, com margem no desktop */}
+        <main className="lg:ml-64 flex flex-col min-h-screen overflow-x-clip">
 
         {/* Header Mobile com Hamburger */}
         <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
@@ -106,8 +124,8 @@ const PrivateLayout: React.FC = () => {
             </div>
         )}
 
-        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
-            <div className="max-w-[1600px] mx-auto">
+        <div className="flex-1 p-4 lg:p-8 overflow-auto">
+            <div className="w-full">
                 <Outlet />
             </div>
         </div>
@@ -115,7 +133,83 @@ const PrivateLayout: React.FC = () => {
         {/* Global Modal Render */}
         {isSubscriptionModalOpen && <SubscriptionModal onClose={() => setIsSubscriptionModalOpen(false)} />}
       </main>
-    </div>
+      </div>
+    </>
+  );
+};
+
+// Wrapper de autenticação para Onboarding
+const OnboardingAuthWrapper = () => {
+  const { user, currentCompany } = useApp();
+  if (!user) return <Navigate to="/login" replace />;
+
+  // Se já completou, manda pro dashboard
+  if (currentCompany && currentCompany.onboardingCompleted) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Onboarding />;
+};
+
+// Wrapper que aguarda inicialização antes de renderizar as rotas
+const AppRoutes: React.FC = () => {
+  const { isInitializing } = useApp();
+
+  if (isInitializing) {
+    return <InitializingScreen />;
+  }
+
+  return (
+    <Routes>
+      {/* Rotas Públicas */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/king" element={<KingLogin />} />
+
+      {/* Rotas King (Owner) - Layout Exclusivo */}
+      <Route path="/king" element={<KingLayout />}>
+        <Route path="dashboard" element={<KingDashboard />} />
+        <Route path="companies" element={<KingCompanies />} />
+        <Route path="patients" element={<KingPatients />} />
+        <Route path="appointments" element={<KingAppointments />} />
+        <Route path="leads" element={<KingLeads />} />
+        <Route path="alerts" element={<KingAlerts />} />
+        <Route path="revenue" element={<KingRevenue />} />
+        <Route path="settings" element={<KingSettings />} />
+      </Route>
+
+      {/* Rota de Onboarding (Privada mas sem Sidebar) */}
+      <Route path="/onboarding" element={<OnboardingAuthWrapper />} />
+
+      {/* Rotas Privadas (App) */}
+      <Route element={<PrivateLayout />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/marketing" element={<Marketing />} />
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/schedule" element={<Schedule />} />
+        <Route path="/patients" element={<Patients />} />
+        <Route path="/patients/:id" element={<PatientDetail />} />
+        <Route path="/procedures" element={<Procedures />} />
+        <Route path="/professionals" element={<Professionals />} />
+        <Route path="/financial" element={<Financial />} />
+        <Route path="/access-link" element={<AccessLink />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/business-hours" element={<BusinessHoursSettings />} />
+
+        {/* Rota de Histórico para Pacientes */}
+        <Route path="/history" element={<PatientHistory />} />
+
+        {/* Novas Rotas SaaS */}
+        <Route path="/leads" element={<Leads />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/plans" element={<Plans />} />
+        <Route path="/system-alerts" element={<SystemAlerts />} />
+      </Route>
+
+      {/* Fallback - redireciona rotas não encontradas para landing */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 
@@ -124,56 +218,7 @@ const AdminApp: React.FC = () => {
   return (
     <AppProvider>
       <Router>
-        <Routes>
-          {/* Rotas Públicas */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/king" element={<KingLogin />} />
-
-          {/* Rotas King (Owner) - Layout Exclusivo */}
-          <Route path="/king" element={<KingLayout />}>
-            <Route path="dashboard" element={<KingDashboard />} />
-            <Route path="companies" element={<KingCompanies />} />
-            <Route path="patients" element={<KingPatients />} />
-            <Route path="appointments" element={<KingAppointments />} />
-            <Route path="leads" element={<KingLeads />} />
-            <Route path="alerts" element={<KingAlerts />} />
-            <Route path="revenue" element={<KingRevenue />} />
-            <Route path="settings" element={<KingSettings />} />
-          </Route>
-
-          {/* Rota de Onboarding (Privada mas sem Sidebar) */}
-          <Route path="/onboarding" element={<OnboardingAuthWrapper />} />
-
-          {/* Rotas Privadas (App) */}
-          <Route element={<PrivateLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/marketing" element={<Marketing />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/schedule" element={<Schedule />} />
-            <Route path="/patients" element={<Patients />} />
-            <Route path="/patients/:id" element={<PatientDetail />} />
-            <Route path="/procedures" element={<Procedures />} />
-            <Route path="/professionals" element={<Professionals />} />
-            <Route path="/financial" element={<Financial />} />
-            <Route path="/access-link" element={<AccessLink />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/business-hours" element={<BusinessHoursSettings />} />
-
-            {/* Rota de Histórico para Pacientes */}
-            <Route path="/history" element={<PatientHistory />} />
-
-            {/* Novas Rotas SaaS */}
-            <Route path="/leads" element={<Leads />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/plans" element={<Plans />} />
-            <Route path="/system-alerts" element={<SystemAlerts />} />
-          </Route>
-
-          {/* Fallback - redireciona rotas não encontradas para landing */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppRoutes />
       </Router>
     </AppProvider>
   );
@@ -190,18 +235,6 @@ const App: React.FC = () => {
 
   // Caso contrário, carrega o Sistema Admin
   return <AdminApp />;
-};
-
-const OnboardingAuthWrapper = () => {
-    const { user, currentCompany } = useApp();
-    if (!user) return <Navigate to="/login" replace />;
-    
-    // Se já completou, manda pro dashboard
-    if (currentCompany && currentCompany.onboardingCompleted) {
-        return <Navigate to="/dashboard" replace />;
-    }
-    
-    return <Onboarding />;
 };
 
 export default App;

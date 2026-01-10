@@ -1,4 +1,5 @@
 // Script para inserir os planos padrão no banco
+// Nomes padronizados: FREE, BASIC, STARTER, PROFESSIONAL, PREMIUM, ENTERPRISE
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -8,68 +9,131 @@ async function seedPlans() {
 
   const plans = [
     {
-      id: "starter",
-      name: "Starter",
+      name: "FREE",
+      displayName: "Trial Grátis",
+      price: 0,
+      maxProfessionals: 1,
+      maxPatients: 50,
+      modules: ["online_booking", "financial", "inventory", "reports"],
+      features: [
+        "Trial de 15 dias",
+        "Agenda online",
+        "Financeiro básico",
+        "Controle de estoque",
+        "Relatórios básicos",
+      ],
+      isActive: true,
+    },
+    {
+      name: "BASIC",
+      displayName: "Bloqueado",
+      price: 0,
+      maxProfessionals: 0,
+      maxPatients: 0,
+      modules: [], // Sem acesso (bloqueado)
+      features: [
+        "Plano expirado",
+        "Acesso somente leitura",
+        "Dados preservados",
+      ],
+      isActive: true,
+    },
+    {
+      name: "STARTER",
+      displayName: "Starter",
       price: 97,
+      maxProfessionals: 2,
+      maxPatients: 200,
+      modules: ["online_booking", "financial", "support", "inventory", "reports", "photos"],
       features: [
         "Agenda ilimitada",
         "Confirmação automática",
-        "Financeiro básico",
+        "Financeiro completo",
+        "Controle de estoque",
+        "Relatórios avançados",
+        "Fotos de evolução",
         "Suporte via chat",
+        "Até 2 profissionais",
+        "Até 200 pacientes",
       ],
       isActive: true,
-      stripeProductId: null,
     },
     {
-      id: "pro",
-      name: "Pro",
+      name: "PROFESSIONAL",
+      displayName: "Profissional",
       price: 197,
+      maxProfessionals: 5,
+      maxPatients: 500,
+      modules: ["online_booking", "financial", "support", "inventory", "reports", "photos", "ai_features", "multi_user"],
       features: [
         "Tudo do Starter",
-        "CRM completo",
-        "Relatórios avançados",
-        "Integração WhatsApp",
+        "Marketing com IA",
+        "Múltiplos profissionais",
         "Suporte prioritário",
+        "Até 5 profissionais",
+        "Até 500 pacientes",
       ],
       isActive: true,
-      stripeProductId: null,
     },
     {
-      id: "clinic",
-      name: "Clinic",
+      name: "PREMIUM",
+      displayName: "Premium",
       price: 397,
+      maxProfessionals: 10,
+      maxPatients: -1, // Ilimitado
+      modules: ["online_booking", "financial", "support", "inventory", "reports", "photos", "ai_features", "multi_user"],
       features: [
-        "Tudo do Pro",
-        "Multi-unidades",
-        "API personalizada",
-        "Gerente de conta dedicado",
-        "Treinamento da equipe",
+        "Tudo do Profissional",
+        "Pacientes ilimitados",
+        "Até 10 profissionais",
+        "Suporte VIP",
       ],
       isActive: true,
-      stripeProductId: null,
+    },
+    {
+      name: "ENTERPRISE",
+      displayName: "Enterprise",
+      price: 0, // Preço negociado individualmente
+      maxProfessionals: -1, // Ilimitado
+      maxPatients: -1, // Ilimitado
+      modules: ["online_booking", "financial", "support", "inventory", "reports", "photos", "ai_features", "multi_user", "crm"],
+      features: [
+        "Todos os módulos",
+        "Profissionais ilimitados",
+        "Pacientes ilimitados",
+        "CRM completo",
+        "Gerente de conta dedicado",
+        "Treinamento da equipe",
+        "Preço sob consulta",
+      ],
+      isActive: true,
     },
   ];
 
   for (const plan of plans) {
     const result = await prisma.saasPlan.upsert({
-      where: { id: plan.id },
+      where: { name: plan.name },
       update: {
-        name: plan.name,
+        displayName: plan.displayName,
         price: plan.price,
+        maxProfessionals: plan.maxProfessionals,
+        maxPatients: plan.maxPatients,
+        modules: plan.modules,
         features: plan.features,
         isActive: plan.isActive,
-        stripeProductId: plan.stripeProductId,
       },
       create: {
-        id: plan.id,
         name: plan.name,
+        displayName: plan.displayName,
         price: plan.price,
+        maxProfessionals: plan.maxProfessionals,
+        maxPatients: plan.maxPatients,
+        modules: plan.modules,
         features: plan.features,
         isActive: plan.isActive,
-        stripeProductId: plan.stripeProductId,
       },
     });
-    console.log("✅ Plano criado/atualizado:", result.name);
+    console.log(`✅ Plano ${result.name} criado/atualizado`);
   }
 
   console.log("🎉 Planos inseridos com sucesso!");

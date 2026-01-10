@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
           subscriptionStatus: "TRIAL",
           subscriptionExpiresAt: trialExpiresAt,
           onboardingCompleted: false,
+          paymentMethods: ["money", "pix", "credit_card", "debit_card"],
           businessHours: {
             monday: { isOpen: true, start: "08:00", end: "18:00" },
             tuesday: { isOpen: true, start: "08:00", end: "18:00" },

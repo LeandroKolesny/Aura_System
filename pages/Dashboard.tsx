@@ -375,13 +375,19 @@ const ClinicDashboard: React.FC = () => {
     setIsLoadingDashboard(true);
     try {
       const days = revenueRange === '7d' ? 7 : 30;
+      console.log('📊 Carregando dashboard, dias:', days);
       const response = await dashboardApi.getStats(days);
+      console.log('📊 Resposta dashboard:', JSON.stringify(response, null, 2));
       if (response.success && response.data) {
         setDashboardData(response.data);
         setLastFetchTime(now);
+        console.log('✅ Dashboard KPIs:', JSON.stringify(response.data.kpis, null, 2));
+        console.log('✅ Dashboard Charts:', JSON.stringify(response.data.charts, null, 2));
+      } else {
+        console.error('❌ Dashboard API falhou:', response.error);
       }
     } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
+      console.error('❌ Erro ao carregar dashboard:', error);
     } finally {
       setIsLoadingDashboard(false);
     }

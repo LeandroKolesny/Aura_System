@@ -58,7 +58,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Empresa não encontrada" }, { status: 404 });
     }
 
-    return NextResponse.json({ company });
+    // Normalizar e deduplicar paymentMethods (converter labels para IDs)
+    const labelToId: Record<string, string> = {
+      'Dinheiro': 'money', 'dinheiro': 'money',
+      'Pix': 'pix', 'PIX': 'pix',
+      'Cartão de Crédito': 'credit_card', 'cartão de crédito': 'credit_card',
+      'Cartão de Débito': 'debit_card', 'cartão de débito': 'debit_card',
+      'Cheque': 'check', 'cheque': 'check',
+      'Transferência Bancária': 'bank_transfer', 'transferência bancária': 'bank_transfer',
+      'Depósito': 'deposit', 'depósito': 'deposit',
+    };
+    const normalizePaymentMethods = (methods: string[]) => {
+      const normalized = methods.map(m => labelToId[m] || m);
+      return [...new Set(normalized)];
+    };
+    const cleanedCompany = {
+      ...company,
+      paymentMethods: company.paymentMethods ? normalizePaymentMethods(company.paymentMethods) : [],
+    };
+
+    return NextResponse.json({ company: cleanedCompany });
   } catch (error) {
     console.error("Erro ao buscar empresa:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
@@ -129,6 +148,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         // Tratar campos de socialMedia (mapear para campos do banco)
         else if (body.socialMedia && (field === "website" || field === "facebook" || field === "instagram")) {
           // Será tratado abaixo
+        }
+        // Deduplicar paymentMethods se for um array
+        else if (field === "paymentMethods" && Array.isArray(body[field])) {
+          updateData[field] = [...new Set(body[field])];
         }
         else {
           updateData[field] = body[field];

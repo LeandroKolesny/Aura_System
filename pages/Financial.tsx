@@ -73,7 +73,7 @@ const SaaSFinancial: React.FC = () => {
 }
 
 const ClinicFinancial: React.FC = () => {
-  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadingStates } = useApp();
+  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadProcedures, procedures, loadingStates } = useApp();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isPaymentMethodsOpen, setIsPaymentMethodsOpen] = useState(false);
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>([]);
@@ -83,7 +83,26 @@ const ClinicFinancial: React.FC = () => {
   useEffect(() => {
     loadTransactions();
     loadAppointments();
-  }, [loadTransactions, loadAppointments]);
+    loadProcedures();
+  }, [loadTransactions, loadAppointments, loadProcedures]);
+
+  // Função para buscar custo do procedimento pelo nome na descrição
+  const findProcedureCost = (description: string): number => {
+    if (!description || !procedures.length) return 0;
+    const descLower = description.toLowerCase();
+    // Buscar procedimento cujo nome está contido na descrição
+    for (const proc of procedures) {
+      const procName = proc.name.toLowerCase();
+      // Extrair palavras-chave do nome do procedimento (mínimo 4 chars)
+      const keywords = procName.split(/\s+/).filter(w => w.length >= 4);
+      // Verificar se alguma keyword está na descrição
+      const match = keywords.some(kw => descLower.includes(kw));
+      if (match && proc.cost > 0) {
+        return proc.cost;
+      }
+    }
+    return 0;
+  };
 
   useEffect(() => { if (currentCompany?.paymentMethods) setSelectedPaymentMethods(currentCompany.paymentMethods); }, [currentCompany]);
 
@@ -163,33 +182,59 @@ const ClinicFinancial: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {groupedTransactions.map((group) => {
-              // Transação standalone (despesa avulsa)
+              // Transação standalone (sem appointmentId)
               if (group.standalone) {
-                const t = group.standalone;
+                const t = group.standalone as any;
+                const isExpense = t.type === 'expense';
+
+                // Buscar custo direto da tabela de procedimentos pelo nome
+                const cost = isExpense ? Number(t.amount) : findProcedureCost(t.description || '');
+                const revenue = isExpense ? 0 : Number(t.amount);
+                const profit = revenue - cost;
+
                 return (
                   <tr key={group.key} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 text-sm text-slate-600">{formatDate(t.date)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <ArrowDownCircle className="w-4 h-4 text-red-500" />
+                        {isExpense ? (
+                          <ArrowDownCircle className="w-4 h-4 text-red-500" />
+                        ) : (
+                          <ArrowUpCircle className="w-4 h-4 text-green-500" />
+                        )}
                         <span className="font-medium text-slate-800 text-sm">{t.description}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right text-sm text-slate-400">-</td>
-                    <td className="px-6 py-4 text-right text-sm font-bold text-red-600">- {formatCurrency(t.amount)}</td>
-                    <td className="px-6 py-4 text-right text-sm font-bold text-red-600">- {formatCurrency(t.amount)}</td>
+                    <td className={`px-6 py-4 text-right text-sm font-bold ${isExpense ? 'text-slate-400' : 'text-green-600'}`}>
+                      {isExpense ? '-' : `+ ${formatCurrency(revenue)}`}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {cost > 0 ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Package className="w-3 h-3 text-red-400" />
+                          <span className="text-sm font-medium text-red-600">- {formatCurrency(cost)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-400">-</span>
+                      )}
+                    </td>
+                    <td className={`px-6 py-4 text-right text-sm font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {profit >= 0 ? formatCurrency(profit) : `- ${formatCurrency(Math.abs(profit))}`}
+                    </td>
                     <td className="px-6 py-4 text-center"><StatusBadge status={t.status} type="financial" /></td>
                   </tr>
                 );
               }
 
-              // Transação de procedimento (com receita e possivelmente despesa)
-              const income = group.income;
+              // Transação de procedimento (com appointmentId)
+              const income = group.income as any;
               const expense = group.expense;
               const revenue = income ? Number(income.amount) : 0;
-              const cost = expense ? Number(expense.amount) : 0;
+              const description = income?.description || expense?.description || '';
+              // Buscar custo direto da tabela de procedimentos pelo nome
+              const cost = expense ? Number(expense.amount) : findProcedureCost(description);
               const profit = revenue - cost;
-              const description = income?.description?.replace('Atendimento: ', '') || expense?.description?.replace('Custo Insumos: ', '') || '';
+              const displayDesc = description.replace('Atendimento: ', '').replace('Procedimento: ', '').replace('Custo Insumos: ', '');
 
               return (
                 <tr key={group.key} className="hover:bg-slate-50/50 transition-colors">
@@ -197,7 +242,7 @@ const ClinicFinancial: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <ArrowUpCircle className="w-4 h-4 text-green-500" />
-                      <span className="font-medium text-slate-800 text-sm">{description}</span>
+                      <span className="font-medium text-slate-800 text-sm">{displayDesc}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-bold text-green-600">+ {formatCurrency(revenue)}</td>

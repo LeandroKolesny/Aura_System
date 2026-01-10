@@ -1,37 +1,26 @@
 // Aura System - Constantes do Sistema
 // Apenas constantes e configurações, SEM dados mock
+// IMPORTANTE: Dados de planos (permissões, limites, preços) vêm do banco de dados via API
 
-import { PlanType, SystemModule, SaasPlan, BusinessHours } from './types';
+import { BusinessHours } from './types';
 
 export const SAAS_COMPANY_NAME = "Aura System";
 
-// --- REGRAS DE PERMISSÃO POR PLANO ---
-export const PLAN_PERMISSIONS: Record<PlanType, SystemModule[]> = {
-    // Basic: Plano Expirado. Vê tudo para não perder histórico, mas Context bloqueia escrita (Read Only)
-    basic: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'multi_user', 'reports', 'inventory'],
-    // Free/Trial: Acesso limitado - sem reports, marketing (crm), suporte
-    free: ['online_booking', 'financial', 'inventory'],
-    starter: ['online_booking', 'financial', 'support', 'inventory'],
-    pro: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'inventory', 'reports'],
-    clinic: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'multi_user', 'reports', 'inventory'],
-    // Premium: Acesso Total (Plano Máximo)
-    premium: ['online_booking', 'financial', 'support', 'crm', 'ai_features', 'multi_user', 'reports', 'inventory']
-};
+// Nomes padronizados dos planos (devem corresponder ao enum Plan no Prisma)
+export const PLAN_NAMES = {
+    FREE: 'FREE',
+    BASIC: 'BASIC',
+    STARTER: 'STARTER',
+    PROFESSIONAL: 'PROFESSIONAL',
+    PREMIUM: 'PREMIUM',
+    ENTERPRISE: 'ENTERPRISE',
+} as const;
 
-// --- LIMITES DE QUANTIDADE POR PLANO ---
+// Interface para limites de plano (vem do banco)
 export interface PlanLimits {
     maxPatients: number;      // Máximo de pacientes (-1 = ilimitado)
     maxProfessionals: number; // Máximo de profissionais (-1 = ilimitado)
 }
-
-export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
-    basic: { maxPatients: 50, maxProfessionals: 1 },     // Plano expirado - limite mínimo
-    free: { maxPatients: 100, maxProfessionals: 1 },     // Trial - 100 pacientes, 1 profissional
-    starter: { maxPatients: 200, maxProfessionals: 2 },  // Starter - 200 pacientes, 2 profissionais
-    pro: { maxPatients: -1, maxProfessionals: 3 },       // Pro - ilimitado pacientes, 3 profissionais
-    clinic: { maxPatients: -1, maxProfessionals: -1 },   // Clinic - tudo ilimitado
-    premium: { maxPatients: -1, maxProfessionals: -1 },  // Premium - tudo ilimitado
-};
 
 export const PAYMENT_METHODS_LIST = [
     { id: 'money', label: 'Dinheiro' },
@@ -67,50 +56,8 @@ export const DEFAULT_BUSINESS_HOURS: BusinessHours = {
 };
 
 // --- PLANOS SAAS ---
-export const DEFAULT_PLANS: SaasPlan[] = [
-    { 
-        id: 'starter', 
-        name: 'Starter', 
-        price: 89.00, 
-        features: [
-            'Agenda Inteligente', 
-            'Prontuário Digital', 
-            'Até 200 Pacientes', 
-            'Financeiro Básico',
-            'Gestão de Estoque'
-        ], 
-        active: true,
-        stripePaymentLink: ''
-    },
-    { 
-        id: 'pro', 
-        name: 'Profissional', 
-        price: 197.00, 
-        features: [
-            'Tudo do Starter', 
-            'Pacientes Ilimitados', 
-            'Fotos Antes/Depois', 
-            'WhatsApp Automatizado',
-            'Aura AI (50 créditos)'
-        ], 
-        active: true,
-        stripePaymentLink: ''
-    },
-    { 
-        id: 'clinic', 
-        name: 'Clinic', 
-        price: 397.00, 
-        features: [
-            'Múltiplos Profissionais', 
-            'Gestão de Comissões',
-            'Aura AI Ilimitado',
-            'API de Integração',
-            'Gerente de Conta'
-        ], 
-        active: true,
-        stripePaymentLink: ''
-    },
-];
+// NOTA: Planos são carregados do banco de dados via API /api/plans
+// Não há mais DEFAULT_PLANS hardcoded
 
 // --- CATEGORIAS DE TRANSAÇÕES ---
 export const TRANSACTION_CATEGORIES = {

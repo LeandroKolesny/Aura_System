@@ -13,11 +13,15 @@ export async function GET(request: NextRequest) {
       orderBy: { price: "asc" },
     });
 
-    // Converter Decimal para number para o frontend
+    // Converter Decimal para number e incluir novos campos
     const formattedPlans = plans.map((plan) => ({
       id: plan.id,
       name: plan.name,
+      displayName: plan.displayName || plan.name,
       price: Number(plan.price),
+      maxProfessionals: plan.maxProfessionals,
+      maxPatients: plan.maxPatients,
+      modules: plan.modules,
       features: plan.features,
       active: plan.isActive,
       stripePaymentLink: plan.stripeProductId || "",
@@ -49,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, price, features, active, stripePaymentLink } = body;
+    const { name, displayName, price, maxProfessionals, maxPatients, modules, features, active, stripePaymentLink } = body;
 
     if (!name || price === undefined) {
       return NextResponse.json(
@@ -61,7 +65,11 @@ export async function POST(request: NextRequest) {
     const plan = await prisma.saasPlan.create({
       data: {
         name,
+        displayName: displayName || name,
         price: price,
+        maxProfessionals: maxProfessionals ?? 1,
+        maxPatients: maxPatients ?? 50,
+        modules: modules || [],
         features: features || [],
         isActive: active !== false,
         stripeProductId: stripePaymentLink || null,
@@ -73,7 +81,11 @@ export async function POST(request: NextRequest) {
       plan: {
         id: plan.id,
         name: plan.name,
+        displayName: plan.displayName,
         price: Number(plan.price),
+        maxProfessionals: plan.maxProfessionals,
+        maxPatients: plan.maxPatients,
+        modules: plan.modules,
         features: plan.features,
         active: plan.isActive,
         stripePaymentLink: plan.stripeProductId || "",

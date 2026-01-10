@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, ExternalLink, QrCode, Check, Globe, Eye, Palette, Type, RotateCcw, Save, Layout, ChevronDown, ChevronUp, Clock, AlertTriangle, Info, Sparkles } from 'lucide-react';
+import { Copy, ExternalLink, QrCode, Check, Globe, Palette, RotateCcw, Save, ChevronDown, ChevronUp, Clock, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { useNavigate } from 'react-router-dom';
 import { PublicLayoutConfig, UserRole, OnlineBookingConfig } from '../types';
 
 const AccessLink: React.FC = () => {
   const { currentCompany, updateCompany, user, setHasUnsavedChanges } = useApp();
   const [copied, setCopied] = useState(false);
-  const navigate = useNavigate();
 
   // Accordion States
   const [isScheduleConfigOpen, setIsScheduleConfigOpen] = useState(false);
@@ -152,10 +150,6 @@ const AccessLink: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleInternalPreview = () => {
-    navigate(`/${currentCompany?.slug || currentCompany?.id}`);
-  };
-
   const handleApplyPreset = (presetConfig: any) => {
       setLayoutConfig(prev => ({
           ...prev,
@@ -231,24 +225,14 @@ const AccessLink: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button 
-                onClick={handleInternalPreview}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg font-medium hover:bg-primary-100 transition-colors"
-            >
-                <Eye className="w-4 h-4" /> Visualizar Agora (Teste)
-            </button>
-            
-            <a
-                href={`/${currentCompany?.slug || currentCompany?.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm"
-            >
-                <ExternalLink className="w-4 h-4" /> Abrir Nova Aba
-            </a>
-          </div>
-          <p className="text-xs text-slate-400 mt-2 text-center">Use o botão "Visualizar Agora" se estiver no editor de código.</p>
+          <a
+              href={`/${currentCompany?.slug || currentCompany?.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm"
+          >
+              <ExternalLink className="w-4 h-4" /> Abrir Link em Nova Aba
+          </a>
         </div>
 
         <div className="bg-gradient-to-br from-primary-600 to-secondary-900 rounded-xl shadow-2xl p-8 text-white relative overflow-hidden flex flex-col items-center justify-center text-center">

@@ -96,6 +96,10 @@ model Company {
   subscriptionStatus      SubscriptionStatus @default(TRIAL)
   subscriptionExpiresAt   DateTime?
   lastPlan                Plan?
+  customPrice             Decimal? @db.Decimal(10, 2) // Preço negociado (ENTERPRISE)
+
+  // Status de vendas (CRM do OWNER)
+  salesStatus             SalesStatus @default(NEW)
 
   // Configurações de negócio
   businessHours           Json?    // BusinessHours object
@@ -137,8 +141,9 @@ model Company {
 }
 
 enum Plan {
-  FREE
-  BASIC
+  FREE        // Trial grátis
+  BASIC       // Plano bloqueado (sem acesso) após trial expirar
+  STARTER     // Primeiro plano pago
   PROFESSIONAL
   PREMIUM
   ENTERPRISE
@@ -149,6 +154,15 @@ enum SubscriptionStatus {
   TRIAL
   OVERDUE
   CANCELED
+}
+
+enum SalesStatus {
+  NEW           // Novo contato
+  CONTACTED     // Em contato
+  DEMO          // Demo agendada
+  NEGOTIATION   // Em negociação
+  WON           // Fechado (ganho)
+  LOST          // Perdido
 }
 
 // ============================================
@@ -616,15 +630,19 @@ enum TicketStatus {
 // ============================================
 
 model SaasPlan {
-  id              String   @id @default(cuid())
-  name            String
-  price           Decimal  @db.Decimal(10, 2)
-  features        String[]
-  isActive        Boolean  @default(true)
-  stripeProductId String?
-  stripePriceId   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String   @unique              // "FREE", "STARTER", "PROFESSIONAL", etc.
+  displayName      String?                       // Nome amigável para UI
+  price            Decimal  @db.Decimal(10, 2)
+  maxProfessionals Int      @default(1)          // -1 = ilimitado
+  maxPatients      Int      @default(50)         // -1 = ilimitado
+  modules          String[] @default([])         // ["online_booking", "financial", ...]
+  features         String[] @default([])         // Lista de features para marketing
+  isActive         Boolean  @default(true)
+  stripeProductId  String?
+  stripePriceId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("saas_plans")
 }

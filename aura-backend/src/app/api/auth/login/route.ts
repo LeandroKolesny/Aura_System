@@ -4,6 +4,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, resetRateLimit, getClientIP } from "@/lib/rateLimiter";
 import { logLogin, logLoginFailure } from "@/lib/auditLog";
+import { generateJWT } from "@/lib/auth";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -124,8 +125,13 @@ export async function POST(request: NextRequest) {
     // Log de auditoria - Login bem-sucedido
     logLogin(user.id, email, request);
 
-    // Gerar token simples (para dev - em produção use JWT real)
-    const token = Buffer.from(`${user.id}:${Date.now()}`).toString("base64");
+    // Gerar token JWT assinado criptograficamente
+    const token = generateJWT({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: user.company?.id || null,
+    });
 
     // Remover senha da resposta
     const { password: _, ...userWithoutPassword } = user;

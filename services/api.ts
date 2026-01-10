@@ -591,6 +591,13 @@ export const usersApi = {
       body: JSON.stringify(data),
     });
   },
+
+  async resetPassword(userId: string, newPassword: string) {
+    return fetchApi<{ success: boolean; message: string }>(`/api/users/${userId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ newPassword }),
+    });
+  },
 };
 
 // ============ KING APIs (Owner Only) ============
@@ -629,6 +636,19 @@ export const kingApi = {
     if (params?.endDate) query.set('endDate', params.endDate);
     if (params?.status) query.set('status', params.status);
     return fetchApi(`/api/king/appointments?${query.toString()}`);
+  },
+
+  // Leads de vendas (empresas FREE/TRIAL para conversão)
+  leads: async () => {
+    return fetchApi<{ leads: any[] }>('/api/king/leads');
+  },
+
+  // Atualizar status de lead (conversão)
+  updateLead: async (companyId: string, data: { status?: string; plan?: string }) => {
+    return fetchApi('/api/king/leads', {
+      method: 'PATCH',
+      body: JSON.stringify({ companyId, ...data }),
+    });
   },
 };
 

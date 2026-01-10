@@ -155,12 +155,40 @@ export async function queryCompanies(options: QueryOptions & { status?: string }
             users: true,
           },
         },
+        users: {
+          where: {
+            role: { in: ["ADMIN", "OWNER"] },
+          },
+          select: {
+            role: true,
+            email: true,
+            phone: true,
+            name: true,
+          },
+          take: 1, // Pegar apenas o primeiro admin/owner
+        },
       },
     }),
     prisma.company.count({ where }),
   ]);
 
-  return { companies, total, page, limit };
+  // Adicionar flag hasOwner e contato do admin para cada empresa
+  const companiesWithFlags = companies.map(c => {
+    const adminUser = c.users?.[0];
+    return {
+      ...c,
+      hasOwner: c.users?.some(u => u.role === "OWNER") || false,
+      // Dados de contato do admin (para o OWNER entrar em contato)
+      adminContact: adminUser ? {
+        name: adminUser.name,
+        email: adminUser.email,
+        phone: adminUser.phone,
+      } : null,
+      users: undefined, // Remover lista de users
+    };
+  });
+
+  return { companies: companiesWithFlags, total, page, limit };
 }
 
 // ============ DASHBOARD STATS (Global) ============
@@ -210,6 +238,11 @@ export async function queryGlobalStats() {
           plan: true,
           subscriptionStatus: true,
           subscriptionExpiresAt: true,
+          users: {
+            select: {
+              role: true,
+            },
+          },
         },
       }),
     ]);
@@ -225,6 +258,7 @@ export async function queryGlobalStats() {
     });
 
     // Calcular MRR baseado nos planos (corrigido para schema Prisma)
+    // EXCLUIR empresas que têm usuário OWNER (conta do dono do sistema)
     const PLAN_PRICES: Record<string, number> = {
       FREE: 0,
       BASIC: 97,
@@ -234,6 +268,13 @@ export async function queryGlobalStats() {
     };
 
     const mrr = companies.reduce((acc, c) => {
+      // Excluir empresas com usuário OWNER do MRR (não pagam)
+      const hasOwnerUser = c.users?.some(u => u.role === "OWNER");
+      if (hasOwnerUser) {
+        console.log(`  ⏭️ Empresa: ${c.name} - EXCLUÍDA do MRR (OWNER)`);
+        return acc;
+      }
+
       const planKey = c.plan?.toUpperCase() || "FREE";
       const planPrice = PLAN_PRICES[planKey] || 0;
       console.log(`  📍 Empresa: ${c.name}, Plano: ${planKey}, Preço: ${planPrice}, Status: ${c.subscriptionStatus}`);

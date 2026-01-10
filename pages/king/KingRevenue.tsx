@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   DollarSign, Building, RefreshCw, AlertTriangle, TrendingUp,
   CreditCard, Calendar, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp,
-  Wallet, PiggyBank, ArrowUpRight, ArrowDownRight
+  Wallet, PiggyBank, ArrowUpRight, ArrowDownRight, Mail, Phone
 } from 'lucide-react';
-import { kingApi } from '../../services/api';
+import { kingApi, plansApi } from '../../services/api';
 import { formatCurrency } from '../../utils/formatUtils';
 
 interface Company {
@@ -12,9 +12,16 @@ interface Company {
   name: string;
   slug: string;
   plan: string;
+  lastPlan?: string; // Plano anterior (quando cai para BASIC)
   subscriptionStatus: string;
   subscriptionExpiresAt: string | null;
   createdAt: string;
+  hasOwner?: boolean; // Indica se a empresa pertence ao OWNER do sistema
+  adminContact?: {
+    name: string;
+    email: string;
+    phone: string | null;
+  } | null;
   _count: {
     patients: number;
     appointments: number;
@@ -22,22 +29,29 @@ interface Company {
   };
 }
 
-// Preços dos planos
-const PLAN_PRICES: Record<string, number> = {
-  FREE: 0,
-  BASIC: 97,
-  PROFESSIONAL: 197,
-  PREMIUM: 297,
-  ENTERPRISE: 497,
-};
+interface SaasPlan {
+  id: string;
+  name: string;           // Agora padronizado: FREE, BASIC, STARTER, PROFESSIONAL, PREMIUM, ENTERPRISE
+  displayName?: string;   // Nome amigável para exibição
+  price: number;
+  maxProfessionals: number;
+  maxPatients: number;
+  modules: string[];
+  features: string[];
+  active: boolean;
+}
 
+// Cores dos planos
 const PLAN_COLORS: Record<string, { bg: string; text: string }> = {
   FREE: { bg: 'bg-slate-100', text: 'text-slate-600' },
-  BASIC: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  BASIC: { bg: 'bg-red-100', text: 'text-red-700' },
+  STARTER: { bg: 'bg-blue-100', text: 'text-blue-700' },
   PROFESSIONAL: { bg: 'bg-purple-100', text: 'text-purple-700' },
   PREMIUM: { bg: 'bg-amber-100', text: 'text-amber-700' },
   ENTERPRISE: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
 };
+
+const getDefaultPlanColor = () => ({ bg: 'bg-gray-100', text: 'text-gray-700' });
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: React.ElementType; label: string }> = {
   ACTIVE: { bg: 'bg-emerald-100', text: 'text-emerald-700', icon: CheckCircle, label: 'Ativo' },
@@ -48,19 +62,42 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: React.Elem
 
 const KingRevenue: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [saasPlans, setSaasPlans] = useState<SaasPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
+
+  // Mapa de preços dos planos (busca do banco de dados)
+  // Nomes agora são padronizados e iguais ao enum Prisma
+  const planPrices = useMemo(() => {
+    const prices: Record<string, number> = {};
+    saasPlans.forEach(plan => {
+      prices[plan.name] = Number(plan.price);
+    });
+    return prices;
+  }, [saasPlans]);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await kingApi.companies({ limit: 200 });
-      const apiData = response.data as { success: boolean; data: { companies: Company[] } };
+      // Carregar empresas e planos em paralelo
+      const [companiesRes, plansRes] = await Promise.all([
+        kingApi.companies({ limit: 200 }),
+        plansApi.list()
+      ]);
 
-      if (response.success && apiData?.success && apiData?.data) {
-        setCompanies(apiData.data.companies);
+      const companiesData = companiesRes.data as { success: boolean; data: { companies: Company[] } };
+      if (companiesRes.success && companiesData?.success && companiesData?.data) {
+        setCompanies(companiesData.data.companies);
+      }
+
+      // Planos vêm como array direto ou dentro de data
+      const plansData = plansRes.data as SaasPlan[] | { plans: SaasPlan[] };
+      if (plansRes.success && plansData) {
+        const plans = Array.isArray(plansData) ? plansData : (plansData as any).plans || [];
+        setSaasPlans(plans);
+        console.log('✅ Planos carregados do banco:', plans.length);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -74,30 +111,33 @@ const KingRevenue: React.FC = () => {
     loadData();
   }, []);
 
-  // Calcular métricas
-  const activeCompanies = companies.filter(c => c.subscriptionStatus === 'ACTIVE');
-  const trialCompanies = companies.filter(c => c.subscriptionStatus === 'TRIAL');
-  const overdueCompanies = companies.filter(c => c.subscriptionStatus === 'OVERDUE');
-  const canceledCompanies = companies.filter(c => c.subscriptionStatus === 'CANCELED');
+  // Calcular métricas (excluindo empresas do OWNER - não pagam)
+  const payingCompanies = companies.filter(c => !c.hasOwner);
+  const activeCompanies = payingCompanies.filter(c => c.subscriptionStatus === 'ACTIVE');
+  const trialCompanies = payingCompanies.filter(c => c.subscriptionStatus === 'TRIAL');
+  const overdueCompanies = payingCompanies.filter(c => c.subscriptionStatus === 'OVERDUE');
+  const canceledCompanies = payingCompanies.filter(c => c.subscriptionStatus === 'CANCELED');
 
-  // MRR atual (apenas ativos)
+  // MRR atual (apenas ativos, excluindo OWNER)
   const currentMRR = activeCompanies.reduce((acc, c) => {
-    return acc + (PLAN_PRICES[c.plan] || 0);
+    return acc + (planPrices[c.plan] || 0);
   }, 0);
 
   // MRR potencial (trial que pode converter)
   const potentialMRR = trialCompanies.reduce((acc, c) => {
-    return acc + (PLAN_PRICES[c.plan] || 0);
+    return acc + (planPrices[c.plan] || 0);
   }, 0);
 
   // MRR perdido (cancelados)
   const lostMRR = canceledCompanies.reduce((acc, c) => {
-    return acc + (PLAN_PRICES[c.plan] || 0);
+    return acc + (planPrices[c.plan] || 0);
   }, 0);
 
-  // MRR em risco (inadimplentes)
+  // MRR em risco (inadimplentes) - usar lastPlan pois plan será BASIC (preço 0)
   const atRiskMRR = overdueCompanies.reduce((acc, c) => {
-    return acc + (PLAN_PRICES[c.plan] || 0);
+    // Se tem lastPlan, usar o preço do plano anterior (o que estava pagando)
+    const planToUse = c.lastPlan || c.plan;
+    return acc + (planPrices[planToUse] || 0);
   }, 0);
 
   // ARR (Annual Recurring Revenue)
@@ -114,11 +154,14 @@ const KingRevenue: React.FC = () => {
   // Próximos vencimentos (próximos 30 dias)
   const now = new Date();
   const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  // Próximos vencimentos (ACTIVE = renovação, TRIAL = fim do trial)
   const upcomingRenewals = companies
     .filter(c => {
       if (!c.subscriptionExpiresAt) return false;
       const expDate = new Date(c.subscriptionExpiresAt);
-      return expDate >= now && expDate <= thirtyDaysFromNow && c.subscriptionStatus === 'ACTIVE';
+      const isUpcoming = expDate >= now && expDate <= thirtyDaysFromNow;
+      const isRelevantStatus = c.subscriptionStatus === 'ACTIVE' || c.subscriptionStatus === 'TRIAL';
+      return isUpcoming && isRelevantStatus;
     })
     .sort((a, b) => new Date(a.subscriptionExpiresAt!).getTime() - new Date(b.subscriptionExpiresAt!).getTime());
 
@@ -278,6 +321,7 @@ const KingRevenue: React.FC = () => {
                   {upcomingRenewals.map(company => {
                     const daysUntil = getDaysUntil(company.subscriptionExpiresAt!);
                     const isUrgent = daysUntil <= 7;
+                    const isTrial = company.subscriptionStatus === 'TRIAL';
 
                     return (
                       <div
@@ -296,12 +340,42 @@ const KingRevenue: React.FC = () => {
                             <p className="text-xs text-slate-400">{formatDate(company.subscriptionExpiresAt!)}</p>
                           </div>
                         </div>
+
+                        {/* Contato do Admin */}
+                        {company.adminContact && (
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                            <a
+                              href={`mailto:${company.adminContact.email}`}
+                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                            >
+                              <Mail className="w-3 h-3" />
+                              {company.adminContact.email}
+                            </a>
+                            {company.adminContact.phone && (
+                              <a
+                                href={`tel:${company.adminContact.phone}`}
+                                className="flex items-center gap-1 text-emerald-600 hover:text-emerald-800"
+                              >
+                                <Phone className="w-3 h-3" />
+                                {company.adminContact.phone}
+                              </a>
+                            )}
+                          </div>
+                        )}
+
                         <div className="mt-2 flex justify-between items-center">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${PLAN_COLORS[company.plan]?.bg} ${PLAN_COLORS[company.plan]?.text}`}>
-                            {company.plan}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${PLAN_COLORS[company.plan]?.bg} ${PLAN_COLORS[company.plan]?.text}`}>
+                              {company.plan}
+                            </span>
+                            {isTrial && (
+                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                                Fim do Trial
+                              </span>
+                            )}
+                          </div>
                           <span className="text-sm font-medium text-emerald-600">
-                            {formatCurrency(PLAN_PRICES[company.plan] || 0)}/mês
+                            {formatCurrency(planPrices[company.plan] || 0)}/mês
                           </span>
                         </div>
                       </div>
@@ -311,6 +385,82 @@ const KingRevenue: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Lista de Inadimplentes */}
+          {overdueCompanies.length > 0 && (
+            <div className="bg-white rounded-xl border border-amber-200 p-6">
+              <h3 className="font-bold text-amber-800 mb-4 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                Empresas Inadimplentes ({overdueCompanies.length})
+              </h3>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {overdueCompanies.map(company => {
+                  const previousPlan = company.lastPlan || company.plan;
+                  const lostValue = planPrices[previousPlan] || 0;
+                  const colors = PLAN_COLORS[previousPlan] || { bg: 'bg-slate-100', text: 'text-slate-700' };
+
+                  return (
+                    <div
+                      key={company.id}
+                      className="p-4 rounded-lg border border-amber-100 bg-amber-50"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-slate-800">{company.name}</p>
+                          <p className="text-xs text-slate-500">/{company.slug}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-red-600">
+                            -{formatCurrency(lostValue)}/mês
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {company.subscriptionExpiresAt ? `Expirou: ${formatDate(company.subscriptionExpiresAt)}` : 'Data não informada'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Contato do Admin */}
+                      {company.adminContact && (
+                        <div className="mt-3 pt-3 border-t border-amber-200">
+                          <p className="text-xs text-slate-500 mb-1">Contato:</p>
+                          <div className="flex flex-wrap gap-3">
+                            <a
+                              href={`mailto:${company.adminContact.email}`}
+                              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                            >
+                              <Mail className="w-3 h-3" />
+                              {company.adminContact.email}
+                            </a>
+                            {company.adminContact.phone && (
+                              <a
+                                href={`tel:${company.adminContact.phone}`}
+                                className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-800"
+                              >
+                                <Phone className="w-3 h-3" />
+                                {company.adminContact.phone}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-2 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
+                            Era: {previousPlan}
+                          </span>
+                          <span className="text-xs text-slate-400">→</span>
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                            BASIC (Bloqueado)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Receita por Plano */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -322,23 +472,26 @@ const KingRevenue: React.FC = () => {
             </div>
 
             <div className="divide-y divide-slate-100">
-              {Object.entries(PLAN_PRICES)
-                .filter(([plan]) => plan !== 'FREE')
-                .map(([plan, price]) => {
-                  const planCompanies = companiesByPlan[plan] || [];
+              {/* Itera sobre os planos do banco de dados (exceto FREE e BASIC que são gratuitos) */}
+              {saasPlans
+                .filter(plan => plan.active && plan.name !== 'FREE' && plan.name !== 'BASIC')
+                .map(plan => {
+                  const price = Number(plan.price);
+                  const planCompanies = companiesByPlan[plan.name] || [];
                   const activeInPlan = planCompanies.filter(c => c.subscriptionStatus === 'ACTIVE');
                   const planMRR = activeInPlan.length * price;
-                  const isExpanded = expandedPlan === plan;
+                  const isExpanded = expandedPlan === plan.name;
+                  const colors = PLAN_COLORS[plan.name] || getDefaultPlanColor();
 
                   return (
-                    <div key={plan}>
+                    <div key={plan.id}>
                       <div
-                        onClick={() => setExpandedPlan(isExpanded ? null : plan)}
+                        onClick={() => setExpandedPlan(isExpanded ? null : plan.name)}
                         className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
                       >
                         <div className="flex items-center gap-4">
-                          <span className={`px-3 py-1 rounded-lg text-sm font-bold ${PLAN_COLORS[plan]?.bg} ${PLAN_COLORS[plan]?.text}`}>
-                            {plan}
+                          <span className={`px-3 py-1 rounded-lg text-sm font-bold ${colors.bg} ${colors.text}`}>
+                            {plan.displayName || plan.name}
                           </span>
                           <div>
                             <p className="font-medium text-slate-800">{formatCurrency(price)}/mês por assinatura</p>

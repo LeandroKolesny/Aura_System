@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Target, Plus, Phone, Mail, DollarSign, Calendar,
-  MoreHorizontal, XCircle, RotateCcw, ChevronRight, TrendingUp
+  MoreHorizontal, XCircle, RotateCcw, ChevronRight, TrendingUp,
+  CheckCircle, Crown, Loader2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Lead, LeadStatus } from '../../types';
 import { maskPhone } from '../../utils/maskUtils';
 import { formatCurrency } from '../../utils/formatUtils';
+import { companiesApi } from '../../services/api';
 
 interface Column {
   id: LeadStatus;
@@ -24,11 +26,28 @@ const columns: Column[] = [
   { id: 'lost', title: 'Perdido', color: 'border-red-500', bgColor: 'bg-red-500' },
 ];
 
+// Planos disponíveis para conversão
+const CONVERSION_PLANS = [
+  { id: 'BASIC', name: 'Basic', price: 97 },
+  { id: 'PROFESSIONAL', name: 'Professional', price: 197 },
+  { id: 'PREMIUM', name: 'Premium', price: 297 },
+];
+
 const KingLeads: React.FC = () => {
-  const { leads, addLead, moveLead } = useApp();
+  const { leads, addLead, moveLead, loadLeads, loadingStates } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newLead, setNewLead] = useState({ clinicName: '', contactName: '', phone: '', email: '', value: '' });
   const [activeMenuLeadId, setActiveMenuLeadId] = useState<string | null>(null);
+
+  // Modal de conversão
+  const [conversionModal, setConversionModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [selectedPlan, setSelectedPlan] = useState<string>('PROFESSIONAL');
+  const [converting, setConverting] = useState(false);
+
+  // Carregar leads ao montar
+  useEffect(() => {
+    loadLeads();
+  }, [loadLeads]);
 
   const handleAddLead = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,12 +69,73 @@ const KingLeads: React.FC = () => {
     let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
 
     if (nextIndex >= 0 && nextIndex < statusOrder.length) {
-      moveLead(id, statusOrder[nextIndex]);
+      const nextStatus = statusOrder[nextIndex];
+      // Se for marcar como ganho, abre modal de conversão
+      if (nextStatus === 'won') {
+        const lead = leads.find(l => l.id === id);
+        if (lead) {
+          setConversionModal({ open: true, lead });
+        }
+      } else {
+        moveLead(id, nextStatus);
+      }
     }
   };
 
   const handleStatusChange = (id: string, status: LeadStatus) => {
-    moveLead(id, status);
+    // Se for marcar como ganho, abre modal de conversão
+    if (status === 'won') {
+      const lead = leads.find(l => l.id === id);
+      if (lead) {
+        setConversionModal({ open: true, lead });
+      }
+    } else {
+      moveLead(id, status);
+    }
+    setActiveMenuLeadId(null);
+  };
+
+  // Converter lead em cliente (marcar como ganho + atualizar empresa)
+  const handleConversion = async () => {
+    if (!conversionModal.lead?.companyId) {
+      // Lead manual sem empresa vinculada - apenas marca como ganho
+      moveLead(conversionModal.lead!.id, 'won');
+      setConversionModal({ open: false, lead: null });
+      return;
+    }
+
+    setConverting(true);
+    try {
+      // Atualizar empresa para o plano selecionado
+      await companiesApi.update(conversionModal.lead.companyId, {
+        plan: selectedPlan,
+        subscriptionStatus: 'ACTIVE',
+      });
+      // Marcar lead como ganho
+      moveLead(conversionModal.lead.id, 'won');
+      setConversionModal({ open: false, lead: null });
+      alert('🎉 Lead convertido com sucesso!');
+    } catch (error) {
+      console.error('Erro ao converter lead:', error);
+      alert('Erro ao converter lead. Tente novamente.');
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  // Marcar como perdido (BASIC + CANCELED)
+  const handleMarkAsLost = async (lead: Lead) => {
+    if (lead.companyId) {
+      try {
+        await companiesApi.update(lead.companyId, {
+          plan: 'BASIC',
+          subscriptionStatus: 'CANCELED',
+        });
+      } catch (error) {
+        console.error('Erro ao atualizar empresa:', error);
+      }
+    }
+    moveLead(lead.id, 'lost');
     setActiveMenuLeadId(null);
   };
 
@@ -66,7 +146,7 @@ const KingLeads: React.FC = () => {
   const wonValue = leads.filter(l => l.status === 'won').reduce((acc, l) => acc + (l.value || 0), 0);
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col relative">
+    <div className="h-[calc(100vh-8rem)] flex flex-col relative overflow-hidden">
       {/* Backdrop para fechar menus */}
       {activeMenuLeadId && (
         <div className="fixed inset-0 z-10" onClick={() => setActiveMenuLeadId(null)} />
@@ -110,8 +190,8 @@ const KingLeads: React.FC = () => {
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto pb-4">
-        <div className="flex gap-4 min-w-max h-full">
+      <div className="flex-1 overflow-x-auto pb-4 max-w-full">
+        <div className="flex gap-4 h-full" style={{ minWidth: 'max-content' }}>
           {columns.map(col => {
             const colLeads = leads.filter(l => l.status === col.id);
             const colValue = colLeads.reduce((acc, l) => acc + (l.value || 0), 0);
@@ -157,9 +237,17 @@ const KingLeads: React.FC = () => {
                         {/* Dropdown Menu */}
                         {activeMenuLeadId === lead.id && (
                           <div className="absolute right-2 top-10 bg-white rounded-xl shadow-xl border border-slate-100 z-30 w-48 overflow-hidden animate-fade-in">
+                            {lead.status !== 'won' && lead.status !== 'lost' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConversionModal({ open: true, lead }); setActiveMenuLeadId(null); }}
+                                className="w-full text-left px-4 py-3 text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-colors border-b border-slate-100"
+                              >
+                                <CheckCircle className="w-4 h-4" /> Marcar como Ganho
+                              </button>
+                            )}
                             {lead.status !== 'lost' ? (
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleStatusChange(lead.id, 'lost'); }}
+                                onClick={(e) => { e.stopPropagation(); handleMarkAsLost(lead); }}
                                 className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
                               >
                                 <XCircle className="w-4 h-4" /> Marcar como Perdido
@@ -333,6 +421,85 @@ const KingLeads: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Conversão */}
+      {conversionModal.open && conversionModal.lead && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-4 text-white">
+              <div className="flex items-center gap-3">
+                <Crown className="w-8 h-8" />
+                <div>
+                  <h3 className="text-lg font-bold">Converter Lead</h3>
+                  <p className="text-emerald-100 text-sm">{conversionModal.lead.clinicName}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <p className="text-slate-600 text-sm">
+                Selecione o plano para ativar a assinatura desta clínica:
+              </p>
+
+              <div className="space-y-3">
+                {CONVERSION_PLANS.map(plan => (
+                  <label
+                    key={plan.id}
+                    className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                      selectedPlan === plan.id
+                        ? 'border-emerald-500 bg-emerald-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="plan"
+                        value={plan.id}
+                        checked={selectedPlan === plan.id}
+                        onChange={() => setSelectedPlan(plan.id)}
+                        className="w-4 h-4 text-emerald-600"
+                      />
+                      <span className="font-medium text-slate-800">{plan.name}</span>
+                    </div>
+                    <span className="font-bold text-emerald-600">{formatCurrency(plan.price)}/mês</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                onClick={() => setConversionModal({ open: false, lead: null })}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                disabled={converting}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConversion}
+                disabled={converting}
+                className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium flex items-center gap-2"
+              >
+                {converting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Convertendo...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Confirmar Conversão
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

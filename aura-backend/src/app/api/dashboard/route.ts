@@ -114,14 +114,14 @@ export async function GET(request: NextRequest) {
       // Receita diária para gráfico (agregação por dia)
       prisma.$queryRaw<{ date: Date; total: number }[]>`
         SELECT
-          DATE("date") as date,
+          "date"::date as date,
           COALESCE(SUM(amount), 0) as total
         FROM "transactions"
         WHERE "companyId" = ${user.companyId}
           AND "type" = 'INCOME'
           AND "status" = 'PAID'
           AND "date" >= ${startDate}
-        GROUP BY DATE("date")
+        GROUP BY "date"::date
         ORDER BY date ASC
       `,
     ]);
