@@ -93,6 +93,12 @@ export const authApi = {
   async me() {
     return fetchApi<{ user: any }>('/api/auth/me');
   },
+
+  async googleSignIn(mode: 'signin' | 'calendar' = 'signin', returnTo = '/') {
+    // Redirects browser to Google OAuth — no fetch needed
+    const params = new URLSearchParams({ mode, returnTo });
+    window.location.href = `${API_BASE_URL}/api/auth/google?${params}`;
+  },
 };
 
 // ============================================
@@ -202,6 +208,20 @@ export const appointmentsApi = {
 
   async create(data: any) {
     return fetchApi<{ appointment: any }>('/api/appointments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Booking público (sem autenticação)
+  async createPublic(data: {
+    companyId: string;
+    procedureId: string;
+    professionalId: string;
+    date: string;
+    patientInfo: { name: string; email: string; phone: string; password?: string };
+  }) {
+    return fetchApi<{ appointment: any; patient: any }>('/api/public/booking', {
       method: 'POST',
       body: JSON.stringify(data),
     });

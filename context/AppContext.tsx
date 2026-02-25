@@ -26,6 +26,7 @@ import {
 interface AppContextType {
   user: User | null;
   login: (email: string, password?: string) => Promise<boolean>;
+  loginWithToken: (token: string) => Promise<boolean>;
   logout: () => Promise<void>;
   registerCompany: (companyName: string, adminData: any) => void;
   
@@ -381,6 +382,68 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  const loginWithToken = async (token: string): Promise<boolean> => {
+    try {
+      localStorage.setItem('aura_token', token);
+      const result = await authApi.me();
+      if (result.success && result.data?.user) {
+        const apiUser = result.data.user;
+
+        // Mapear role da API para o enum UserRole
+        const roleMap: Record<string, UserRole> = {
+          'ADMIN': UserRole.ADMIN,
+          'OWNER': UserRole.OWNER,
+          'RECEPTIONIST': UserRole.RECEPTIONIST,
+          'ESTHETICIAN': UserRole.ESTHETICIAN,
+          'PATIENT': UserRole.PATIENT,
+        };
+        const mappedRole = roleMap[apiUser.role?.toUpperCase()] || UserRole.ADMIN;
+
+        const mappedUser: User = {
+          id: apiUser.id,
+          name: apiUser.name,
+          email: apiUser.email,
+          role: mappedRole,
+          companyId: apiUser.company?.id || apiUser.companyId,
+          avatar: apiUser.avatar,
+          isActive: apiUser.isActive ?? true,
+        };
+
+        // Se tiver dados da empresa, adiciona à lista de companies
+        if (apiUser.company) {
+          const mappedCompany: Company = {
+            id: apiUser.company.id,
+            name: apiUser.company.name,
+            slug: apiUser.company.slug,
+            plan: apiUser.company.plan?.toLowerCase() || 'free',
+            subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
+            subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            businessHours: apiUser.company.businessHours || {},
+            onboardingCompleted: apiUser.company.onboardingCompleted ?? true,
+          };
+          setCompanies(prev => {
+            const exists = prev.find(c => c.id === mappedCompany.id);
+            if (exists) {
+              return prev.map(c => c.id === mappedCompany.id ? mappedCompany : c);
+            }
+            return [...prev, mappedCompany];
+          });
+          console.log('🏢 Empresa carregada (token):', mappedCompany.name, '| Plano:', mappedCompany.plan);
+        }
+
+        console.log('🔐 Login com token bem sucedido:', { email: apiUser.email, role: mappedRole });
+        setUser(mappedUser);
+        // loadDataFromApi será chamado automaticamente pelo useEffect que observa user
+        return true;
+      }
+      localStorage.removeItem('aura_token');
+      return false;
+    } catch {
+      localStorage.removeItem('aura_token');
+      return false;
+    }
+  };
+
   const logout = async () => {
       try {
         await authApi.logout();
@@ -539,14 +602,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!companyId) return { success: false, error: 'Company ID missing' };
 
       try {
-        // Preparar dados para API
-        const apiData = {
-          ...appt,
-          companyId,
-          patientInfo: isPublic ? patientInfo : undefined,
-        };
+        let response;
 
-        const response = await appointmentsApi.create(apiData);
+        if (isPublic && patientInfo) {
+          // Usar endpoint público para booking
+          response = await appointmentsApi.createPublic({
+            companyId,
+            procedureId: appt.procedureId || appt.service, // fallback
+            professionalId: appt.professionalId,
+            date: appt.date,
+            patientInfo: {
+              name: patientInfo.name || appt.patientName,
+              email: patientInfo.email,
+              phone: patientInfo.phone,
+              password: patientInfo.password,
+            },
+          });
+        } else {
+          // Usar endpoint autenticado
+          const apiData = {
+            ...appt,
+            companyId,
+          };
+          response = await appointmentsApi.create(apiData);
+        }
+
         if (response.success && response.data?.appointment) {
           const newAppt = response.data.appointment;
           setAppointments(prev => [...prev, {
@@ -564,8 +644,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         // Verificar se é conflito
-        if (response.error?.includes('conflito') || response.error?.includes('conflict')) {
-          return { success: false, conflict: true };
+        if (response.error?.includes('conflito') || response.error?.includes('conflict') || response.error?.includes('CONFLICT')) {
+          return { success: false, conflict: true, error: 'Horário não disponível' };
         }
 
         console.error('❌ Erro ao criar agendamento:', response.error);
@@ -1223,6 +1303,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     <AppContext.Provider value={{
       user,
       login,
+      loginWithToken,
       logout,
       registerCompany,
       companies,
