@@ -25,6 +25,7 @@ import Marketing from './pages/Marketing';
 import Inventory from './pages/Inventory';
 import PatientHistory from './pages/PatientHistory'; // Novo Import
 import Onboarding from './pages/Onboarding';
+import GoogleAuthCallback from './pages/GoogleAuthCallback';
 import { AppProvider, useApp } from './context/AppContext';
 import { UserRole } from './types';
 import { AlertTriangle } from 'lucide-react';
@@ -134,6 +135,9 @@ const App: React.FC = () => {
             <Route path="/system-alerts" element={<SystemAlerts />} />
           </Route>
           
+          {/* Google OAuth Callback */}
+          <Route path="/auth/google-callback" element={<GoogleAuthCallback />} />
+
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
