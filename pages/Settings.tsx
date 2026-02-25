@@ -5,6 +5,7 @@ import { Save, Building, Clock, ChevronDown, ChevronUp, Plus, Trash2, MapPin, Gl
 import { UserRole } from '../types';
 import { maskCpfCnpj, maskPhone, validateCpfCnpj } from '../utils/maskUtils';
 import { useNavigate } from 'react-router-dom';
+import { calendarApi } from '../services/api';
 
 const Settings: React.FC = () => {
   const { currentCompany, user, updateCompany, setHasUnsavedChanges, triggerSave, setTriggerSave, pendingNavigationPath, setPendingNavigationPath, setIsSubscriptionModalOpen } = useApp();
@@ -22,6 +23,10 @@ const Settings: React.FC = () => {
   const [phones, setPhones] = useState<string[]>(['']);
   const [targetAudience, setTargetAudience] = useState({ female: false, male: false, kids: false });
   const [socialMedia, setSocialMedia] = useState({ website: '', facebook: '', instagram: '' });
+
+  // States for Google Calendar integration
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   // Track if initial load is done to avoid setting dirty state on mount
   const isLoaded = useRef(false);
@@ -60,6 +65,30 @@ const Settings: React.FC = () => {
           setPendingNavigationPath(null);
       };
   }, [setHasUnsavedChanges, setTriggerSave, setPendingNavigationPath]);
+
+  // Check calendar connection status on mount and handle OAuth redirect
+  useEffect(() => {
+    calendarApi.getStatus().then((res) => {
+      if (res.success && res.data) {
+        setCalendarConnected(res.data.connected);
+      }
+    });
+
+    // Handle success redirect from OAuth callback
+    // This is a HashRouter app: URL looks like /#/settings?google_calendar=connected
+    // The query params are embedded inside window.location.hash, not window.location.search
+    const hash = window.location.hash; // e.g. "#/settings?google_calendar=connected"
+    const hashQueryIndex = hash.indexOf('?');
+    if (hashQueryIndex !== -1) {
+      const hashParams = new URLSearchParams(hash.slice(hashQueryIndex + 1));
+      if (hashParams.get('google_calendar') === 'connected') {
+        setCalendarConnected(true);
+        // Clean up URL — remove query string from hash but keep the path
+        const hashPath = hash.slice(0, hashQueryIndex);
+        window.history.replaceState({}, '', window.location.pathname + hashPath);
+      }
+    }
+  }, []);
 
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -118,6 +147,17 @@ const Settings: React.FC = () => {
           }
       }
   }, [triggerSave, pendingNavigationPath, navigate, setTriggerSave, setPendingNavigationPath, executeSave]);
+
+  const handleConnectCalendar = () => {
+    calendarApi.connect('/#/settings');
+  };
+
+  const handleDisconnectCalendar = async () => {
+    setCalendarLoading(true);
+    await calendarApi.disconnect();
+    setCalendarConnected(false);
+    setCalendarLoading(false);
+  };
 
   const handlePhoneChange = (index: number, value: string) => {
       const newPhones = [...phones];
@@ -412,6 +452,54 @@ const Settings: React.FC = () => {
             </button>
         </div>
       </form>
+
+      {/* Google Calendar Integration */}
+      <div className="bg-white rounded-2xl border border-secondary-200 p-6 mt-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="18" rx="2" stroke="#4285F4" strokeWidth="1.5"/>
+                <path d="M3 9h18" stroke="#4285F4" strokeWidth="1.5"/>
+                <path d="M8 2v4M16 2v4" stroke="#4285F4" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="12" cy="15" r="2" fill="#EA4335"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-secondary-800 font-sans">Google Calendar</h3>
+              <p className="text-sm text-secondary-500">
+                {calendarConnected
+                  ? 'Calendário conectado — agendamentos sincronizam automaticamente'
+                  : 'Sincronize seus agendamentos com o Google Calendar'}
+              </p>
+            </div>
+          </div>
+
+          {calendarConnected ? (
+            <button
+              onClick={handleDisconnectCalendar}
+              disabled={calendarLoading}
+              className="px-4 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {calendarLoading ? 'Desconectando...' : 'Desconectar'}
+            </button>
+          ) : (
+            <button
+              onClick={handleConnectCalendar}
+              className="px-4 py-2 text-sm bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors"
+            >
+              Conectar
+            </button>
+          )}
+        </div>
+
+        {calendarConnected && (
+          <div className="mt-4 pt-4 border-t border-secondary-100 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-400" />
+            <span className="text-xs text-secondary-500">Sincronização bidirecional ativa</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

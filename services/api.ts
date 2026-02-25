@@ -531,6 +531,27 @@ export const usersApi = {
   },
 };
 
+// ============================================
+// CALENDAR API
+// ============================================
+
+export const calendarApi = {
+  async getStatus() {
+    return fetchApi<{ connected: boolean; calendarId: string | null }>(
+      '/api/auth/google/calendar/status'
+    );
+  },
+
+  async connect(returnTo = '/settings') {
+    // Redirects browser to Google OAuth with calendar scope
+    window.location.href = `${API_BASE_URL}/api/auth/google?mode=calendar&returnTo=${encodeURIComponent(returnTo)}`;
+  },
+
+  async disconnect() {
+    return fetchApi('/api/auth/google/calendar/disconnect', { method: 'POST' });
+  },
+};
+
 // Export all APIs
 export const api = {
   auth: authApi,
@@ -551,6 +572,7 @@ export const api = {
   health: healthApi,
   companies: companiesApi,
   users: usersApi,
+  calendar: calendarApi,
 };
 
 export default api;
