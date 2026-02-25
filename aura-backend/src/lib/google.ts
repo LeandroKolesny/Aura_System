@@ -55,6 +55,7 @@ export async function getGoogleUserInfo(accessToken: string): Promise<{
   email: string;
   name: string;
   picture?: string;
+  email_verified?: boolean;
 }> {
   const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },

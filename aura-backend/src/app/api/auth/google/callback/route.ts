@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { exchangeCodeForTokens, getGoogleUserInfo } from '@/lib/google';
 import { generateSessionToken, getAuthUser } from '@/lib/auth';
 import prisma from '@/lib/prisma';
@@ -23,7 +23,14 @@ export async function GET(request: NextRequest) {
 
   let state: { mode: string; returnTo: string };
   try {
-    state = JSON.parse(Buffer.from(stateParam, 'base64url').toString());
+    const { payload, sig } = JSON.parse(Buffer.from(stateParam, 'base64url').toString());
+    const expectedSig = createHmac('sha256', process.env.SESSION_SECRET || 'aura-dev-secret')
+      .update(payload)
+      .digest('hex');
+    if (!timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
+      return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=invalid_state`);
+    }
+    state = JSON.parse(payload);
   } catch {
     return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=invalid_state`);
   }
@@ -31,6 +38,11 @@ export async function GET(request: NextRequest) {
   try {
     const tokens = await exchangeCodeForTokens(code);
     const userInfo = await getGoogleUserInfo(tokens.access_token);
+
+    // Prevent account linking with unverified email addresses
+    if (!userInfo.email_verified) {
+      return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=email_not_verified`);
+    }
 
     // CALENDAR MODE: user already logged in, just connect calendar
     if (state.mode === 'calendar') {
@@ -85,6 +97,8 @@ export async function GET(request: NextRequest) {
             avatar: userInfo.picture ?? undefined,
             role: 'PATIENT',
             isActive: true,
+            // companyId is intentionally null — new Google users are unlinked patients
+            // until they complete a public booking or are invited by an admin
           },
           include: { company: true },
         });
@@ -97,9 +111,17 @@ export async function GET(request: NextRequest) {
 
     const token = generateSessionToken(user.id);
 
-    return NextResponse.redirect(
+    const response = NextResponse.redirect(
       `${FRONTEND_URL}/#/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(state.returnTo || '/')}`
     );
+    response.cookies.set('aura_session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    });
+    return response;
   } catch (err) {
     console.error('Google callback error:', err);
     return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=google_error`);
