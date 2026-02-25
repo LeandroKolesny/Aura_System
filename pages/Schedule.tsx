@@ -105,6 +105,7 @@ const Schedule: React.FC = () => {
           const isBusinessHour = isWithinBusinessHours(dateRef, prof?.businessHours || currentCompany?.businessHours);
           const unavRule = getUnavailabilityRule(dateRef, unavailabilityRules, selectedProfessionalId);
           const isBlocked = !!unavRule;
+          const isGoogleBlock = unavRule?.description?.startsWith('google:');
 
           const hourAppointments = filteredAppointments.filter(appt => {
               const apptStart = new Date(appt.date).getTime();
@@ -113,18 +114,44 @@ const Schedule: React.FC = () => {
           });
 
           return (
-            <div key={hour} className={`flex min-h-[80px] border-b border-slate-100 relative ${!isBusinessHour ? 'bg-slate-50/50' : isBlocked ? 'bg-red-50/40' : ''}`}>
+            <div key={hour} className={`flex min-h-[80px] border-b border-slate-100 relative ${!isBusinessHour ? 'bg-slate-50/50' : isBlocked ? (isGoogleBlock ? 'bg-blue-50/40' : 'bg-red-50/40') : ''}`}>
               <div className="w-16 py-2 text-xs font-medium text-slate-400 text-center border-r border-slate-100 flex flex-col justify-between">
                 <span>{hour.toString().padStart(2, '0')}:00</span>
               </div>
-              
+
               <div className="flex-1 p-2 relative group" onClick={() => {
                     if (isReadOnly || isBlocked || !isBusinessHour) return;
                     setPreSelectedTime(dateRef);
                     setIsNewAppointmentModalOpen(true);
                 }}>
                 {!isBusinessHour && <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-slate-50/30"><span className="text-[10px] text-slate-300 font-medium uppercase tracking-widest -rotate-12 select-none">Fechado</span></div>}
-                {isBlocked && <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(254, 202, 202, 0.2) 0, rgba(254, 202, 202, 0.2) 10px, transparent 10px, transparent 20px)' }}><div className="bg-white/90 px-3 py-1 rounded-full border border-red-100 shadow-sm flex items-center gap-1.5"><AlertCircle className="w-3 h-3 text-red-500" /><span className="text-xs text-red-600 font-medium">{unavRule?.description || 'Indisponível'}</span></div></div>}
+                {isBlocked && (
+                  <div
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                    style={{ backgroundImage: isGoogleBlock
+                      ? 'repeating-linear-gradient(45deg, rgba(147, 197, 253, 0.2) 0, rgba(147, 197, 253, 0.2) 10px, transparent 10px, transparent 20px)'
+                      : 'repeating-linear-gradient(45deg, rgba(254, 202, 202, 0.2) 0, rgba(254, 202, 202, 0.2) 10px, transparent 10px, transparent 20px)'
+                    }}
+                  >
+                    <div className={`bg-white/90 px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5 border ${isGoogleBlock ? 'border-blue-200' : 'border-red-100'}`}>
+                      {isGoogleBlock ? (
+                        <>
+                          <svg className="w-3 h-3 flex-shrink-0 text-blue-600" viewBox="0 0 24 24" fill="none">
+                            <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                            <path d="M3 9h18" stroke="currentColor" strokeWidth="1.5"/>
+                            <path d="M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                          <span className="text-xs text-blue-600 font-medium">Bloqueado (Google)</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-3 h-3 text-red-500" />
+                          <span className="text-xs text-red-600 font-medium">{unavRule?.description || 'Indisponível'}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 relative z-10 h-full">
                     {hourAppointments.map(appt => {
