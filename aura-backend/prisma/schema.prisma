@@ -37,6 +37,14 @@ model User {
   fixedSalary       Decimal?  @db.Decimal(10, 2)
   businessHours     Json?     // Horário específico do profissional
 
+  // Google OAuth
+  googleId              String?   @unique
+  googleAccessToken     String?
+  googleRefreshToken    String?
+  googleCalendarId      String?
+  googleCalendarConnected Boolean @default(false)
+  googleTokenExpiresAt  DateTime?
+
   // Relacionamentos
   company       Company?  @relation(fields: [companyId], references: [id])
   companyId     String?
@@ -47,6 +55,7 @@ model User {
   activities        Activity[]
   notifications     Notification[]
   assignedLeads     Lead[]
+  watches           GoogleCalendarWatch?
 
   @@map("users")
 }
@@ -248,6 +257,7 @@ model Appointment {
   // Assinatura de procedimento
   signatureUrl    String?
   signatureMetadata Json?
+  googleEventId   String?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -623,3 +633,21 @@ enum AlertStatus {
   INACTIVE
 }
 
+// ============================================
+// MÓDULO: GOOGLE CALENDAR WEBHOOKS
+// ============================================
+
+model GoogleCalendarWatch {
+  id              String   @id @default(cuid())
+  channelId       String   @unique
+  resourceId      String?
+  expiration      DateTime
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String   @unique
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("google_calendar_watches")
+}
