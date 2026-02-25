@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { updateStatusSchema } from "@/lib/validations/appointment";
+import { deleteCalendarEvent, pushAppointmentToCalendar } from "@/lib/calendarSync";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -174,6 +175,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         metadata: { appointmentId: id, oldStatus, newStatus: status },
       },
     });
+
+    // Sync status change to Google Calendar (fire-and-forget)
+    if (status === "CANCELED") {
+      deleteCalendarEvent(id).catch(console.error);
+    } else {
+      pushAppointmentToCalendar(id).catch(console.error);
+    }
 
     return NextResponse.json({ appointment: updated });
   } catch (error) {

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { updateAppointmentSchema } from "@/lib/validations/appointment";
+import { pushAppointmentToCalendar, deleteCalendarEvent } from "@/lib/calendarSync";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -131,6 +132,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Sync updated appointment to Google Calendar (fire-and-forget)
+    pushAppointmentToCalendar(appointment.id).catch(console.error);
+
     return NextResponse.json({ appointment });
   } catch (error) {
     console.error("Erro ao atualizar agendamento:", error);
@@ -160,6 +164,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id },
       data: { status: "CANCELED" },
     });
+
+    // Remove from Google Calendar (fire-and-forget)
+    deleteCalendarEvent(id).catch(console.error);
 
     await prisma.activity.create({
       data: {

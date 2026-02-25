@@ -8,6 +8,7 @@ import {
   createAppointmentSchema,
   listAppointmentsQuerySchema,
 } from "@/lib/validations/appointment";
+import { pushAppointmentToCalendar } from "@/lib/calendarSync";
 
 /**
  * Verifica conflito de horário para um profissional
@@ -266,6 +267,9 @@ export async function POST(request: NextRequest) {
         metadata: { appointmentId: appointment.id },
       },
     });
+
+    // Sync to Google Calendar (fire-and-forget — never block the API response)
+    pushAppointmentToCalendar(appointment.id).catch(console.error);
 
     return NextResponse.json({ appointment }, { status: 201 });
   } catch (error) {
