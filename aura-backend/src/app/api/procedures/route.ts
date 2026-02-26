@@ -105,7 +105,8 @@ export async function POST(request: NextRequest) {
 
     const { supplies, ...procedureData } = validation.data;
 
-    // Verificar se os itens de estoque existem
+    // Verificar se os itens de estoque existem e calcular custo total
+    let calculatedCost = 0;
     if (supplies && supplies.length > 0) {
       const inventoryIds = supplies.map((s) => s.inventoryItemId);
       const existingItems = await prisma.inventoryItem.findMany({
@@ -115,12 +116,25 @@ export async function POST(request: NextRequest) {
       if (existingItems.length !== inventoryIds.length) {
         return NextResponse.json({ error: "Um ou mais itens de estoque não encontrados" }, { status: 400 });
       }
+
+      // Calcular custo total dos insumos
+      calculatedCost = supplies.reduce((total, supply) => {
+        const item = existingItems.find((i) => i.id === supply.inventoryItemId);
+        if (item) {
+          return total + (Number(item.costPerUnit) * supply.quantityUsed);
+        }
+        return total;
+      }, 0);
     }
+
+    // Usar o custo calculado ou o enviado pelo frontend (o maior)
+    const finalCost = Math.max(calculatedCost, procedureData.cost || 0);
 
     // Criar procedimento com insumos
     const procedure = await prisma.procedure.create({
       data: {
         ...procedureData,
+        cost: finalCost,
         companyId: user.companyId,
         supplies: supplies && supplies.length > 0 ? {
           create: supplies.map((s) => ({
@@ -132,7 +146,7 @@ export async function POST(request: NextRequest) {
       include: {
         supplies: {
           include: {
-            inventoryItem: { select: { id: true, name: true, unit: true } },
+            inventoryItem: { select: { id: true, name: true, unit: true, costPerUnit: true } },
           },
         },
       },

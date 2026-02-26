@@ -132,6 +132,22 @@ export const RevenueAreaChart: React.FC<RevenueAreaChartProps> = ({
         {sanitizedData.map((d, i) => {
           const x = getX(i);
           const y = getY(d.value);
+
+          // Calcular intervalo para mostrar rótulos (evitar sobreposição)
+          const totalPoints = sanitizedData.length;
+          let showLabel = true;
+
+          if (totalPoints > 20) {
+            // Mais de 20 pontos: mostrar apenas a cada 5 pontos + primeiro e último
+            showLabel = i === 0 || i === totalPoints - 1 || i % 5 === 0;
+          } else if (totalPoints > 12) {
+            // Entre 13-20 pontos: mostrar apenas a cada 3 pontos + primeiro e último
+            showLabel = i === 0 || i === totalPoints - 1 || i % 3 === 0;
+          } else if (totalPoints > 8) {
+            // Entre 9-12 pontos: mostrar apenas a cada 2 pontos + primeiro e último
+            showLabel = i === 0 || i === totalPoints - 1 || i % 2 === 0;
+          }
+
           return (
             <g key={i}>
               <circle
@@ -145,15 +161,17 @@ export const RevenueAreaChart: React.FC<RevenueAreaChartProps> = ({
                 onMouseEnter={() => setTooltip({ x, y, value: d.value, label: d.label })}
                 onMouseLeave={() => setTooltip(null)}
               />
-              <text
-                x={x}
-                y={paddingTop + chartHeight + 20}
-                textAnchor="middle"
-                className="fill-slate-400"
-                style={{ fontSize: '11px' }}
-              >
-                {d.label}
-              </text>
+              {showLabel && (
+                <text
+                  x={x}
+                  y={paddingTop + chartHeight + 20}
+                  textAnchor="middle"
+                  className="fill-slate-400"
+                  style={{ fontSize: '10px' }}
+                >
+                  {d.label}
+                </text>
+              )}
             </g>
           );
         })}

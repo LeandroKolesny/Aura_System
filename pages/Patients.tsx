@@ -1,13 +1,19 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, Phone, Mail, Building, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Plus, Phone, Mail, Building, Edit, Trash2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NewPatientModal } from '../components/Modals';
 import { UserRole, Patient } from '../types';
+import { PatientsSkeleton } from '../components/LoadingSkeleton';
 
 const Patients: React.FC = () => {
-  const { patients, user, companies, removePatient, isReadOnly } = useApp();
+  const { patients, user, companies, removePatient, isReadOnly, loadPatients, loadingStates } = useApp();
+
+  // Lazy loading: carregar pacientes quando a página montar
+  useEffect(() => {
+    loadPatients();
+  }, [loadPatients]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   // Alterado para rastrear seções ABERTAS. Inicialmente vazio = tudo fechado.
@@ -120,6 +126,11 @@ const Patients: React.FC = () => {
     </div>
   );
 
+  // Loading state - usar skeleton
+  if (loadingStates.patients && patients.length === 0) {
+    return <PatientsSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -130,7 +141,7 @@ const Patients: React.FC = () => {
           </p>
         </div>
         {!isOwner && (
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             disabled={isReadOnly}
             className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm

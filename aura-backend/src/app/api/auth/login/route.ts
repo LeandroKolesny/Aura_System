@@ -4,6 +4,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, resetRateLimit, getClientIP } from "@/lib/rateLimiter";
 import { logLogin, logLoginFailure } from "@/lib/auditLog";
+import { generateJWT } from "@/lib/auth";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -99,21 +100,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verificar modo de manutencao (exceto para OWNER)
+    if (user.role !== "OWNER") {
+      const systemSettings = await prisma.systemSettings.findUnique({
+        where: { id: "global" },
+      });
+
+      if (systemSettings?.maintenanceMode) {
+        logLoginFailure(email, "Sistema em manutencao", request);
+        return NextResponse.json(
+          {
+            error: "Sistema em manutencao",
+            maintenance: true,
+            message: systemSettings.maintenanceMessage || "Sistema em manutencao. Retorne mais tarde."
+          },
+          { status: 503 }
+        );
+      }
+    }
+
     // Login bem-sucedido - resetar rate limit
     resetRateLimit(clientIP, "login");
 
     // Log de auditoria - Login bem-sucedido
     logLogin(user.id, email, request);
 
-    // Gerar token simples (para dev - em produção use JWT real)
-    const token = Buffer.from(`${user.id}:${Date.now()}`).toString("base64");
+    // Gerar token JWT assinado criptograficamente
+    const token = generateJWT({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: user.company?.id || null,
+    });
 
     // Remover senha da resposta
     const { password: _, ...userWithoutPassword } = user;
 
+    // Para pacientes, buscar o patientId correspondente
+    let patientId = null;
+    if (user.role === "PATIENT") {
+      const patientRecord = await prisma.patient.findFirst({
+        where: {
+          email: user.email,
+          companyId: user.company?.id,
+        },
+        select: { id: true },
+      });
+      patientId = patientRecord?.id || null;
+    }
+
     const response = NextResponse.json({
       message: "Login realizado com sucesso!",
-      user: userWithoutPassword,
+      user: {
+        ...userWithoutPassword,
+        patientId, // Incluir patientId para pacientes
+      },
       token,
     });
 

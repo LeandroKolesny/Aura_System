@@ -10,6 +10,16 @@ import {
 } from "@/lib/validations/appointment";
 import { pushAppointmentToCalendar } from "@/lib/calendarSync";
 
+// Cache headers helper para GET requests
+function createCachedResponse(data: any, cacheSeconds: number = 15) {
+  const response = NextResponse.json(data);
+  response.headers.set(
+    "Cache-Control",
+    `private, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`
+  );
+  return response;
+}
+
 /**
  * Verifica conflito de horário para um profissional
  * LÓGICA DE NEGÓCIO CRÍTICA - EXECUTADA NO SERVIDOR
@@ -103,22 +113,40 @@ export async function GET(request: NextRequest) {
     if (patientId) where.patientId = patientId;
     if (status && status !== "all") where.status = status;
 
-    // Se for paciente, só ver seus próprios agendamentos
+    // Para pacientes: buscar TODOS os agendamentos (para mostrar slots ocupados)
+    // mas anonimizar dados de outros pacientes
+    let currentPatientId: string | null = null;
     if (user.role === "PATIENT") {
-      // Buscar paciente vinculado ao usuário
-      const patient = await prisma.patient.findFirst({
+      const patientRecord = await prisma.patient.findFirst({
         where: { email: user.email, companyId: user.companyId },
+        select: { id: true },
       });
-      if (patient) where.patientId = patient.id;
+      currentPatientId = patientRecord?.id || null;
+      // NÃO filtra por patientId - queremos ver todos para mostrar ocupados
     }
 
-    const [appointments, total] = await Promise.all([
+    const [allAppointments, total] = await Promise.all([
       prisma.appointment.findMany({
         where,
         skip,
         take: limit,
         orderBy: { date: "asc" },
-        include: {
+        // Usar select para trazer apenas campos necessários
+        select: {
+          id: true,
+          date: true,
+          durationMinutes: true,
+          price: true,
+          status: true,
+          notes: true,
+          paid: true,
+          roomId: true,
+          signatureUrl: true,
+          signatureMetadata: true,
+          companyId: true,
+          patientId: true,
+          professionalId: true,
+          procedureId: true,
           patient: { select: { id: true, name: true, phone: true, email: true } },
           professional: { select: { id: true, name: true } },
           procedure: { select: { id: true, name: true, durationMinutes: true } },
@@ -127,10 +155,32 @@ export async function GET(request: NextRequest) {
       prisma.appointment.count({ where }),
     ]);
 
-    return NextResponse.json({
+    // Para pacientes, anonimizar dados de outros pacientes
+    let appointments: typeof allAppointments = allAppointments;
+    if (user.role === "PATIENT" && currentPatientId) {
+      appointments = allAppointments.map((appt) => {
+        if (appt.patientId === currentPatientId) {
+          // Próprio agendamento - retorna todos os dados
+          return appt;
+        } else {
+          // Agendamento de outro paciente - anonimiza dados sensíveis
+          // Mantém os campos obrigatórios mas oculta informações sensíveis
+          return {
+            ...appt,
+            patient: { id: appt.patientId, name: "Ocupado", phone: "", email: "" },
+            notes: "",
+            signatureUrl: "",
+            signatureMetadata: {},
+          };
+        }
+      });
+    }
+
+    // Cache por 15 segundos (dados dinâmicos)
+    return createCachedResponse({
       appointments,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    });
+    }, 15);
   } catch (error) {
     console.error("Erro ao listar agendamentos:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
@@ -150,12 +200,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Usuário sem empresa" }, { status: 403 });
     }
 
-    // GUARD: Verificar se plano permite escrita
-    const writeError = await checkWriteAccess(user);
-    if (writeError) return writeError;
+    // GUARD: Verificar se plano permite escrita (exceto para pacientes que podem agendar)
+    if (user.role !== "PATIENT") {
+      const writeError = await checkWriteAccess(user);
+      if (writeError) return writeError;
+    }
 
-    const allowedRoles = ["OWNER", "ADMIN", "RECEPTIONIST", "ESTHETICIAN"];
-    if (!allowedRoles.includes(user.role)) {
+    // Roles que podem criar agendamentos diretamente (status SCHEDULED)
+    const staffRoles = ["OWNER", "ADMIN", "RECEPTIONIST", "ESTHETICIAN"];
+    // PATIENT pode criar agendamentos, mas ficam com status PENDING_APPROVAL
+    const isPatient = user.role === "PATIENT";
+
+    if (!staffRoles.includes(user.role) && !isPatient) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
@@ -169,8 +225,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { patientId, professionalId, procedureId, date, durationMinutes, price, notes, roomId } = validation.data;
+    let { patientId, professionalId, procedureId, date, durationMinutes, price, notes, roomId } = validation.data;
     const appointmentDate = new Date(date);
+
+    // Se for paciente, garantir que só pode agendar para si mesmo
+    if (isPatient) {
+      const patientRecord = await prisma.patient.findFirst({
+        where: { email: user.email, companyId: user.companyId },
+      });
+
+      if (!patientRecord) {
+        return NextResponse.json(
+          { error: "Paciente não encontrado para este usuário" },
+          { status: 404 }
+        );
+      }
+
+      // Sobrescreve o patientId com o próprio ID do paciente logado
+      patientId = patientRecord.id;
+    }
 
     // Buscar configurações da empresa (business hours + indisponibilidades)
     const [company, unavailabilityRules] = await Promise.all([
@@ -238,6 +311,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar agendamento
+    // Pacientes criam com status PENDING_APPROVAL, staff cria com SCHEDULED
+    const appointmentStatus = isPatient ? "PENDING_APPROVAL" : "SCHEDULED";
+
     const appointment = await prisma.appointment.create({
       data: {
         companyId: user.companyId,
@@ -249,7 +325,7 @@ export async function POST(request: NextRequest) {
         price,
         notes,
         roomId,
-        status: "SCHEDULED",
+        status: appointmentStatus,
       },
       include: {
         patient: { select: { id: true, name: true } },
@@ -259,12 +335,16 @@ export async function POST(request: NextRequest) {
     });
 
     // Log de atividade
+    const activityTitle = isPatient
+      ? `Agendamento solicitado por ${patient.name} (aguardando aprovação)`
+      : `Agendamento criado para ${patient.name}`;
+
     await prisma.activity.create({
       data: {
         type: "APPOINTMENT_CREATED",
-        title: `Agendamento criado para ${patient.name}`,
+        title: activityTitle,
         userId: user.id,
-        metadata: { appointmentId: appointment.id },
+        metadata: { appointmentId: appointment.id, status: appointmentStatus },
       },
     });
 

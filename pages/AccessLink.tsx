@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, ExternalLink, QrCode, Check, Globe, Eye, Palette, Type, RotateCcw, Save, Layout, ChevronDown, ChevronUp, Clock, AlertTriangle, Info, Sparkles } from 'lucide-react';
+import { Copy, ExternalLink, QrCode, Check, Globe, Palette, RotateCcw, Save, ChevronDown, ChevronUp, Clock, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { useNavigate } from 'react-router-dom';
 import { PublicLayoutConfig, UserRole, OnlineBookingConfig } from '../types';
 
 const AccessLink: React.FC = () => {
   const { currentCompany, updateCompany, user, setHasUnsavedChanges } = useApp();
   const [copied, setCopied] = useState(false);
-  const navigate = useNavigate();
 
   // Accordion States
   const [isScheduleConfigOpen, setIsScheduleConfigOpen] = useState(false);
@@ -31,8 +29,8 @@ const AccessLink: React.FC = () => {
     baseFontSize: 'md',
     cardBackgroundColor: '#ffffff',
     cardTextColor: '#44403c',
-    headerBackgroundColor: '#ffffff',
-    headerTextColor: '#1c1917'
+    headerBackgroundColor: '#f5ebe0', // Bege quente harmonizado com o fundo
+    headerTextColor: '#44403c'
   };
 
   // --- PRESETS REFORMULADOS COM FOCO EM LEGIBILIDADE ---
@@ -45,11 +43,11 @@ const AccessLink: React.FC = () => {
         backgroundColor: '#fdfcfb',
         primaryColor: '#bd7b65',
         textColor: '#1c1917',
-        headerBackgroundColor: '#ffffff',
-        headerTextColor: '#1c1917',
+        headerBackgroundColor: '#f5ebe0', // Bege quente harmonizado
+        headerTextColor: '#44403c',
         cardBackgroundColor: '#ffffff',
         cardTextColor: '#44403c',
-        fontFamily: 'inter' as const // Alterado de serif para inter para melhor visibilidade
+        fontFamily: 'inter' as const
       }
     },
     {
@@ -90,8 +88,8 @@ const AccessLink: React.FC = () => {
         backgroundColor: '#ffffff',
         primaryColor: '#2563eb',
         textColor: '#0f172a',
-        headerBackgroundColor: '#f8fafc',
-        headerTextColor: '#1e293b',
+        headerBackgroundColor: '#eff6ff', // Azul bem claro harmonizado
+        headerTextColor: '#1e40af',
         cardBackgroundColor: '#ffffff',
         cardTextColor: '#334155',
         fontFamily: 'system' as const
@@ -105,11 +103,11 @@ const AccessLink: React.FC = () => {
         backgroundColor: '#f5f5f4',
         primaryColor: '#15803d',
         textColor: '#44403c',
-        headerBackgroundColor: '#ffffff',
-        headerTextColor: '#1c1917',
+        headerBackgroundColor: '#dcfce7', // Verde bem claro harmonizado
+        headerTextColor: '#166534',
         cardBackgroundColor: '#ffffff',
         cardTextColor: '#44403c',
-        fontFamily: 'inter' as const // Alterado de serif para inter para melhor visibilidade
+        fontFamily: 'inter' as const
       }
     }
   ];
@@ -117,6 +115,19 @@ const AccessLink: React.FC = () => {
   const [layoutConfig, setLayoutConfig] = useState<PublicLayoutConfig>(defaultLayout);
   const [msg, setMsg] = useState('');
   const [configMsg, setConfigMsg] = useState('');
+
+  // Função para verificar se um preset está ativo (comparando com o config salvo da empresa)
+  const isPresetActive = (presetConfig: typeof STYLE_PRESETS[0]['config']) => {
+    const savedConfig = currentCompany?.layoutConfig;
+    if (!savedConfig) return false;
+
+    // Compara as cores principais para determinar se é o mesmo preset
+    return (
+      savedConfig.backgroundColor === presetConfig.backgroundColor &&
+      savedConfig.primaryColor === presetConfig.primaryColor &&
+      savedConfig.headerBackgroundColor === presetConfig.headerBackgroundColor
+    );
+  };
 
   useEffect(() => {
     if (currentCompany?.layoutConfig) {
@@ -130,17 +141,13 @@ const AccessLink: React.FC = () => {
     }
   }, [currentCompany]);
 
-  const baseUrl = window.location.origin + window.location.pathname;
-  const publicLink = `${baseUrl}#/booking/${currentCompany?.id}`;
+  const baseUrl = window.location.origin;
+  const publicLink = `${baseUrl}/${currentCompany?.slug || currentCompany?.id}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(publicLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleInternalPreview = () => {
-    navigate(`/booking/${currentCompany?.id}`);
   };
 
   const handleApplyPreset = (presetConfig: any) => {
@@ -218,24 +225,14 @@ const AccessLink: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button 
-                onClick={handleInternalPreview}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg font-medium hover:bg-primary-100 transition-colors"
-            >
-                <Eye className="w-4 h-4" /> Visualizar Agora (Teste)
-            </button>
-            
-            <a 
-                href={`#/booking/${currentCompany?.id}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm"
-            >
-                <ExternalLink className="w-4 h-4" /> Abrir Nova Aba
-            </a>
-          </div>
-          <p className="text-xs text-slate-400 mt-2 text-center">Use o botão "Visualizar Agora" se estiver no editor de código.</p>
+          <a
+              href={`/${currentCompany?.slug || currentCompany?.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-lg font-medium hover:bg-slate-50 transition-colors text-sm"
+          >
+              <ExternalLink className="w-4 h-4" /> Abrir Link em Nova Aba
+          </a>
         </div>
 
         <div className="bg-gradient-to-br from-primary-600 to-secondary-900 rounded-xl shadow-2xl p-8 text-white relative overflow-hidden flex flex-col items-center justify-center text-center">
@@ -340,22 +337,42 @@ const AccessLink: React.FC = () => {
                                 <Sparkles className="w-4 h-4 text-amber-500" /> Estilos Prontos (Presets de Luxo)
                             </h4>
                             <div className="flex flex-wrap justify-center gap-4">
-                                {STYLE_PRESETS.map((preset) => (
-                                    <button
-                                        key={preset.id}
-                                        type="button"
-                                        onClick={() => handleApplyPreset(preset.config)}
-                                        className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center gap-3 hover:border-primary-500 hover:shadow-xl hover:-translate-y-1 transition-all group w-32"
-                                    >
-                                        <div 
-                                            className="w-12 h-12 rounded-full border border-white/50 shadow-inner group-hover:scale-110 transition-transform relative overflow-hidden"
-                                            style={{ backgroundColor: preset.preview }}
+                                {STYLE_PRESETS.map((preset) => {
+                                    const isActive = isPresetActive(preset.config);
+                                    return (
+                                        <button
+                                            key={preset.id}
+                                            type="button"
+                                            onClick={() => handleApplyPreset(preset.config)}
+                                            className={`rounded-2xl p-4 flex flex-col items-center gap-3 transition-all group w-32 relative
+                                                ${isActive
+                                                    ? 'bg-primary-50 border-2 border-primary-500 shadow-lg shadow-primary-100 ring-2 ring-primary-200'
+                                                    : 'bg-white border border-slate-200 hover:border-primary-500 hover:shadow-xl hover:-translate-y-1'
+                                                }
+                                            `}
                                         >
-                                            <div className="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent"></div>
-                                        </div>
-                                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{preset.name}</span>
-                                    </button>
-                                ))}
+                                            {isActive && (
+                                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center shadow-lg">
+                                                    <Check className="w-4 h-4 text-white" />
+                                                </div>
+                                            )}
+                                            <div
+                                                className={`w-12 h-12 rounded-full border-2 shadow-inner transition-transform relative overflow-hidden
+                                                    ${isActive ? 'border-primary-300 scale-110' : 'border-white/50 group-hover:scale-110'}
+                                                `}
+                                                style={{ backgroundColor: preset.preview }}
+                                            >
+                                                <div className="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent"></div>
+                                            </div>
+                                            <span className={`text-[10px] font-bold uppercase tracking-tight ${isActive ? 'text-primary-700' : 'text-slate-600'}`}>
+                                                {preset.name}
+                                            </span>
+                                            {isActive && (
+                                                <span className="text-[9px] text-primary-600 font-medium -mt-2">Em uso</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
                             </div>
                             <p className="text-[10px] text-slate-400 mt-6 italic">Selecione um estilo para atualizar as cores automaticamente.</p>
                         </div>

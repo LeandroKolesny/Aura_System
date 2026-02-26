@@ -10,6 +10,7 @@ const registerSchema = z.object({
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   companyName: z.string().min(2, "Nome da empresa deve ter pelo menos 2 caracteres").optional(),
+  state: z.string().length(2, "Estado deve ter 2 caracteres (ex: SP, RJ)").optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, email, password, companyName } = validation.data;
+    const { name, email, password, companyName, state } = validation.data;
 
     // Verificar se usuário já existe
     const existingUser = await prisma.user.findUnique({
@@ -44,10 +45,66 @@ export async function POST(request: NextRequest) {
     // Criar empresa se fornecido
     let companyId: string | undefined;
     if (companyName) {
+      // Data de expiração do trial (15 dias)
+      const trialExpiresAt = new Date();
+      trialExpiresAt.setDate(trialExpiresAt.getDate() + 15);
+
+      // Gerar slug único baseado no nome da empresa
+      const baseSlug = slugify(companyName);
+      let finalSlug = baseSlug;
+
+      // Verificar se já existe uma empresa com esse slug
+      let existingCompany = await prisma.company.findUnique({
+        where: { slug: finalSlug },
+      });
+
+      // Se existir conflito, tentar resolver
+      if (existingCompany) {
+        // Prioridade 1: Usar estado como sufixo (ex: leandro-SP, leandro-RS)
+        if (state) {
+          const stateSlug = `${baseSlug}-${state.toUpperCase()}`;
+          const existingWithState = await prisma.company.findUnique({
+            where: { slug: stateSlug },
+          });
+
+          if (!existingWithState) {
+            finalSlug = stateSlug;
+            existingCompany = null; // Resolvido com estado
+          }
+        }
+
+        // Prioridade 2: Se não tem estado ou slug com estado já existe, usar sufixo numérico
+        if (existingCompany) {
+          let counter = 1;
+          while (existingCompany) {
+            counter++;
+            finalSlug = `${baseSlug}-${counter}`;
+            existingCompany = await prisma.company.findUnique({
+              where: { slug: finalSlug },
+            });
+          }
+        }
+      }
+
       const company = await prisma.company.create({
         data: {
           name: companyName,
-          slug: slugify(companyName) + "-" + Date.now().toString(36),
+          slug: finalSlug,
+          state: state?.toUpperCase(),
+          plan: "FREE",
+          subscriptionStatus: "TRIAL",
+          subscriptionExpiresAt: trialExpiresAt,
+          onboardingCompleted: false,
+          paymentMethods: ["money", "pix", "credit_card", "debit_card"],
+          businessHours: {
+            monday: { isOpen: true, start: "08:00", end: "18:00" },
+            tuesday: { isOpen: true, start: "08:00", end: "18:00" },
+            wednesday: { isOpen: true, start: "08:00", end: "18:00" },
+            thursday: { isOpen: true, start: "08:00", end: "18:00" },
+            friday: { isOpen: true, start: "08:00", end: "18:00" },
+            saturday: { isOpen: true, start: "09:00", end: "13:00" },
+            sunday: { isOpen: false, start: "00:00", end: "00:00" },
+          },
         },
       });
       companyId = company.id;

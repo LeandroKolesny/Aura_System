@@ -57,6 +57,10 @@ model User {
   assignedLeads     Lead[]
   watches           GoogleCalendarWatch?
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, role])
+  @@index([companyId, isActive])
   @@map("users")
 }
 
@@ -90,6 +94,8 @@ model Company {
   slug        String   @unique
   logo        String?
   address     String?
+  city        String?   // Cidade da clínica
+  state       String?   // Estado (sigla: SP, RJ, RS...)
   cnpj        String?
   presentation String?
   phones      String[] @default([])
@@ -99,6 +105,10 @@ model Company {
   subscriptionStatus      SubscriptionStatus @default(TRIAL)
   subscriptionExpiresAt   DateTime?
   lastPlan                Plan?
+  customPrice             Decimal? @db.Decimal(10, 2) // Preço negociado (ENTERPRISE)
+
+  // Status de vendas (CRM do OWNER)
+  salesStatus             SalesStatus @default(NEW)
 
   // Configurações de negócio
   businessHours           Json?    // BusinessHours object
@@ -140,8 +150,9 @@ model Company {
 }
 
 enum Plan {
-  FREE
-  BASIC
+  FREE        // Trial grátis
+  BASIC       // Plano bloqueado (sem acesso) após trial expirar
+  STARTER     // Primeiro plano pago
   PROFESSIONAL
   PREMIUM
   ENTERPRISE
@@ -152,6 +163,15 @@ enum SubscriptionStatus {
   TRIAL
   OVERDUE
   CANCELED
+}
+
+enum SalesStatus {
+  NEW           // Novo contato
+  CONTACTED     // Em contato
+  DEMO          // Demo agendada
+  NEGOTIATION   // Em negociação
+  WON           // Fechado (ganho)
+  LOST          // Perdido
 }
 
 // ============================================
@@ -186,6 +206,10 @@ model Patient {
   photos          PhotoRecord[]
   transactions    Transaction[]
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, email])
   @@unique([email, companyId])
   @@map("patients")
 }
@@ -223,6 +247,9 @@ model Procedure {
   supplies        ProcedureSupply[]
   appointments    Appointment[]
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, isActive])
   @@map("procedures")
 }
 
@@ -271,8 +298,14 @@ model Appointment {
   professionalId  String
   procedure       Procedure @relation(fields: [procedureId], references: [id])
   procedureId     String
-  transaction     Transaction?
+  transactions    Transaction[]  // Múltiplas transações: INCOME (receita) + EXPENSE (custo insumos)
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, status])
+  @@index([companyId, professionalId, date])
+  @@index([patientId])
   @@map("appointments")
 }
 
@@ -307,10 +340,15 @@ model Transaction {
   patient     Patient?    @relation(fields: [patientId], references: [id])
   patientId   String?
   appointment Appointment? @relation(fields: [appointmentId], references: [id])
-  appointmentId String?   @unique
+  appointmentId String?   // Removido @unique para permitir múltiplas transações por agendamento (INCOME + EXPENSE)
   professional User?      @relation("ProfessionalTransactions", fields: [professionalId], references: [id])
   professionalId String?
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, type, status])
+  @@index([companyId, type, status, date])
   @@map("transactions")
 }
 
@@ -349,6 +387,9 @@ model InventoryItem {
   procedureSupplies ProcedureSupply[]
   stockMovements  StockMovement[]
 
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, isActive])
   @@map("inventory_items")
 }
 
@@ -599,15 +640,19 @@ enum TicketStatus {
 // ============================================
 
 model SaasPlan {
-  id              String   @id @default(cuid())
-  name            String
-  price           Decimal  @db.Decimal(10, 2)
-  features        String[]
-  isActive        Boolean  @default(true)
-  stripeProductId String?
-  stripePriceId   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String   @unique              // "FREE", "STARTER", "PROFESSIONAL", etc.
+  displayName      String?                       // Nome amigável para UI
+  price            Decimal  @db.Decimal(10, 2)
+  maxProfessionals Int      @default(1)          // -1 = ilimitado
+  maxPatients      Int      @default(50)         // -1 = ilimitado
+  modules          String[] @default([])         // ["online_booking", "financial", ...]
+  features         String[] @default([])         // Lista de features para marketing
+  isActive         Boolean  @default(true)
+  stripeProductId  String?
+  stripePriceId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("saas_plans")
 }
@@ -650,4 +695,19 @@ model GoogleCalendarWatch {
   updatedAt       DateTime @updatedAt
 
   @@map("google_calendar_watches")
+}
+
+// ============================================
+// MÓDULO: CONFIGURAÇÕES GLOBAIS DO SISTEMA
+// ============================================
+
+model SystemSettings {
+  id                   String    @id @default("global")
+  maintenanceMode      Boolean   @default(false)
+  maintenanceMessage   String?   // Mensagem customizada opcional
+  maintenanceStartedAt DateTime?
+  maintenanceStartedBy String?   // userId do Owner que ativou
+  updatedAt            DateTime  @updatedAt
+
+  @@map("system_settings")
 }

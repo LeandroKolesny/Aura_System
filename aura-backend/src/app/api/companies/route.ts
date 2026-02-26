@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
           slug: true,
           logo: true,
           address: true,
+          city: true,
+          state: true,
           cnpj: true,
           presentation: true,
           phones: true,
@@ -42,7 +44,25 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      return NextResponse.json({ companies: company ? [company] : [] });
+      // Normalizar e deduplicar paymentMethods (converter labels para IDs)
+      const labelToId: Record<string, string> = {
+        'Dinheiro': 'money', 'dinheiro': 'money',
+        'Pix': 'pix', 'PIX': 'pix',
+        'Cartão de Crédito': 'credit_card', 'cartão de crédito': 'credit_card',
+        'Cartão de Débito': 'debit_card', 'cartão de débito': 'debit_card',
+        'Cheque': 'check', 'cheque': 'check',
+        'Transferência Bancária': 'bank_transfer', 'transferência bancária': 'bank_transfer',
+        'Depósito': 'deposit', 'depósito': 'deposit',
+      };
+      const normalizePaymentMethods = (methods: string[]) => {
+        const normalized = methods.map(m => labelToId[m] || m);
+        return [...new Set(normalized)];
+      };
+      const cleanedCompany = company ? {
+        ...company,
+        paymentMethods: company.paymentMethods ? normalizePaymentMethods(company.paymentMethods) : [],
+      } : null;
+      return NextResponse.json({ companies: cleanedCompany ? [cleanedCompany] : [] });
     }
 
     // OWNER pode ver todas as empresas
@@ -54,6 +74,8 @@ export async function GET(request: NextRequest) {
         slug: true,
         logo: true,
         address: true,
+        city: true,
+        state: true,
         cnpj: true,
         plan: true,
         subscriptionStatus: true,

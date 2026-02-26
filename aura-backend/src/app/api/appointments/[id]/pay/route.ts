@@ -27,13 +27,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
-    // Buscar agendamento com procedure
+    // Buscar agendamento com procedure e supplies (insumos)
     const appointment = await prisma.appointment.findFirst({
       where: { id, companyId: user.companyId },
-      include: { 
-        patient: true, 
-        procedure: true,
-        professional: true 
+      include: {
+        patient: true,
+        procedure: {
+          include: {
+            supplies: {
+              include: {
+                inventoryItem: true
+              }
+            }
+          }
+        },
+        professional: true
       },
     });
 
@@ -47,6 +55,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const body = await request.json();
     const { paymentMethod } = body;
+
+    // Calcular custo dos insumos DINAMICAMENTE a partir dos supplies
+    let calculatedCost = 0;
+    if (appointment.procedure.supplies && appointment.procedure.supplies.length > 0) {
+      calculatedCost = appointment.procedure.supplies.reduce((total, supply) => {
+        const costPerUnit = Number(supply.inventoryItem.costPerUnit) || 0;
+        const quantityUsed = Number(supply.quantityUsed) || 0;
+        return total + (costPerUnit * quantityUsed);
+      }, 0);
+    }
+
+    // Usar o custo calculado ou o custo salvo no procedimento (o que for maior)
+    const procedureCost = Math.max(calculatedCost, Number(appointment.procedure.cost) || 0);
 
     // 1. Criar transação de RECEITA (valor do procedimento)
     const incomeTransaction = await prisma.transaction.create({
@@ -66,8 +87,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // 2. Criar transação de DESPESA para custo dos insumos (se houver)
     let expenseTransaction = null;
-    const procedureCost = Number(appointment.procedure.cost) || 0;
-    
+
     if (procedureCost > 0) {
       expenseTransaction = await prisma.transaction.create({
         data: {

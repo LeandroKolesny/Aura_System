@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool } from 'lucide-react';
+import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool, Loader2 } from 'lucide-react';
 import { Patient, Appointment, UserRole, User, Procedure, Supply, PhotoRecord, SystemAlert, BusinessHours, InventoryItem } from '../types';
 import { useApp } from '../context/AppContext';
 import { maskCpf, maskPhone, validateCPF, validateBirthDate } from '../utils/maskUtils';
@@ -144,17 +144,19 @@ export const NewPatientModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', birthDate: '', cpf: '' });
   const [sendInvite, setSendInvite] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
         if (!formData.name || !formData.phone) { throw new Error("Por favor, preencha pelo menos nome e telefone."); }
         if (formData.cpf && !validateCPF(formData.cpf)) { throw new Error("CPF inválido."); }
         if (formData.birthDate && !validateBirthDate(formData.birthDate)) { throw new Error("Data de nascimento inválida. Verifique o ano."); }
-        addPatient({ ...formData, status: 'active', lastVisit: undefined });
+        setIsSubmitting(true);
+        await addPatient({ ...formData, status: 'active', lastVisit: undefined });
         if (sendInvite) { console.log(`Convite enviado para ${formData.email}`); }
         onClose();
-    } catch (err: any) { setError(err.message || "Erro ao cadastrar paciente."); }
+    } catch (err: any) { setError(err.message || "Erro ao cadastrar paciente."); setIsSubmitting(false); }
   };
   return (
     <BaseModal title="Novo Paciente" onClose={onClose}>
@@ -170,7 +172,7 @@ export const NewPatientModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
         </div>
         <div className="mt-6 pt-4 border-t border-slate-100"><h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2"><Lock className="w-4 h-4" /> Acesso ao Portal do Paciente</h4><div className={`p-4 rounded-xl border transition-all ${sendInvite ? 'bg-primary-50 border-primary-200' : 'bg-slate-50 border-slate-200'}`}><div className="flex items-start gap-3"><div className="pt-0.5"><input type="checkbox" id="sendInvite" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500" /></div><div><label htmlFor="sendInvite" className="block text-sm font-bold text-slate-800 cursor-pointer select-none">Enviar convite de acesso automaticamente</label><p className="text-xs text-slate-500 mt-1 leading-relaxed">Ao cadastrar, enviaremos um link seguro para o e-mail <strong>{formData.email || 'do paciente'}</strong>. O paciente poderá definir sua própria senha para acessar o App e agendar consultas.</p>{sendInvite && (<div className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-primary-700 bg-white/50 px-3 py-1.5 rounded-lg border border-primary-100"><Send className="w-3 h-3" /> O e-mail será enviado ao salvar o cadastro.</div>)}</div></div></div></div>
         {error && (<div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2 border border-red-200"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div>)}
-        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-lg shadow-primary-200">{sendInvite ? 'Cadastrar e Enviar Convite' : 'Cadastrar Apenas'}</button></div>
+        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-lg shadow-primary-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Cadastrando...</>) : (sendInvite ? 'Cadastrar e Enviar Convite' : 'Cadastrar Apenas')}</button></div>
       </form>
     </BaseModal>
   );
@@ -196,6 +198,7 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
   const [roomId, setRoomId] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
   const [simulateClientRequest, setSimulateClientRequest] = useState(isPatientUser);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   useEffect(() => {
     if (selectedProcId) {
         const proc = procedures.find(p => p.id === selectedProcId);
@@ -208,24 +211,50 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
     const proc = procedures.find(p => p.id === procId);
     if (proc) { setServiceName(proc.name); setPrice(proc.price); setDuration(proc.durationMinutes); } else { setServiceName(''); setPrice(''); setDuration(''); }
   };
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!user) { setError("Erro de autenticação."); return; }
-    if (!patientId) { setError("Selecione um paciente."); return; }
     if (!professionalId) { setError("Selecione um profissional."); return; }
     if (!selectedProcId) { setError("Selecione um procedimento."); return; }
     if (!date) { setError("Selecione data e hora."); return; }
-    const patient = isPatientUser ? { name: user.name, id: user.id } : patients.find(p => p.id === patientId);
-    if (!patient) { setError("Paciente não encontrado."); return; }
+
+    // Para paciente logado, buscar o patientId pelo email
+    let finalPatientId = patientId;
+    let patient;
+    if (isPatientUser) {
+      // Buscar paciente pelo email do usuário logado
+      patient = patients.find(p => p.email === user.email);
+      if (!patient) { setError("Seu cadastro de paciente não foi encontrado. Entre em contato com a clínica."); return; }
+      finalPatientId = patient.id;
+    } else {
+      if (!patientId) { setError("Selecione um paciente."); return; }
+      patient = patients.find(p => p.id === patientId);
+      if (!patient) { setError("Paciente não encontrado."); return; }
+    }
+
     const professional = professionals.find(p => p.id === professionalId);
     if (!professional) { setError("Profissional não encontrado."); return; }
+
+    setIsSubmitting(true);
     try {
       const isoDate = new Date(date).toISOString();
       const status = simulateClientRequest ? 'pending_approval' : 'confirmed';
-      const result = addAppointment({ patientId, patientName: patient.name, professionalId: professional.id, professionalName: professional.name, service: serviceName, date: isoDate, durationMinutes: Number(duration) || 60, price: Number(price) || 0, status: status, roomId: roomId }, false);
-      if (result.success) { onClose(); } else if (result.conflict) { setError("Este horário já está ocupado. Por favor, selecione outro horário ou sala."); } else { setError(result.error || "Erro desconhecido ao agendar."); }
-    } catch (error) { console.error(error); setError("Erro ao processar data. Verifique o campo Data/Hora."); }
+      const result = await addAppointment({
+        patientId: finalPatientId,
+        patientName: patient.name,
+        professionalId: professional.id,
+        professionalName: professional.name,
+        procedureId: selectedProcId,
+        service: serviceName,
+        date: isoDate,
+        durationMinutes: Number(duration) || 60,
+        price: Number(price) || 0,
+        status: status,
+        roomId: roomId
+      }, false);
+      if (result.success) { onClose(); } else if (result.conflict) { setError("Este horário já está ocupado. Por favor, selecione outro horário ou sala."); setIsSubmitting(false); } else { setError(result.error || "Erro desconhecido ao agendar."); setIsSubmitting(false); }
+    } catch (error) { console.error(error); setError("Erro ao processar data. Verifique o campo Data/Hora."); setIsSubmitting(false); }
   };
   return (
     <BaseModal title={isPatientUser ? "Solicitar Agendamento" : "Novo Agendamento"} onClose={onClose}>
@@ -249,7 +278,7 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
         </div>
         {!isPatientUser && user?.role !== UserRole.RECEPTIONIST && ( <div className="flex items-center gap-2 py-2"><input type="checkbox" id="simulateClient" checked={simulateClientRequest} onChange={e => setSimulateClientRequest(e.target.checked)} className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500" /><label htmlFor="simulateClient" className="text-sm text-slate-600 select-none cursor-pointer">Simular solicitação do cliente (Pendente de Aprovação)</label></div> )}
         {error && ( <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2 border border-red-200"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div> )}
-        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">{isPatientUser ? 'Solicitar Horário' : 'Agendar'}</button></div>
+        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Agendando...</>) : (isPatientUser ? 'Solicitar Horário' : 'Agendar')}</button></div>
       </form>
     </BaseModal>
   );
@@ -406,15 +435,17 @@ export const NewExpenseModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [error, setError] = useState<string | null>(null);
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
         if (!description || !amount) { throw new Error("Preencha a descrição e o valor."); }
         if (Number(amount) <= 0) { throw new Error("O valor deve ser positivo."); }
-        addTransaction({ date: new Date(date).toISOString(), description, amount: Number(amount), type: 'expense', category: 'Despesas', status: 'paid' });
+        setIsSubmitting(true);
+        await addTransaction({ date: new Date(date).toISOString(), description, amount: Number(amount), type: 'expense', category: 'Despesas', status: 'paid' });
         onClose();
-    } catch (err: any) { setError(err.message || "Erro ao registrar despesa."); }
+    } catch (err: any) { setError(err.message || "Erro ao registrar despesa."); setIsSubmitting(false); }
   };
   return (
     <BaseModal title="Registrar Despesa" onClose={onClose}>
@@ -425,7 +456,7 @@ export const NewExpenseModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
            <div><label className="block text-sm font-medium text-slate-700 mb-1">Data</label><input required type="date" className="w-full p-2 border rounded-lg" value={date} onChange={e => { if (e.target.value && e.target.value.split('-')[0].length > 4) return; setDate(e.target.value); }} max="9999-12-31" /></div>
          </div>
          {error && ( <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2 border border-red-200"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div> )}
-         <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Registrar Despesa</button></div>
+         <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Registrando...</>) : 'Registrar Despesa'}</button></div>
        </form>
     </BaseModal>
   );
@@ -451,6 +482,7 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
   const [error, setError] = useState<string | null>(null);
   const [showPendingConfirm, setShowPendingConfirm] = useState(false);
   const [pendingSupplyObj, setPendingSupplyObj] = useState<Supply | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAddSupply = () => {
     let newSupply: Supply;
@@ -473,18 +505,19 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
   const handleRemoveSupply = (id: string) => { setSupplies(supplies.filter(s => s.id !== id)); };
   const totalCost = supplies.reduce((acc, curr) => acc + curr.cost, 0);
 
-  const doFinalSave = (finalSuppliesList: Supply[]) => {
+  const doFinalSave = async (finalSuppliesList: Supply[]) => {
     try {
         if (!name) throw new Error("O nome do procedimento é obrigatório.");
         const numPrice = Number(price);
         if (isNaN(numPrice) || numPrice <= 0) throw new Error("Preço inválido.");
         const numDuration = Number(duration);
         if (isNaN(numDuration) || numDuration <= 0) throw new Error("Duração inválida.");
+        setIsSubmitting(true);
         const finalTotalCost = finalSuppliesList.reduce((acc, curr) => acc + curr.cost, 0);
         const procedureData: Partial<Procedure> = { name, description, imageUrl, price: numPrice, cost: finalTotalCost, durationMinutes: numDuration, supplies: finalSuppliesList, maintenanceRequired, maintenanceIntervalDays: maintenanceRequired ? Number(maintenanceInterval) : undefined };
-        if (initialData) { updateProcedure(initialData.id, procedureData); } else { addProcedure(procedureData as any); }
+        if (initialData) { await updateProcedure(initialData.id, procedureData); } else { await addProcedure(procedureData as any); }
         onClose();
-    } catch (err: any) { setError(err.message || "Erro ao salvar procedimento."); setShowPendingConfirm(false); }
+    } catch (err: any) { setError(err.message || "Erro ao salvar procedimento."); setShowPendingConfirm(false); setIsSubmitting(false); }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -507,6 +540,52 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
     <BaseModal title={initialData ? "Editar Procedimento" : "Novo Procedimento"} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div><label className="block text-sm font-medium text-slate-700 mb-1">Nome do Procedimento</label><input required type="text" className="w-full p-2 border border-slate-200 rounded-lg" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div><label className="block text-sm font-medium text-slate-700 mb-1">Descrição (opcional)</label><textarea className="w-full p-2 border border-slate-200 rounded-lg text-sm" rows={2} placeholder="Breve descrição do procedimento..." value={description} onChange={e => setDescription(e.target.value)} /></div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Imagem do Procedimento (opcional)</label>
+          {!imageUrl ? (
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 hover:border-primary-400 transition-all">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                <p className="text-sm text-slate-500"><span className="font-semibold text-primary-600">Clique para enviar</span> ou arraste</p>
+                <p className="text-xs text-slate-400 mt-1">PNG, JPG ou WEBP (max. 2MB)</p>
+              </div>
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 2 * 1024 * 1024) { alert('Imagem muito grande. Máximo 2MB.'); return; }
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const img = new window.Image();
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const maxSize = 800;
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height && width > maxSize) { height = (height * maxSize) / width; width = maxSize; }
+                    else if (height > maxSize) { width = (width * maxSize) / height; height = maxSize; }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    setImageUrl(compressedBase64);
+                  };
+                  img.src = event.target?.result as string;
+                };
+                reader.readAsDataURL(file);
+              }} />
+            </label>
+          ) : (
+            <div className="relative rounded-lg overflow-hidden h-40 bg-slate-100 group">
+              <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <button type="button" onClick={() => setImageUrl('')} className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm font-medium"><Trash2 className="w-4 h-4" /> Remover</button>
+              </div>
+            </div>
+          )}
+          <p className="text-[10px] text-slate-400 mt-1">A imagem será exibida como fundo do card do procedimento para os pacientes.</p>
+        </div>
         <div className="grid grid-cols-2 gap-4">
            <div><label className="block text-sm font-medium text-slate-700 mb-1">Preço de Venda (R$)</label><div className="relative"><DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input required type="number" className="w-full pl-9 p-2 border border-slate-200 rounded-lg" value={price} onChange={e => setPrice(e.target.value === '' ? '' : Number(e.target.value))} /></div></div>
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Duração Padrão (min)</label><div className="relative"><Clock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input required type="number" className="w-full pl-9 p-2 border border-slate-200 rounded-lg" value={duration} onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))} /></div></div>
@@ -535,18 +614,18 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
                         <div className="flex gap-3 mt-4"><button type="button" onClick={() => doFinalSave([...supplies, pendingSupplyObj!])} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 shadow-sm">Sim, incluir e salvar</button><button type="button" onClick={() => doFinalSave(supplies)} className="px-4 py-2 bg-white border border-amber-300 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-50">Não, salvar sem ele</button></div></div></div>
             </div>
         )}
-        {!showPendingConfirm && (<div className="pt-2 flex justify-end gap-3 border-t border-slate-100 mt-4"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 font-bold transition-all shadow-lg shadow-secondary-200">{initialData ? 'Salvar Alterações' : 'Salvar Procedimento'}</button></div>)}
+        {!showPendingConfirm && (<div className="pt-2 flex justify-end gap-3 border-t border-slate-100 mt-4"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 font-bold transition-all shadow-lg shadow-secondary-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Salvando...</>) : (initialData ? 'Salvar Alterações' : 'Salvar Procedimento')}</button></div>)}
       </form>
     </BaseModal>
   );
 };
 
 export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: User }> = ({ onClose, initialData }) => {
-  const { addProfessional, updateProfessional, currentCompany } = useApp();
+  const { addProfessional, updateProfessional, currentCompany, resetUserPassword } = useApp();
   const [formData, setFormData] = useState<Partial<User>>({
     name: initialData?.name || '',
     email: initialData?.email || '',
-    password: initialData?.password || '123456',
+    password: '',
     role: initialData?.role || UserRole.ESTHETICIAN,
     title: initialData?.title || '',
     phone: initialData?.phone || '',
@@ -564,10 +643,45 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
         sunday: { isOpen: false, start: '00:00', end: '00:00' }
     }
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const generatePassword = () => {
+    const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  };
+
+  const handleResetPassword = async () => {
+    if (!initialData?.id) return;
+    setIsResetting(true);
+    const tempPassword = generatePassword();
+    try {
+      const result = await resetUserPassword(initialData.id, tempPassword);
+      if (result.success) {
+        setNewPassword(tempPassword);
+      } else {
+        alert('Erro ao redefinir senha: ' + result.error);
+      }
+    } catch (error) {
+      alert('Erro ao redefinir senha');
+    }
+    setIsResetting(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (initialData) { updateProfessional(initialData.id, formData); } else { addProfessional(formData); }
+    if (!initialData && !formData.password) {
+      alert('Senha é obrigatória para novos usuários');
+      return;
+    }
+    if (initialData) {
+      // Na edição, não envia password (usa botão separado)
+      const { password, ...dataWithoutPassword } = formData;
+      updateProfessional(initialData.id, dataWithoutPassword);
+    } else {
+      addProfessional(formData);
+    }
     onClose();
   };
 
@@ -576,7 +690,52 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo</label><input required type="text" className="w-full p-2 border rounded-lg" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">E-mail (Login)</label><input required type="email" className="w-full p-2 border rounded-lg" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">E-mail (Login)</label><input required type="email" className="w-full p-2 border rounded-lg" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} disabled={!!initialData} /></div>
+          {/* Senha - apenas para novos usuários */}
+          {!initialData ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Senha de Acesso</label>
+              <div className="relative">
+                <input
+                  required
+                  type={showPassword ? "text" : "password"}
+                  className="w-full p-2 border rounded-lg pr-10"
+                  placeholder="Mínimo 6 caracteres"
+                  minLength={6}
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <XCircle className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
+              {newPassword ? (
+                <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="text-xs text-emerald-600 mb-1">Nova senha gerada:</p>
+                  <p className="font-mono font-bold text-emerald-800 text-lg">{newPassword}</p>
+                  <p className="text-xs text-slate-500 mt-1">Anote e envie para o funcionário</p>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={isResetting}
+                  className="w-full p-2 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 flex items-center justify-center gap-2 font-medium"
+                >
+                  {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {isResetting ? 'Gerando...' : 'Redefinir Senha'}
+                </button>
+              )}
+            </div>
+          )}
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Telefone</label><input type="text" className="w-full p-2 border rounded-lg" placeholder="(99) 99999-9999" value={formData.phone} onChange={e => setFormData({ ...formData, phone: maskPhone(e.target.value) })} maxLength={15} /></div>
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Cargo / Especialidade</label><input type="text" className="w-full p-2 border rounded-lg" placeholder="Ex: Biomédica Esteta" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} /></div>
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Nível de Acesso</label><select className="w-full p-2 border rounded-lg" value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value as UserRole })}><option value={UserRole.ADMIN}>Administrador (Gestão)</option><option value={UserRole.ESTHETICIAN}>Esteticista / Profissional</option><option value={UserRole.RECEPTIONIST}>Recepção</option></select></div>
@@ -626,14 +785,19 @@ export const InventoryModal: React.FC<{ onClose: () => void; initialData?: Inven
   );
 };
 
+// Constantes de validação de upload
+const MAX_FILE_SIZE_MB = 5; // Tamanho máximo em MB
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg'];
+
 export const NewPhotoModal: React.FC<{
-  patientId: string; 
-  onClose: () => void; 
-  initialType: 'before' | 'after'; 
-  initialProcedure: string; 
+  patientId: string;
+  onClose: () => void;
+  initialType: 'before' | 'after';
+  initialProcedure: string;
   lockFields: boolean;
   initialGroupId?: string;
-  availableProcedures?: string[]; 
+  availableProcedures?: string[];
 }> = ({ patientId, onClose, initialType, initialProcedure, lockFields, initialGroupId, availableProcedures }) => {
   const { addPhoto } = useApp();
   const [url, setUrl] = useState('');
@@ -641,45 +805,90 @@ export const NewPhotoModal: React.FC<{
   const [procedure, setProcedure] = useState(initialProcedure || '');
   const [type, setType] = useState<'before' | 'after'>(initialType);
   const [groupId] = useState(initialGroupId || `group_${Date.now()}`);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setUrl(reader.result as string);
-      reader.readAsDataURL(file);
+    setUploadError(null);
+
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setUploadError('Só é permitido enviar imagens (JPEG, PNG, GIF ou WebP).');
+      e.target.value = ''; // Limpa o input
+      return;
     }
+
+    // Validar tamanho do arquivo
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setUploadError(`Arquivo muito grande. Tamanho máximo: ${MAX_FILE_SIZE_MB}MB.`);
+      e.target.value = ''; // Limpa o input
+      return;
+    }
+
+    // Arquivo válido - converter para base64
+    const reader = new FileReader();
+    reader.onloadend = () => setUrl(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url || !procedure) return;
-    addPhoto({ patientId, date, url, type, procedure, groupId });
-    onClose();
+    if (!url || !procedure || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await addPhoto({ patientId, date, url, type, procedure, groupId });
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar foto:', error);
+      setIsSaving(false);
+    }
   };
 
   return (
     <BaseModal title="Registrar Evolução Fotográfica" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex justify-center mb-6">
+        <div className="flex flex-col items-center mb-6">
           <div className="relative group">
-            <div className={`w-64 h-64 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50 ${!url ? 'hover:bg-slate-100' : ''}`}>
+            <div className={`w-64 h-64 rounded-2xl border-2 border-dashed ${uploadError ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-slate-50'} flex items-center justify-center overflow-hidden ${!url ? 'hover:bg-slate-100' : ''}`}>
               {url ? <img src={url} alt="Evolução" className="w-full h-full object-cover" /> : (
                 <div className="text-center text-slate-400">
                   <Camera className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm font-bold uppercase tracking-wider">Selecionar Foto</p>
+                  <p className="text-xs mt-1 opacity-60">Máx. {MAX_FILE_SIZE_MB}MB</p>
                 </div>
               )}
             </div>
-            <label className="absolute inset-0 cursor-pointer opacity-0"><input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} /></label>
+            <label className={`absolute inset-0 ${isSaving ? 'cursor-not-allowed' : 'cursor-pointer'} opacity-0`}><input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isSaving} /></label>
           </div>
+          {uploadError && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-600 text-sm max-w-xs">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{uploadError}</span>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Procedimento Referente</label>{availableProcedures && availableProcedures.length > 0 ? (<select required className="w-full p-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50 disabled:text-slate-500 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields}><option value="">Selecione o procedimento realizado...</option>{availableProcedures.map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input required type="text" className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" placeholder="Ex: Preenchimento Labial" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields} />)}</div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">Data do Registro</label><input required type="date" className="w-full p-2 border border-slate-200 rounded-lg" value={date} onChange={e => setDate(e.target.value)} /></div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">Fase</label><select className="w-full p-2 border border-slate-200 rounded-lg bg-white" value={type} onChange={e => setType(e.target.value as any)} disabled={lockFields}><option value="before">Antes do Procedimento</option><option value="after">Depois / Resultado</option></select></div>
+          <div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Procedimento Referente</label>{availableProcedures && availableProcedures.length > 0 ? (<select required className="w-full p-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50 disabled:text-slate-500 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields || isSaving}><option value="">Selecione o procedimento realizado...</option>{availableProcedures.map(p => <option key={p} value={p}>{p}</option>)}</select>) : (<input required type="text" className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all" placeholder="Ex: Preenchimento Labial" value={procedure} onChange={e => setProcedure(e.target.value)} disabled={lockFields || isSaving} />)}</div>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">Data do Registro</label><input required type="date" className="w-full p-2 border border-slate-200 rounded-lg disabled:bg-slate-50" value={date} onChange={e => setDate(e.target.value)} disabled={isSaving} /></div>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">Fase</label><select className="w-full p-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50" value={type} onChange={e => setType(e.target.value as any)} disabled={lockFields || isSaving}><option value="before">Antes do Procedimento</option><option value="after">Depois / Resultado</option></select></div>
         </div>
-        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold" disabled={!url}>Salvar Foto</button></div>
+        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50" disabled={isSaving}>Cancelar</button>
+          <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 min-w-[120px] justify-center" disabled={!url || isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              'Salvar Foto'
+            )}
+          </button>
+        </div>
       </form>
     </BaseModal>
   );
@@ -724,7 +933,17 @@ export const CheckoutModal: React.FC<{ appointment: Appointment; onClose: () => 
   const { processPayment, updateAppointmentStatus, currentCompany } = useApp();
   const [method, setMethod] = useState('pix');
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
-  const handleComplete = () => { processPayment(appointment, method); onClose(); };
+  const [isProcessing, setIsProcessing] = useState(false);
+  const handleComplete = async () => {
+    setIsProcessing(true);
+    try {
+      await processPayment(appointment, method);
+      onClose();
+    } catch (error) {
+      console.error('Erro ao processar pagamento:', error);
+      setIsProcessing(false);
+    }
+  };
   const handleCancelAppointment = () => { updateAppointmentStatus(appointment.id, 'canceled'); onClose(); };
   const canCancel = appointment.status === 'scheduled' || appointment.status === 'confirmed';
   return (
@@ -734,7 +953,7 @@ export const CheckoutModal: React.FC<{ appointment: Appointment; onClose: () => 
           <div className="flex justify-between items-start mb-4"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Procedimento</p><h4 className={`text-xl font-bold text-slate-800 ${appointment.status === 'canceled' ? 'line-through opacity-50' : ''}`}>{appointment.service}</h4></div><div className="text-right"><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Valor</p><p className={`text-2xl font-bold ${appointment.status === 'canceled' ? 'text-slate-400' : 'text-green-600'}`}>{formatCurrency(appointment.price)}</p></div></div>
           <div className="pt-4 border-t border-slate-200 text-sm text-slate-600 space-y-1"><p>Paciente: <strong className={appointment.status === 'canceled' ? 'line-through opacity-50' : ''}>{appointment.patientName}</strong></p><p>Profissional: <strong className={appointment.status === 'canceled' ? 'line-through opacity-50' : ''}>{appointment.professionalName}</strong></p><p>Data: {formatDate(appointment.date)}</p></div>
         </div>
-        {!showConfirmCancel ? (<>{appointment.status !== 'completed' && appointment.status !== 'canceled' && (<div><h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4" /> Forma de Pagamento</h4><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{(currentCompany?.paymentMethods || ['money', 'credit_card', 'pix']).map(m => (<button key={m} onClick={() => setMethod(m)} className={`p-3 rounded-xl border text-center transition-all ${method === m ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-500 ring-opacity-10' : 'border-slate-200 hover:border-slate-300'}`}><span className={`text-xs font-bold uppercase ${method === m ? 'text-primary-700' : 'text-slate-500'}`}>{PAYMENT_LABELS[m] || m}</span></button>))}</div></div>)}{appointment.status === 'canceled' && (<div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm flex items-center gap-2 font-bold"><XCircle className="w-5 h-5" /> Este agendamento já foi cancelado.</div>)}<div className="pt-4 flex flex-wrap gap-3 border-t border-slate-100"><button onClick={onClose} className="px-6 py-3 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 transition-colors">Voltar</button>{appointment.status !== 'completed' && appointment.status !== 'canceled' && (<>{canCancel && (<button onClick={() => setShowConfirmCancel(true)} className="px-4 py-3 border border-red-200 rounded-xl text-red-600 font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2"><XCircle className="w-4 h-4" /> Cancelar</button>)}<button onClick={handleComplete} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 flex items-center justify-center gap-2"><CheckCircle className="w-5 h-5" /> Finalizar e Receber</button></>)}</div></>) : (
+        {!showConfirmCancel ? (<>{appointment.status !== 'completed' && appointment.status !== 'canceled' && (<div><h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4" /> Forma de Pagamento</h4><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{(currentCompany?.paymentMethods || ['money', 'credit_card', 'pix']).map(m => (<button key={m} onClick={() => setMethod(m)} className={`p-3 rounded-xl border text-center transition-all ${method === m ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-500 ring-opacity-10' : 'border-slate-200 hover:border-slate-300'}`}><span className={`text-xs font-bold uppercase ${method === m ? 'text-primary-700' : 'text-slate-500'}`}>{PAYMENT_LABELS[m] || m}</span></button>))}</div></div>)}{appointment.status === 'canceled' && (<div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm flex items-center gap-2 font-bold"><XCircle className="w-5 h-5" /> Este agendamento já foi cancelado.</div>)}<div className="pt-4 flex flex-wrap gap-3 border-t border-slate-100"><button onClick={onClose} className="px-6 py-3 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 transition-colors">Voltar</button>{appointment.status !== 'completed' && appointment.status !== 'canceled' && (<>{canCancel && (<button onClick={() => setShowConfirmCancel(true)} className="px-4 py-3 border border-red-200 rounded-xl text-red-600 font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2"><XCircle className="w-4 h-4" /> Cancelar</button>)}<button onClick={handleComplete} disabled={isProcessing} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-all">{isProcessing ? (<><RefreshCw className="w-5 h-5 animate-spin" /> Processando...</>) : (<><CheckCircle className="w-5 h-5" /> Finalizar e Receber</>)}</button></>)}</div></>) : (
             <div className="bg-red-50 p-6 rounded-xl border border-red-200 animate-fade-in"><h4 className="font-bold text-red-800 mb-2 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Confirmar Cancelamento?</h4><p className="text-sm text-red-700 mb-6">Deseja realmente cancelar este agendamento? Esta ação não pode ser desfeita.</p><div className="flex gap-3"><button onClick={() => setShowConfirmCancel(false)} className="flex-1 py-3 bg-white border border-red-200 rounded-xl text-red-700 font-bold hover:bg-red-50 transition-colors">Não, Voltar</button><button onClick={handleCancelAppointment} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg">Sim, Cancelar</button></div></div>
         )}
       </div>

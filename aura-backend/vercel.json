@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/check-subscriptions",
+      "schedule": "0 6 * * *"
+    },
+    {
       "path": "/api/cron/renew-calendar-watches",
       "schedule": "0 6 */6 * *"
     }

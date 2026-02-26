@@ -1,12 +1,14 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Ticket, UserRole } from '../types';
 import { MessageCircle, Send, Plus, CheckCircle, Lock, Clock } from 'lucide-react';
 import { SAAS_COMPANY_NAME } from '../constants';
+import { UpgradeOverlay } from '../components/UpgradeOverlay';
 
 const Support: React.FC = () => {
-  const { tickets, createTicket, replyTicket, closeTicket, user } = useApp();
+  const { tickets, createTicket, replyTicket, closeTicket, user, checkModuleAccess } = useApp();
+
+  const hasSupportAccess = checkModuleAccess('support');
   
   // ALTERAÇÃO CRÍTICA: Usar apenas o ID para referenciar o ticket selecionado
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
@@ -51,7 +53,7 @@ const Support: React.FC = () => {
       }
   }, [selectedTicket?.messages]);
 
-  return (
+  const supportContent = (
     <div className="h-[calc(100vh-6rem)] flex flex-col">
         <div className="mb-6 flex justify-between items-center">
             <div>
@@ -232,6 +234,16 @@ const Support: React.FC = () => {
         </div>
     </div>
   );
+
+  if (!hasSupportAccess) {
+    return (
+      <UpgradeOverlay message="Ative a versão Starter ou superior para acessar a Central de Suporte.">
+        {supportContent}
+      </UpgradeOverlay>
+    );
+  }
+
+  return supportContent;
 };
 
 export default Support;

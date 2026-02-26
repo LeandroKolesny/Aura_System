@@ -4,7 +4,7 @@ import {
   PhotoRecord, SaasPlan, Lead, Ticket, SystemAlert, AppNotification,
   UserRole, SystemModule, UnavailabilityRule, LeadStatus, InventoryItem, SignatureMetadata
 } from '../types';
-import { DEFAULT_PLANS, PLAN_PERMISSIONS } from '../constants';
+import { PLAN_NAMES, PlanLimits } from '../constants';
 import {
   authApi,
   patientsApi,
@@ -20,19 +20,22 @@ import {
   photosApi,
   ticketsApi,
   systemAlertsApi,
-  notificationsApi
+  notificationsApi,
+  plansApi,
+  kingApi
 } from '../services/api';
 
 interface AppContextType {
   user: User | null;
+  isInitializing: boolean; // Loading enquanto valida sessão
   login: (email: string, password?: string) => Promise<boolean>;
   loginWithToken: (token: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  registerCompany: (companyName: string, adminData: any) => void;
-  
+  registerCompany: (companyName: string, adminData: any) => Promise<{ success: boolean; error?: string }>;
+
   companies: Company[];
   currentCompany: Company | null;
-  updateCompany: (companyId: string, data: Partial<Company>) => void;
+  updateCompany: (companyId: string, data: Partial<Company>) => Promise<{ success: boolean; company?: Company; error?: string }>;
   completeOnboarding: () => void;
 
   patients: Patient[];
@@ -62,15 +65,17 @@ interface AppContextType {
   addProfessional: (prof: any) => void;
   updateProfessional: (id: string, data: Partial<User>) => void;
   removeProfessional: (id: string) => void;
+  resetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 
   photos: PhotoRecord[];
   addPhoto: (photo: Omit<PhotoRecord, 'id' | 'companyId'>) => void;
   removePhoto: (id: string) => void;
 
   saasPlans: SaasPlan[];
-  addPlan: (plan: SaasPlan) => void;
-  updatePlan: (id: string, data: Partial<SaasPlan>) => void;
-  removePlan: (id: string) => void;
+  addPlan: (plan: Omit<SaasPlan, 'id'>) => Promise<{ success: boolean; plan?: SaasPlan; error?: string }>;
+  updatePlan: (id: string, data: Partial<SaasPlan>) => Promise<{ success: boolean; error?: string }>;
+  removePlan: (id: string) => Promise<{ success: boolean; error?: string }>;
+  loadPlans: (forceReload?: boolean) => Promise<void>;
 
   leads: Lead[];
   addLead: (lead: Omit<Lead, 'id'>) => void;
@@ -117,6 +122,43 @@ interface AppContextType {
   setIsSubscriptionModalOpen: (val: boolean) => void;
 
   getPublicData: (companyId: string) => any;
+  isLoading: boolean;
+
+  // Lazy Loading - funções para carregar dados sob demanda
+  loadPatients: (forceReload?: boolean) => Promise<void>;
+  loadAppointments: (forceReload?: boolean) => Promise<void>;
+  loadTransactions: (forceReload?: boolean) => Promise<void>;
+  loadProcedures: (forceReload?: boolean) => Promise<void>;
+  loadProfessionals: (forceReload?: boolean) => Promise<void>;
+  loadInventory: (forceReload?: boolean) => Promise<void>;
+  loadPhotos: (patientId?: string, forceReload?: boolean) => Promise<void>;
+  loadLeads: (forceReload?: boolean) => Promise<void>;
+
+  // Estados de loading individuais
+  loadingStates: {
+    patients: boolean;
+    appointments: boolean;
+    transactions: boolean;
+    procedures: boolean;
+    professionals: boolean;
+    inventory: boolean;
+    plans: boolean;
+    photos: boolean;
+    leads: boolean;
+  };
+
+  // Estados de "já carregado" para evitar recarregar
+  loadedStates: {
+    patients: boolean;
+    appointments: boolean;
+    transactions: boolean;
+    procedures: boolean;
+    professionals: boolean;
+    inventory: boolean;
+    plans: boolean;
+    photos: boolean;
+    leads: boolean;
+  };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -131,7 +173,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
-  const [saasPlans, setSaasPlans] = useState<SaasPlan[]>(DEFAULT_PLANS);
+  const [saasPlans, setSaasPlans] = useState<SaasPlan[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([]);
@@ -145,6 +187,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [triggerSave, setTriggerSave] = useState(false);
   const [pendingNavigationPath, setPendingNavigationPath] = useState<string | null>(null);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // Loading inicial enquanto valida sessão
 
   // Computed
   const currentCompany = user ? companies.find(c => c.id === user.companyId) || null : null;
@@ -162,8 +205,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const checkModuleAccess: any = (module: SystemModule): boolean => {
       if (!currentCompany) return false;
       if (user?.role === UserRole.OWNER) return true;
-      const permissions = PLAN_PERMISSIONS[currentCompany.plan] || [];
-      return permissions.includes(module);
+
+      // Se planos ainda não carregaram, permitir acesso temporariamente (evita race condition)
+      if (saasPlans.length === 0) {
+        return true; // Permitir enquanto carrega
+      }
+
+      // Busca o plano atual do array de planos carregados da API (case-insensitive)
+      const companyPlanUpper = currentCompany.plan?.toUpperCase();
+      const currentPlan = saasPlans.find(p => p.name?.toUpperCase() === companyPlanUpper);
+      if (!currentPlan) {
+        console.warn(`⚠️ Plano não encontrado: ${currentCompany.plan} (planos: ${saasPlans.map(p => p.name).join(', ')})`);
+        return true; // Permitir se plano não encontrado (fallback seguro)
+      }
+      return currentPlan.modules.includes(module);
   };
 
   const checkWriteAccess = () => {
@@ -180,23 +235,458 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Carrega dados da API quando o usuário loga via API
+  // Estados de loading individuais para lazy loading
+  const [loadingStates, setLoadingStates] = useState({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+    photos: false,
+    leads: false,
+  });
+
+  // Estados de "já carregado" para evitar recarregar
+  const [loadedStates, setLoadedStates] = useState({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+    photos: false,
+    leads: false,
+  });
+
+  // Helper para atualizar loading state
+  const setLoading = (key: keyof typeof loadingStates, value: boolean) => {
+    setLoadingStates(prev => ({ ...prev, [key]: value }));
+  };
+
+  const setLoaded = (key: keyof typeof loadedStates, value: boolean) => {
+    setLoadedStates(prev => ({ ...prev, [key]: value }));
+  };
+
+  // ============================================
+  // RESTAURAÇÃO DE SESSÃO NA INICIALIZAÇÃO
+  // ============================================
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem('aura_token');
+
+      if (!token) {
+        // Sem token, não há sessão para restaurar
+        setIsInitializing(false);
+        return;
+      }
+
+      try {
+        // Validar token e obter dados do usuário
+        const result = await authApi.me();
+
+        if (result.success && result.data?.user) {
+          const apiUser = result.data.user;
+
+          // Mapear role da API para o enum UserRole
+          const roleMap: Record<string, UserRole> = {
+            'ADMIN': UserRole.ADMIN,
+            'OWNER': UserRole.OWNER,
+            'RECEPTIONIST': UserRole.RECEPTIONIST,
+            'ESTHETICIAN': UserRole.ESTHETICIAN,
+            'PATIENT': UserRole.PATIENT,
+          };
+          const mappedRole = roleMap[apiUser.role?.toUpperCase()] || UserRole.ADMIN;
+
+          const mappedUser: User = {
+            id: apiUser.id,
+            name: apiUser.name,
+            email: apiUser.email,
+            role: mappedRole,
+            companyId: apiUser.company?.id || apiUser.companyId,
+            avatar: apiUser.avatar,
+            isActive: apiUser.isActive ?? true,
+            patientId: apiUser.patientId,
+          };
+
+          // Se tiver dados da empresa, adiciona à lista de companies
+          if (apiUser.company) {
+            const mappedCompany: Company = {
+              id: apiUser.company.id,
+              name: apiUser.company.name,
+              slug: apiUser.company.slug,
+              plan: apiUser.company.plan?.toLowerCase() || 'free',
+              subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
+              subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+              businessHours: apiUser.company.businessHours || {},
+              onboardingCompleted: apiUser.company.onboardingCompleted ?? true,
+            };
+            setCompanies([mappedCompany]);
+            console.log('🏢 Sessão restaurada - Empresa:', mappedCompany.name);
+          }
+
+          console.log('🔐 Sessão restaurada:', { email: apiUser.email, role: mappedRole });
+          setUser(mappedUser);
+        } else {
+          // Token inválido ou expirado - limpar
+          console.log('⚠️ Token inválido, limpando sessão...');
+          localStorage.removeItem('aura_token');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao restaurar sessão:', error);
+        localStorage.removeItem('aura_token');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
+
+  // ============================================
+  // FUNÇÕES DE LAZY LOADING INDIVIDUAIS
+  // ============================================
+
+  // Refs para controle de loading (evita loop infinito)
+  const loadingRef = React.useRef({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+    photos: false,
+    leads: false,
+  });
+
+  const loadedRef = React.useRef({
+    patients: false,
+    appointments: false,
+    transactions: false,
+    procedures: false,
+    professionals: false,
+    inventory: false,
+    plans: false,
+    photos: false,
+    leads: false,
+  });
+
+  const loadPatients = useCallback(async () => {
+    if (loadedRef.current.patients || loadingRef.current.patients) return;
+    loadingRef.current.patients = true;
+    setLoading('patients', true);
+    try {
+      const res = await patientsApi.list({ limit: 100 });
+      if (res.success && res.data?.patients) {
+        const mapped = res.data.patients.map((p: any) => ({
+          ...p,
+          status: p.status?.toLowerCase() || 'active'
+        }));
+        setPatients(mapped);
+        loadedRef.current.patients = true;
+        setLoaded('patients', true);
+        console.log('✅ Pacientes carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar pacientes:', error);
+    } finally {
+      loadingRef.current.patients = false;
+      setLoading('patients', false);
+    }
+  }, []);
+
+  // Cache timestamps para evitar reloads desnecessários
+  const cacheTimestamps = React.useRef<Record<string, number>>({});
+  const CACHE_TTL_MS = 30000; // 30 segundos de cache no frontend
+
+  const isCacheValid = (key: string) => {
+    const timestamp = cacheTimestamps.current[key];
+    if (!timestamp) return false;
+    return Date.now() - timestamp < CACHE_TTL_MS;
+  };
+
+  const loadAppointments = useCallback(async (forceReload = false) => {
+    // Se não forçar e cache ainda válido, não recarregar
+    if (!forceReload && isCacheValid('appointments')) return;
+    if (!forceReload && (loadedRef.current.appointments || loadingRef.current.appointments)) return;
+    if (forceReload) {
+      loadedRef.current.appointments = false;
+    }
+    loadingRef.current.appointments = true;
+    setLoading('appointments', true);
+    try {
+      const res = await appointmentsApi.list({ limit: 100 });
+      if (res.success && res.data?.appointments) {
+        const mapped = res.data.appointments.map((a: any) => ({
+          ...a,
+          price: Number(a.price) || 0,
+          durationMinutes: Number(a.durationMinutes) || 60,
+          status: a.status?.toLowerCase() || 'scheduled',
+          patientId: a.patientId || a.patient?.id,
+          patientName: a.patient?.name || a.patientName,
+          professionalId: a.professionalId || a.professional?.id,
+          professionalName: a.professional?.name || a.professionalName,
+          procedureId: a.procedureId || a.procedure?.id,
+          service: a.procedure?.name || a.service
+        }));
+        setAppointments(mapped);
+        loadedRef.current.appointments = true;
+        setLoaded('appointments', true);
+        cacheTimestamps.current.appointments = Date.now();
+        console.log('✅ Agendamentos carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar agendamentos:', error);
+    } finally {
+      loadingRef.current.appointments = false;
+      setLoading('appointments', false);
+    }
+  }, []);
+
+  const loadTransactions = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.transactions || loadingRef.current.transactions)) return;
+    if (forceReload) {
+      loadedRef.current.transactions = false;
+    }
+    loadingRef.current.transactions = true;
+    setLoading('transactions', true);
+    try {
+      const res = await transactionsApi.list({ limit: 100 });
+      if (res.success && res.data?.transactions) {
+        const mapped = res.data.transactions.map((t: any) => ({
+          ...t,
+          amount: Number(t.amount) || 0,
+          type: t.type?.toLowerCase() || 'income',
+          status: t.status?.toLowerCase() || 'paid'
+        }));
+        setTransactions(mapped);
+        loadedRef.current.transactions = true;
+        setLoaded('transactions', true);
+        console.log('✅ Transações carregadas (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar transações:', error);
+    } finally {
+      loadingRef.current.transactions = false;
+      setLoading('transactions', false);
+    }
+  }, []);
+
+  const loadProcedures = useCallback(async () => {
+    if (loadedRef.current.procedures || loadingRef.current.procedures) return;
+    loadingRef.current.procedures = true;
+    setLoading('procedures', true);
+    try {
+      const res = await proceduresApi.list({ limit: 100 });
+      if (res.success && res.data?.procedures) {
+        const mapped = res.data.procedures.map((p: any) => ({
+          ...p,
+          price: Number(p.price) || 0,
+          cost: Number(p.cost) || 0,
+          supplies: p.supplies?.map((s: any) => ({
+            id: s.id,
+            inventoryItemId: s.inventoryItemId || s.inventoryItem?.id,
+            name: s.inventoryItem?.name || s.name || 'Insumo',
+            quantityUsed: Number(s.quantityUsed) || 1,
+            cost: Number(s.inventoryItem?.costPerUnit || 0) * Number(s.quantityUsed || 1),
+            unit: s.inventoryItem?.unit || 'un'
+          })) || []
+        }));
+        setProcedures(mapped);
+        loadedRef.current.procedures = true;
+        setLoaded('procedures', true);
+        console.log('✅ Procedimentos carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar procedimentos:', error);
+    } finally {
+      loadingRef.current.procedures = false;
+      setLoading('procedures', false);
+    }
+  }, []);
+
+  const loadProfessionals = useCallback(async () => {
+    if (loadedRef.current.professionals || loadingRef.current.professionals) return;
+    loadingRef.current.professionals = true;
+    setLoading('professionals', true);
+    try {
+      const res = await usersApi.list({ limit: 100 });
+      if (res.success && res.data?.users) {
+        const remunerationMap: Record<string, string> = {
+          'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
+          'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
+        };
+        const mapped = res.data.users.map((u: any) => ({
+          ...u,
+          role: u.role || 'ESTHETICIAN',
+          contractType: u.contractType?.toLowerCase() || 'pj',
+          remunerationType: remunerationMap[u.remunerationType] || u.remunerationType?.toLowerCase() || 'comissao',
+          commissionRate: Number(u.commissionRate) || 0,
+          fixedSalary: Number(u.fixedSalary) || 0
+        }));
+        setProfessionals(mapped);
+        loadedRef.current.professionals = true;
+        setLoaded('professionals', true);
+        console.log('✅ Profissionais carregados (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar profissionais:', error);
+    } finally {
+      loadingRef.current.professionals = false;
+      setLoading('professionals', false);
+    }
+  }, []);
+
+  const loadInventory = useCallback(async () => {
+    if (loadedRef.current.inventory || loadingRef.current.inventory) return;
+    loadingRef.current.inventory = true;
+    setLoading('inventory', true);
+    try {
+      const res = await inventoryApi.list({ limit: 100 });
+      if (res.success && res.data?.items) {
+        setInventory(res.data.items);
+        loadedRef.current.inventory = true;
+        setLoaded('inventory', true);
+        console.log('✅ Estoque carregado (lazy):', res.data.items.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar estoque:', error);
+    } finally {
+      loadingRef.current.inventory = false;
+      setLoading('inventory', false);
+    }
+  }, []);
+
+  const loadPhotos = useCallback(async (patientId?: string, forceReload = false) => {
+    // Se não for forceReload e já carregou, não recarrega
+    if (!forceReload && loadedRef.current.photos) return;
+    if (loadingRef.current.photos) return;
+
+    if (forceReload) {
+      loadedRef.current.photos = false;
+    }
+    loadingRef.current.photos = true;
+    setLoading('photos', true);
+    try {
+      // Sempre carrega todas as fotos da empresa (similar a outros recursos)
+      // O filtro por patientId é feito no frontend
+      const res = await photosApi.list({ limit: 500 });
+      if (res.success && res.data?.photos) {
+        const mapped = res.data.photos.map((p: any) => ({
+          id: p.id,
+          companyId: p.companyId,
+          patientId: p.patientId,
+          url: p.url,
+          type: p.type?.toLowerCase() as 'before' | 'after',
+          procedure: p.procedure,
+          date: p.date,
+          groupId: p.groupId,
+        }));
+        setPhotos(mapped);
+        loadedRef.current.photos = true;
+        setLoaded('photos', true);
+        console.log('✅ Fotos carregadas (lazy):', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar fotos:', error);
+    } finally {
+      loadingRef.current.photos = false;
+      setLoading('photos', false);
+    }
+  }, []);
+
+  const loadPlans = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.plans || loadingRef.current.plans)) return;
+    if (forceReload) {
+      loadedRef.current.plans = false;
+    }
+    loadingRef.current.plans = true;
+    setLoading('plans', true);
+    try {
+      const res = await plansApi.list();
+      if (res.success && res.data) {
+        const mappedPlans = res.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          displayName: p.displayName || p.name,
+          price: Number(p.price) || 0,
+          maxProfessionals: p.maxProfessionals ?? 1,
+          maxPatients: p.maxPatients ?? 50,
+          modules: p.modules || [], // IMPORTANTE: necessário para checkModuleAccess
+          features: p.features || [],
+          active: p.active ?? true,
+          stripePaymentLink: p.stripePaymentLink || '',
+        }));
+        // Só atualiza se houver planos no banco, senão mantém os padrão
+        if (mappedPlans.length > 0) {
+          setSaasPlans(mappedPlans);
+          console.log('✅ Planos carregados (lazy):', mappedPlans.length);
+        } else {
+          console.log('ℹ️ Nenhum plano no banco, mantendo planos padrão');
+        }
+        loadedRef.current.plans = true;
+        setLoaded('plans', true);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar planos:', error);
+    } finally {
+      loadingRef.current.plans = false;
+      setLoading('plans', false);
+    }
+  }, []);
+
+  const loadLeads = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.leads || loadingRef.current.leads)) return;
+    if (forceReload) {
+      loadedRef.current.leads = false;
+    }
+    loadingRef.current.leads = true;
+    setLoading('leads', true);
+    try {
+      // OWNER usa API de vendas (empresas FREE/TRIAL), outros usam leads da clínica
+      const isOwner = user?.role === UserRole.OWNER;
+      const res = isOwner
+        ? await kingApi.leads()
+        : await leadsApi.list({ limit: 200 });
+      if (res.success && res.data?.leads) {
+        const mapped = res.data.leads.map((l: any) => ({
+          ...l,
+          status: l.status?.toLowerCase() || 'new',
+          value: Number(l.value) || 0,
+        }));
+        setLeads(mapped);
+        loadedRef.current.leads = true;
+        setLoaded('leads', true);
+        console.log(`✅ Leads carregados (lazy, ${isOwner ? 'OWNER' : 'clinic'}):`, mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar leads:', error);
+    } finally {
+      loadingRef.current.leads = false;
+      setLoading('leads', false);
+    }
+  }, [user?.role]);
+
+  // ============================================
+  // CARREGAMENTO INICIAL (apenas dados essenciais)
+  // ============================================
+
   const loadDataFromApi = useCallback(async () => {
     if (!user) return;
 
     setApiLoading(true);
-    console.log('📡 Carregando dados da API...');
+    console.log('📡 Carregando dados essenciais...');
 
     try {
-      // Carregar dados em paralelo
-      const [companiesRes, usersRes, patientsRes, appointmentsRes, transactionsRes, proceduresRes, inventoryRes] = await Promise.all([
+      // Carregar dados essenciais no login (empresa, profissionais E planos para checkModuleAccess)
+      const [companiesRes, usersRes, plansRes] = await Promise.all([
         companiesApi.list({ limit: 100 }),
         usersApi.list({ limit: 100 }),
-        patientsApi.list({ limit: 100 }),
-        appointmentsApi.list({ limit: 100 }),
-        transactionsApi.list({ limit: 100 }),
-        proceduresApi.list({ limit: 100 }),
-        inventoryApi.list({ limit: 100 })
+        plansApi.list() // CRÍTICO: Necessário para checkModuleAccess funcionar
       ]);
 
       if (companiesRes.success && companiesRes.data?.companies) {
@@ -220,17 +710,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       if (usersRes.success && usersRes.data?.users) {
-        // Mapeamento de tipos de remuneração (banco -> frontend)
         const remunerationMap: Record<string, string> = {
-          'COMMISSION': 'comissao',
-          'FIXED': 'fixo',
-          'MIXED': 'misto',
-          'commission': 'comissao',
-          'fixed': 'fixo',
-          'mixed': 'misto'
+          'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
+          'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
         };
-
-        const mappedUsers = usersRes.data.users.map((u: any) => ({
+        const mapped = usersRes.data.users.map((u: any) => ({
           ...u,
           role: u.role || 'ESTHETICIAN',
           contractType: u.contractType?.toLowerCase() || 'pj',
@@ -238,72 +722,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           commissionRate: Number(u.commissionRate) || 0,
           fixedSalary: Number(u.fixedSalary) || 0
         }));
-        setProfessionals(mappedUsers);
-        console.log('✅ Profissionais carregados:', mappedUsers.length, mappedUsers);
+        setProfessionals(mapped);
+        setLoaded('professionals', true);
+        console.log('✅ Profissionais carregados:', mapped.length);
       }
 
-      if (patientsRes.success && patientsRes.data?.patients) {
-        const mappedPatients = patientsRes.data.patients.map((p: any) => ({
-          ...p,
-          status: p.status?.toLowerCase() || 'active'
-        }));
-        setPatients(mappedPatients);
-        console.log('✅ Pacientes carregados:', mappedPatients.length);
-      }
-
-      if (appointmentsRes.success && appointmentsRes.data?.appointments) {
-        const mappedAppts = appointmentsRes.data.appointments.map((a: any) => ({
-          ...a,
-          price: Number(a.price) || 0,
-          durationMinutes: Number(a.durationMinutes) || 60,
-          status: a.status?.toLowerCase() || 'scheduled',
-          patientId: a.patientId || a.patient?.id,
-          patientName: a.patient?.name || a.patientName,
-          professionalId: a.professionalId || a.professional?.id,
-          professionalName: a.professional?.name || a.professionalName,
-          procedureId: a.procedureId || a.procedure?.id,
-          service: a.procedure?.name || a.service
-        }));
-        setAppointments(mappedAppts);
-        console.log('✅ Agendamentos carregados:', mappedAppts.length, 'Exemplo:', mappedAppts[0]);
-      }
-
-      if (transactionsRes.success && transactionsRes.data?.transactions) {
-        const mappedTrans = transactionsRes.data.transactions.map((t: any) => ({
-          ...t,
-          amount: Number(t.amount) || 0,
-          type: t.type?.toLowerCase() || 'income',
-          status: t.status?.toLowerCase() || 'paid'
-        }));
-        setTransactions(mappedTrans);
-        console.log('✅ Transações carregadas:', mappedTrans.length);
-      }
-
-      if (proceduresRes.success && proceduresRes.data?.procedures) {
-        const mappedProcs = proceduresRes.data.procedures.map((p: any) => ({
-          ...p,
+      // CRÍTICO: Carregar planos para checkModuleAccess funcionar corretamente
+      if (plansRes.success && plansRes.data) {
+        const mappedPlans = plansRes.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          displayName: p.displayName || p.name,
           price: Number(p.price) || 0,
-          cost: Number(p.cost) || 0,
-          // Mapear supplies do formato API para formato frontend
-          supplies: p.supplies?.map((s: any) => ({
-            id: s.id,
-            inventoryItemId: s.inventoryItemId || s.inventoryItem?.id,
-            name: s.inventoryItem?.name || s.name || 'Insumo',
-            quantityUsed: Number(s.quantityUsed) || 1,
-            cost: Number(s.inventoryItem?.costPerUnit || 0) * Number(s.quantityUsed || 1),
-            unit: s.inventoryItem?.unit || 'un'
-          })) || []
+          maxProfessionals: p.maxProfessionals ?? 1,
+          maxPatients: p.maxPatients ?? 50,
+          modules: p.modules || [],
+          features: p.features || [],
+          active: p.active ?? true,
+          stripePaymentLink: p.stripePaymentLink || '',
         }));
-        setProcedures(mappedProcs);
-        console.log('✅ Procedimentos carregados:', mappedProcs.length, 'Exemplo:', mappedProcs[0]);
+        if (mappedPlans.length > 0) {
+          setSaasPlans(mappedPlans);
+          loadedRef.current.plans = true;
+          setLoaded('plans', true);
+          console.log('✅ Planos carregados:', mappedPlans.length);
+        }
       }
 
-      if (inventoryRes.success && inventoryRes.data?.items) {
-        setInventory(inventoryRes.data.items);
-        console.log('✅ Estoque carregado:', inventoryRes.data.items.length);
-      }
-
-      console.log('🎉 Dados carregados com sucesso!');
+      console.log('🎉 Dados essenciais carregados! Outros dados serão carregados sob demanda.');
       setApiError(null);
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
@@ -347,6 +793,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             companyId: apiUser.company?.id || apiUser.companyId,
             avatar: apiUser.avatar,
             isActive: apiUser.isActive ?? true,
+            patientId: apiUser.patientId, // Para pacientes, inclui o ID do registro Patient
           };
 
           // Se tiver dados da empresa, adiciona à lista de companies
@@ -450,62 +897,98 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch (error) {
         console.error('Erro no logout via API:', error);
       }
+      // Reset dos refs de lazy loading
+      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false };
+      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false };
+      setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false });
+      // Limpar dados
+      setPatients([]);
+      setAppointments([]);
+      setTransactions([]);
+      setProcedures([]);
+      setProfessionals([]);
+      setInventory([]);
+      setPhotos([]);
+      setCompanies([]);
+      setSaasPlans([]); // Reset - planos serão carregados da API
       setUser(null);
-      setDismissedAlertIds([]); // Limpa os alertas fechados ao deslogar
+      setDismissedAlertIds([]);
   };
 
-  const registerCompany = (companyName: string, adminData: any) => {
-      const newCompanyId = `c_${Date.now()}`;
-      const newCompany: Company = {
-          id: newCompanyId,
-          name: companyName,
-          plan: 'free', // Começa como free/trial
-          subscriptionStatus: 'trial',
-          subscriptionExpiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 dias
-          businessHours: {
-            monday: { isOpen: true, start: '08:00', end: '18:00' },
-            tuesday: { isOpen: true, start: '08:00', end: '18:00' },
-            wednesday: { isOpen: true, start: '08:00', end: '18:00' },
-            thursday: { isOpen: true, start: '08:00', end: '18:00' },
-            friday: { isOpen: true, start: '08:00', end: '18:00' },
-            saturday: { isOpen: true, start: '09:00', end: '13:00' },
-            sunday: { isOpen: false, start: '00:00', end: '00:00' }
-          },
-          onboardingCompleted: false
-      };
-
-      const newAdmin: User = {
-          id: `u_${Date.now()}`,
-          companyId: newCompanyId,
+  const registerCompany = async (companyName: string, adminData: any): Promise<{ success: boolean; error?: string }> => {
+      try {
+        // Chamar API de registro para salvar no banco de dados
+        const response = await authApi.register({
           name: adminData.name,
           email: adminData.email,
           password: adminData.password,
-          role: UserRole.ADMIN,
+          companyName: companyName,
+          state: adminData.state,
+        });
+
+        if (!response.success) {
+          console.error('❌ Erro no registro:', response.error);
+          return { success: false, error: response.error || 'Erro ao criar conta' };
+        }
+
+        console.log('✅ Empresa e usuário criados com sucesso!');
+
+        // Criar lead para o owner acompanhar
+        const newLead: Lead = {
+          id: `l_${Date.now()}`,
+          clinicName: companyName,
+          contactName: adminData.name,
+          email: adminData.email,
           phone: adminData.phone,
-          contractType: 'PJ',
-          remunerationType: 'fixo',
-          commissionRate: 0
-      };
+          status: 'new',
+          value: 0,
+          createdAt: new Date().toISOString()
+        };
+        setLeads(prev => [...prev, newLead]);
 
-      setCompanies(prev => [...prev, newCompany]);
-      setProfessionals(prev => [...prev, newAdmin]);
-
-      const newLead: Lead = {
-        id: `l_${Date.now()}`,
-        clinicName: companyName,
-        contactName: adminData.name,
-        email: adminData.email,
-        phone: adminData.phone,
-        status: 'new', 
-        value: 0, 
-        createdAt: new Date().toISOString()
-      };
-      setLeads(prev => [...prev, newLead]);
+        return { success: true };
+      } catch (error) {
+        console.error('❌ Erro de conexão no registro:', error);
+        return { success: false, error: 'Erro de conexão. Tente novamente.' };
+      }
   };
 
-  const updateCompany = (companyId: string, data: Partial<Company>) => {
+  const updateCompany = async (companyId: string, data: Partial<Company>) => {
       if (user?.role !== UserRole.OWNER) checkWriteAccess();
+
+      // Atualiza local state imediatamente para UI responsiva
       setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, ...data } : c));
+
+      // Persiste no banco de dados via API
+      try {
+        const response = await companiesApi.update(companyId, data);
+        if (response.success && response.data?.company) {
+          // Atualiza com dados confirmados do servidor
+          const updatedCompany = {
+            ...response.data.company,
+            plan: response.data.company.plan?.toLowerCase() || 'basic',
+            subscriptionStatus: response.data.company.subscriptionStatus?.toLowerCase() || 'active',
+            targetAudience: {
+              female: response.data.company.targetFemale ?? true,
+              male: response.data.company.targetMale ?? true,
+              kids: response.data.company.targetKids ?? false
+            },
+            socialMedia: {
+              instagram: response.data.company.instagram || '',
+              facebook: response.data.company.facebook || '',
+              website: response.data.company.website || ''
+            }
+          };
+          setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, ...updatedCompany } : c));
+          console.log('✅ Empresa atualizada no banco:', companyId);
+          return { success: true, company: updatedCompany };
+        }
+        console.error('❌ Erro ao atualizar empresa na API:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao atualizar empresa:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
   const completeOnboarding = () => {
@@ -517,6 +1000,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // --- Patient Actions (SEMPRE via API) ---
   const addPatient = async (patientData: any) => {
       checkWriteAccess();
+
+      // Verificar limite de pacientes do plano (busca do estado saasPlans)
+      if (currentCompany && user?.role !== UserRole.OWNER) {
+        const companyPlanUpper = currentCompany.plan?.toUpperCase();
+        const currentPlan = saasPlans.find(p => p.name?.toUpperCase() === companyPlanUpper);
+        const maxPatients = currentPlan?.maxPatients ?? 50; // Default 50 se não encontrar
+        const currentPatientCount = patients.filter(p => p.companyId === currentCompany.id).length;
+
+        if (maxPatients !== -1 && currentPatientCount >= maxPatients) {
+          console.warn(`⚠️ Limite de pacientes atingido: ${currentPatientCount}/${maxPatients}`);
+          return {
+            success: false,
+            error: `Limite de pacientes atingido (${maxPatients}). Faça upgrade do seu plano para cadastrar mais pacientes.`,
+            limitReached: true
+          };
+        }
+      }
+
       try {
         const result = await patientsApi.create(patientData);
         if (result.success && result.data?.patient) {
@@ -629,18 +1130,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         if (response.success && response.data?.appointment) {
           const newAppt = response.data.appointment;
-          setAppointments(prev => [...prev, {
+          // Mapear os campos corretamente (igual ao loadAppointments)
+          const mappedAppt = {
             ...newAppt,
+            price: Number(newAppt.price) || 0,
+            durationMinutes: Number(newAppt.durationMinutes) || 60,
             status: newAppt.status?.toLowerCase() || 'scheduled',
-          }]);
+            patientId: newAppt.patientId || newAppt.patient?.id,
+            patientName: newAppt.patient?.name || newAppt.patientName,
+            professionalId: newAppt.professionalId || newAppt.professional?.id,
+            professionalName: newAppt.professional?.name || newAppt.professionalName,
+            procedureId: newAppt.procedureId || newAppt.procedure?.id,
+            service: newAppt.procedure?.name || newAppt.service
+          };
+          setAppointments(prev => [...prev, mappedAppt]);
 
           // Se criou novo paciente, adicionar ao estado local
           if (response.data.patient) {
             setPatients(prev => [...prev, response.data!.patient]);
           }
 
-          console.log('✅ Agendamento criado:', newAppt.id);
-          return { success: true, appointment: newAppt };
+          console.log('✅ Agendamento criado:', mappedAppt.id);
+          return { success: true, appointment: mappedAppt };
         }
 
         // Verificar se é conflito
@@ -926,6 +1437,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // --- Professionals (SEMPRE via API) ---
   const addProfessional = async (prof: any) => {
       checkWriteAccess();
+
+      // Verificar limite de profissionais do plano (busca do estado saasPlans)
+      if (currentCompany && user?.role !== UserRole.OWNER) {
+        const companyPlanUpper = currentCompany.plan?.toUpperCase();
+        const currentPlan = saasPlans.find(p => p.name?.toUpperCase() === companyPlanUpper);
+        const maxProfessionals = currentPlan?.maxProfessionals ?? 1; // Default 1 se não encontrar
+        const currentProfCount = professionals.filter(p => p.companyId === currentCompany.id).length;
+
+        if (maxProfessionals !== -1 && currentProfCount >= maxProfessionals) {
+          console.warn(`⚠️ Limite de profissionais atingido: ${currentProfCount}/${maxProfessionals}`);
+          return {
+            success: false,
+            error: `Limite de profissionais atingido (${maxProfessionals}). Faça upgrade do seu plano para cadastrar mais profissionais.`,
+            limitReached: true
+          };
+        }
+      }
+
       try {
         const response = await usersApi.create(prof);
         if (response.success && response.data?.user) {
@@ -959,15 +1488,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setProfessionals(prev => prev.filter(p => p.id !== id));
   };
 
+  const resetUserPassword = async (userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+      checkWriteAccess();
+      try {
+        const response = await usersApi.resetPassword(userId, newPassword);
+        if (response.success) {
+          console.log('✅ Senha redefinida com sucesso');
+          return { success: true };
+        }
+        console.error('❌ Erro ao redefinir senha:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao redefinir senha:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
+  };
+
   // --- Photos (SEMPRE via API) ---
   const addPhoto = async (photo: Omit<PhotoRecord, 'id' | 'companyId'>) => {
       checkWriteAccess();
       try {
         const response = await photosApi.create(photo);
         if (response.success && response.data?.photo) {
-          setPhotos(prev => [...prev, response.data!.photo]);
-          console.log('✅ Foto criada:', response.data.photo.id);
-          return { success: true, photo: response.data.photo };
+          const p = response.data.photo;
+          // Mapear a foto igual ao loadPhotos para consistência
+          const mappedPhoto: PhotoRecord = {
+            id: p.id,
+            companyId: p.companyId,
+            patientId: p.patientId,
+            url: p.url,
+            type: p.type?.toLowerCase() as 'before' | 'after',
+            procedure: p.procedure,
+            date: p.date,
+            groupId: p.groupId,
+          };
+          setPhotos(prev => [...prev, mappedPhoto]);
+          console.log('✅ Foto criada:', mappedPhoto.id);
+          return { success: true, photo: mappedPhoto };
         }
         console.error('❌ Erro ao criar foto:', response.error);
         return { success: false, error: response.error };
@@ -995,21 +1552,78 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  // --- Plans ---
-  const addPlan = (plan: SaasPlan) => {
+  // --- Plans (SEMPRE via API) ---
+  const addPlan = async (plan: Omit<SaasPlan, 'id'>): Promise<{ success: boolean; plan?: SaasPlan; error?: string }> => {
       checkPermission([UserRole.OWNER]);
-      const newPlan = { ...plan, id: plan.name.toLowerCase().replace(/\s/g, '-') as any }; 
-      setSaasPlans(prev => [...prev, newPlan]);
+      try {
+        const response = await plansApi.create({
+          name: plan.name,
+          price: plan.price,
+          features: plan.features,
+          active: plan.active,
+          stripePaymentLink: plan.stripePaymentLink,
+        });
+        if (response.success && response.data?.plan) {
+          const newPlan: SaasPlan = {
+            id: response.data.plan.id,
+            name: response.data.plan.name,
+            price: Number(response.data.plan.price),
+            features: response.data.plan.features || [],
+            active: response.data.plan.active ?? true,
+            stripePaymentLink: response.data.plan.stripePaymentLink || '',
+          };
+          setSaasPlans(prev => [...prev, newPlan]);
+          console.log('✅ Plano criado:', newPlan.name);
+          return { success: true, plan: newPlan };
+        }
+        console.error('❌ Erro ao criar plano:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao criar plano:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
-  const updatePlan = (id: string, data: Partial<SaasPlan>) => {
+  const updatePlan = async (id: string, data: Partial<SaasPlan>): Promise<{ success: boolean; error?: string }> => {
       checkPermission([UserRole.OWNER]);
-      setSaasPlans(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      try {
+        const response = await plansApi.update(id, data);
+        if (response.success && response.data?.plan) {
+          const updatedPlan: SaasPlan = {
+            id: response.data.plan.id,
+            name: response.data.plan.name,
+            price: Number(response.data.plan.price),
+            features: response.data.plan.features || [],
+            active: response.data.plan.active ?? true,
+            stripePaymentLink: response.data.plan.stripePaymentLink || '',
+          };
+          setSaasPlans(prev => prev.map(p => p.id === id ? updatedPlan : p));
+          console.log('✅ Plano atualizado:', updatedPlan.name);
+          return { success: true };
+        }
+        console.error('❌ Erro ao atualizar plano:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao atualizar plano:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
-  const removePlan = (id: string) => {
+  const removePlan = async (id: string): Promise<{ success: boolean; error?: string }> => {
       checkPermission([UserRole.OWNER]);
-      setSaasPlans(prev => prev.filter(p => p.id !== id));
+      try {
+        const response = await plansApi.delete(id);
+        if (response.success) {
+          setSaasPlans(prev => prev.filter(p => p.id !== id));
+          console.log('✅ Plano removido:', id);
+          return { success: true };
+        }
+        console.error('❌ Erro ao remover plano:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao remover plano:', error);
+        return { success: false, error: 'Erro de conexão' };
+      }
   };
 
   // --- Leads (SEMPRE via API) ---
@@ -1035,7 +1649,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const moveLead = async (id: string, status: LeadStatus) => {
       try {
-        const response = await leadsApi.update(id, { status: status.toUpperCase() });
+        // OWNER usa kingApi (atualiza salesStatus da empresa)
+        // Outros usam leadsApi (atualiza Lead da clínica)
+        const isOwner = user?.role === UserRole.OWNER;
+        const response = isOwner
+          ? await kingApi.updateLead(id, { status })
+          : await leadsApi.update(id, { status: status.toUpperCase() });
+
         if (response.success) {
           setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
           return { success: true };
@@ -1302,6 +1922,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       user,
+      isInitializing,
       login,
       loginWithToken,
       logout,
@@ -1333,6 +1954,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addProfessional,
       updateProfessional,
       removeProfessional,
+      resetUserPassword,
       photos: user?.role === UserRole.OWNER ? photos : photos.filter(p => p.companyId === user?.companyId),
       addPhoto,
       removePhoto,
@@ -1340,6 +1962,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addPlan,
       updatePlan,
       removePlan,
+      loadPlans,
       leads,
       addLead,
       moveLead,
@@ -1373,7 +1996,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setPendingNavigationPath,
       isSubscriptionModalOpen,
       setIsSubscriptionModalOpen,
-      getPublicData
+      getPublicData,
+      isLoading: apiLoading,
+
+      // Lazy Loading
+      loadPatients,
+      loadAppointments,
+      loadTransactions,
+      loadProcedures,
+      loadProfessionals,
+      loadInventory,
+      loadPhotos,
+      loadLeads,
+      loadingStates,
+      loadedStates
     }}>
       {children}
     </AppContext.Provider>

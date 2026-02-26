@@ -1,18 +1,29 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Sparkles, Zap, MessageCircle, RefreshCw, DollarSign, Filter, Search, Share2, Check, Crown, AlertTriangle, XCircle, TrendingUp, Building, ArrowRight, ArrowUpRight, Copy, X } from 'lucide-react';
-import { generateReturnMessage, generateRetentionMessage } from '../services/geminiService';
+import { Sparkles, Zap, MessageCircle, RefreshCw, DollarSign, Filter, Search, Share2, Check, Crown, AlertTriangle, XCircle, TrendingUp, Building, ArrowRight, ArrowUpRight, Copy, X, Loader2, Cake, Gift } from 'lucide-react';
+import { generateReturnMessage, generateRetentionMessage, generateBirthdayMessage } from '../services/geminiService';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
 import { UserRole } from '../types';
+import { UpgradeOverlay } from '../components/UpgradeOverlay';
 
 // --- COMPONENTE 1: VISÃO DA CLÍNICA (Admin/Staff) ---
 const ClinicMarketing: React.FC = () => {
-  const { patients, appointments, currentCompany, isReadOnly, procedures, updatePatient } = useApp();
-  const [activeTab, setActiveTab] = useState<'recovery' | 'maintenance'>('recovery');
+  const { patients, appointments, currentCompany, isReadOnly, procedures, updatePatient, loadPatients, loadAppointments, loadProcedures, loadingStates } = useApp();
+
+  // Carregar dados quando o componente monta
+  useEffect(() => {
+    loadPatients();
+    loadAppointments();
+    loadProcedures();
+  }, [loadPatients, loadAppointments, loadProcedures]);
+
+  const isLoadingData = loadingStates.patients || loadingStates.appointments || loadingStates.procedures;
+  const [activeTab, setActiveTab] = useState<'recovery' | 'maintenance' | 'birthday'>('recovery');
+  const [birthdayFilter, setBirthdayFilter] = useState<'today' | 'week' | 'month'>('week');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedMsg, setGeneratedMsg] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientData, setSelectedPatientData] = useState<any>(null); // Guardar dados para regenerar
   const [daysFilter, setDaysFilter] = useState(90);
 
   const opportunities = useMemo(() => {
@@ -25,6 +36,57 @@ const ClinicMarketing: React.FC = () => {
               .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
           const lastAppt = patientAppts[0];
+
+          // Para aba de aniversário, não precisa de agendamento anterior
+          if (activeTab === 'birthday') {
+              if (patient.birthDate) {
+                  const birthDate = new Date(patient.birthDate);
+                  const thisYearBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+                  // Se o aniversário já passou este ano, considerar o próximo ano
+                  if (thisYearBirthday < today) {
+                      thisYearBirthday.setFullYear(today.getFullYear() + 1);
+                  }
+
+                  const diffTime = thisYearBirthday.getTime() - today.getTime();
+                  const daysUntilBirthday = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                  // Verificar se aniversário é hoje
+                  const isToday = birthDate.getMonth() === today.getMonth() && birthDate.getDate() === today.getDate();
+
+                  // Calcular idade
+                  let age = today.getFullYear() - birthDate.getFullYear();
+                  if (today.getMonth() < birthDate.getMonth() ||
+                      (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) {
+                      age--;
+                  }
+                  const nextAge = isToday ? age : age + 1;
+
+                  let shouldInclude = false;
+                  if (birthdayFilter === 'today' && isToday) shouldInclude = true;
+                  else if (birthdayFilter === 'week' && daysUntilBirthday <= 7) shouldInclude = true;
+                  else if (birthdayFilter === 'month' && daysUntilBirthday <= 30) shouldInclude = true;
+
+                  if (shouldInclude) {
+                      list.push({
+                          id: patient.id,
+                          name: patient.name,
+                          phone: patient.phone,
+                          birthDate: birthDate,
+                          daysUntilBirthday: isToday ? 0 : daysUntilBirthday,
+                          isToday,
+                          age: nextAge,
+                          lastVisit: lastAppt ? new Date(lastAppt.date) : null,
+                          lastProcedure: lastAppt?.service || 'Nenhum',
+                          lastValue: lastAppt?.price || 0,
+                          totalValue: patientAppts.reduce((acc, curr) => acc + curr.price, 0),
+                          lastMarketingMessageSentAt: patient.lastMarketingMessageSentAt,
+                          type: 'birthday'
+                      });
+                  }
+              }
+              return;
+          }
 
           if (lastAppt) {
               const lastDate = new Date(lastAppt.date);
@@ -54,8 +116,7 @@ const ClinicMarketing: React.FC = () => {
                   if (procConfig?.maintenanceRequired && procConfig.maintenanceIntervalDays) {
                       const interval = procConfig.maintenanceIntervalDays;
                       const minDays = interval - 15;
-                      const maxDays = interval + 90;
-                      
+
                       // Mostra se já passou do tempo ideal ou está próximo
                       if (diffDays >= minDays) {
                           list.push({ ...item, type: 'maintenance', maintenanceInterval: interval });
@@ -65,8 +126,12 @@ const ClinicMarketing: React.FC = () => {
           }
       });
 
+      // Ordenar: aniversário por dias até a data, outros por dias desde última visita
+      if (activeTab === 'birthday') {
+          return list.sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday);
+      }
       return list.sort((a, b) => b.daysAgo - a.daysAgo);
-  }, [patients, appointments, activeTab, daysFilter, procedures]);
+  }, [patients, appointments, activeTab, daysFilter, procedures, birthdayFilter]);
 
   const potentialRevenue = useMemo(() => {
       return opportunities.reduce((acc, curr) => acc + curr.lastValue, 0);
@@ -76,12 +141,24 @@ const ClinicMarketing: React.FC = () => {
       if (isReadOnly) return;
       setIsGenerating(true);
       setSelectedPatientId(patient.id);
-      
+      setSelectedPatientData(patient); // Guardar dados para poder regenerar
+
       const clinicName = currentCompany?.name || "Nossa Clínica";
-      const msg = await generateReturnMessage(patient.name, patient.lastProcedure, patient.daysAgo, clinicName);
-      
+      let msg: string;
+
+      if (patient.type === 'birthday') {
+          msg = await generateBirthdayMessage(patient.name, patient.age, clinicName, patient.isToday);
+      } else {
+          msg = await generateReturnMessage(patient.name, patient.lastProcedure, patient.daysAgo, clinicName);
+      }
+
       setGeneratedMsg(msg);
       setIsGenerating(false);
+  };
+
+  const handleRegenerateMessage = async () => {
+      if (!selectedPatientData) return;
+      await handleGenerateMessage(selectedPatientData);
   };
 
   const handleSendMessage = () => {
@@ -115,13 +192,21 @@ const ClinicMarketing: React.FC = () => {
                 >
                     <RefreshCw className="w-4 h-4" /> Recuperação de Inativos
                 </button>
-                <button 
+                <button
                     onClick={() => { setActiveTab('maintenance'); setGeneratedMsg(null); }}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2
                         ${activeTab === 'maintenance' ? 'bg-purple-100 text-purple-800' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}
                     `}
                 >
                     <Sparkles className="w-4 h-4" /> Ciclo de Manutenção
+                </button>
+                <button
+                    onClick={() => { setActiveTab('birthday'); setGeneratedMsg(null); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2
+                        ${activeTab === 'birthday' ? 'bg-pink-100 text-pink-800' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}
+                    `}
+                >
+                    <Cake className="w-4 h-4" /> Aniversariantes
                 </button>
             </div>
         </div>
@@ -158,7 +243,7 @@ const ClinicMarketing: React.FC = () => {
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center gap-3">
                 <Filter className="w-4 h-4 text-slate-400" />
                 <span className="text-sm font-medium text-slate-600">Mostrar clientes sem visita há mais de:</span>
-                <select 
+                <select
                     className="bg-white border border-slate-300 rounded-lg text-sm px-3 py-1.5 focus:ring-2 focus:ring-amber-500 outline-none"
                     value={daysFilter}
                     onChange={(e) => setDaysFilter(Number(e.target.value))}
@@ -172,52 +257,118 @@ const ClinicMarketing: React.FC = () => {
             </div>
         )}
 
+        {activeTab === 'birthday' && (
+            <div className="bg-pink-50 p-4 rounded-xl border border-pink-200 flex items-center gap-3">
+                <Gift className="w-4 h-4 text-pink-500" />
+                <span className="text-sm font-medium text-pink-700">Mostrar aniversariantes:</span>
+                <select
+                    className="bg-white border border-pink-300 rounded-lg text-sm px-3 py-1.5 focus:ring-2 focus:ring-pink-500 outline-none"
+                    value={birthdayFilter}
+                    onChange={(e) => setBirthdayFilter(e.target.value as 'today' | 'week' | 'month')}
+                >
+                    <option value="today">Hoje</option>
+                    <option value="week">Próximos 7 dias</option>
+                    <option value="month">Próximos 30 dias</option>
+                </select>
+            </div>
+        )}
+
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
-                        <tr>
-                            <th className="px-6 py-4">Cliente</th>
-                            <th className="px-6 py-4">Última Visita</th>
-                            <th className="px-6 py-4">Procedimento Anterior</th>
-                            <th className="px-6 py-4 text-right">Potencial</th>
-                            <th className="px-6 py-4 text-center">Ação</th>
-                            <th className="px-6 py-4 text-center">Status Envio</th>
-                        </tr>
+                        {activeTab === 'birthday' ? (
+                            <tr>
+                                <th className="px-6 py-4">Cliente</th>
+                                <th className="px-6 py-4">Aniversário</th>
+                                <th className="px-6 py-4">Idade</th>
+                                <th className="px-6 py-4">Última Visita</th>
+                                <th className="px-6 py-4 text-center">Ação</th>
+                                <th className="px-6 py-4 text-center">Status Envio</th>
+                            </tr>
+                        ) : (
+                            <tr>
+                                <th className="px-6 py-4">Cliente</th>
+                                <th className="px-6 py-4">Última Visita</th>
+                                <th className="px-6 py-4">Procedimento Anterior</th>
+                                <th className="px-6 py-4 text-right">Potencial</th>
+                                <th className="px-6 py-4 text-center">Ação</th>
+                                <th className="px-6 py-4 text-center">Status Envio</th>
+                            </tr>
+                        )}
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {opportunities.map((opp) => {
-                            const hasSentMessage = opp.lastMarketingMessageSentAt && 
-                                                   new Date(opp.lastMarketingMessageSentAt) > new Date(opp.lastVisit);
-                            
+                            const hasSentMessage = opp.lastMarketingMessageSentAt &&
+                                                   (opp.lastVisit ? new Date(opp.lastMarketingMessageSentAt) > new Date(opp.lastVisit) : true);
+
                             return (
                                 <tr key={opp.id} className="hover:bg-slate-50 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm">
-                                                {opp.name.charAt(0)}
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                                                opp.type === 'birthday' && opp.isToday
+                                                    ? 'bg-pink-100 text-pink-600'
+                                                    : 'bg-slate-100 text-slate-500'
+                                            }`}>
+                                                {opp.type === 'birthday' && opp.isToday ? (
+                                                    <Cake className="w-5 h-5" />
+                                                ) : (
+                                                    opp.name.charAt(0)
+                                                )}
                                             </div>
                                             <div>
-                                                <div className="font-bold text-slate-800">{opp.name}</div>
+                                                <div className="font-bold text-slate-800 flex items-center gap-2">
+                                                    {opp.name}
+                                                    {opp.type === 'birthday' && opp.isToday && (
+                                                        <span className="px-2 py-0.5 bg-pink-500 text-white text-[10px] rounded-full font-bold animate-pulse">
+                                                            HOJE!
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-slate-500">{opp.phone}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">
-                                        {formatDate(opp.lastVisit)}
-                                        <span className="block text-xs text-slate-400">{opp.daysAgo} dias atrás</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">
-                                        {opp.lastProcedure}
-                                        {opp.type === 'maintenance' && (
-                                            <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-bold">
-                                                Retoque
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 text-right font-bold text-green-600">
-                                        {formatCurrency(opp.lastValue)}
-                                    </td>
+
+                                    {activeTab === 'birthday' ? (
+                                        <>
+                                            <td className="px-6 py-4 text-sm text-slate-600">
+                                                {opp.birthDate && formatDate(opp.birthDate)}
+                                                {opp.daysUntilBirthday > 0 && (
+                                                    <span className="block text-xs text-pink-500 font-medium">
+                                                        em {opp.daysUntilBirthday} dia{opp.daysUntilBirthday > 1 ? 's' : ''}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-600">
+                                                <span className="font-bold text-slate-800">{opp.age} anos</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-600">
+                                                {opp.lastVisit ? formatDate(opp.lastVisit) : (
+                                                    <span className="text-slate-400 italic">Nunca visitou</span>
+                                                )}
+                                            </td>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <td className="px-6 py-4 text-sm text-slate-600">
+                                                {formatDate(opp.lastVisit)}
+                                                <span className="block text-xs text-slate-400">{opp.daysAgo} dias atrás</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-600">
+                                                {opp.lastProcedure}
+                                                {opp.type === 'maintenance' && (
+                                                    <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-bold">
+                                                        Retoque
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-bold text-green-600">
+                                                {formatCurrency(opp.lastValue)}
+                                            </td>
+                                        </>
+                                    )}
                                     <td className="px-6 py-4 text-center">
                                         {generatedMsg && selectedPatientId === opp.id ? (
                                             <div className="flex items-center justify-center gap-2">
@@ -270,7 +421,17 @@ const ClinicMarketing: React.FC = () => {
                                 </tr>
                             );
                         })}
-                        {opportunities.length === 0 && (
+                        {isLoadingData && (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-slate-400 text-sm">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Carregando dados...
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
+                        {!isLoadingData && opportunities.length === 0 && (
                             <tr>
                                 <td colSpan={6} className="p-8 text-center text-slate-400 text-sm">
                                     Nenhuma oportunidade encontrada com os filtros atuais.
@@ -299,14 +460,14 @@ const ClinicMarketing: React.FC = () => {
                         "{generatedMsg}"
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <button 
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <button
                             onClick={handleSendMessage}
                             className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-200 transition-all"
                         >
                             <Share2 className="w-4 h-4" /> Enviar no WhatsApp
                         </button>
-                        <button 
+                        <button
                             onClick={() => {
                                 navigator.clipboard.writeText(generatedMsg);
                                 alert("Mensagem copiada!");
@@ -314,6 +475,14 @@ const ClinicMarketing: React.FC = () => {
                             className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
                         >
                             <Copy className="w-4 h-4" /> Copiar Texto
+                        </button>
+                        <button
+                            onClick={handleRegenerateMessage}
+                            disabled={isGenerating}
+                            className="bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                            {isGenerating ? 'Gerando...' : 'Gerar Novo Texto'}
                         </button>
                     </div>
                 </div>
@@ -328,6 +497,7 @@ const SaaSMarketing: React.FC = () => {
     const { companies, saasPlans, updateCompany } = useApp();
     const [activeTab, setActiveTab] = useState<'churn' | 'upsell'>('churn');
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+    const [selectedCompanyData, setSelectedCompanyData] = useState<any>(null); // Guardar dados para regenerar
     const [generatedMsg, setGeneratedMsg] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -400,10 +570,11 @@ const SaaSMarketing: React.FC = () => {
     const handleGenerateMessage = async (company: any) => {
         setIsGenerating(true);
         setSelectedCompanyId(company.id);
+        setSelectedCompanyData(company); // Guardar dados para regenerar
         const planName = saasPlans.find(p => p.id === company.plan)?.name || company.plan;
-        
+
         let scenario: 'overdue' | 'expiring' | 'upsell' | 'winback' = 'expiring';
-        
+
         if (activeTab === 'churn') {
             if (company.daysLeft < 0) {
                 scenario = 'overdue';
@@ -420,11 +591,16 @@ const SaaSMarketing: React.FC = () => {
 
         // Melhoria: Vamos chamar generateRetentionMessage passando o plano ALVO se for winback
         const targetPlan = company.type === 'winback' ? company.lastPlanName : planName;
-        
+
         const msg = await generateRetentionMessage(company.name, Math.abs(company.daysLeft), targetPlan, scenario);
         
         setGeneratedMsg(msg);
         setIsGenerating(false);
+    };
+
+    const handleRegenerateMessage = async () => {
+        if (!selectedCompanyData) return;
+        await handleGenerateMessage(selectedCompanyData);
     };
 
     const handleCopyMessage = () => {
@@ -653,18 +829,26 @@ const SaaSMarketing: React.FC = () => {
                             "{generatedMsg}"
                         </div>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <button 
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <button
                                 onClick={handleSendWhatsApp}
                                 className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-200 transition-all"
                             >
                                 <Share2 className="w-4 h-4" /> Enviar no WhatsApp
                             </button>
-                            <button 
+                            <button
                                 onClick={handleCopyMessage}
                                 className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
                             >
                                 <Copy className="w-4 h-4" /> Copiar Texto
+                            </button>
+                            <button
+                                onClick={handleRegenerateMessage}
+                                disabled={isGenerating}
+                                className="bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                                {isGenerating ? 'Gerando...' : 'Gerar Novo Texto'}
                             </button>
                         </div>
                     </div>
@@ -676,13 +860,22 @@ const SaaSMarketing: React.FC = () => {
 
 // --- MAIN COMPONENT ---
 const Marketing: React.FC = () => {
-  const { user } = useApp();
+  const { user, checkModuleAccess } = useApp();
 
-  if (user?.role === UserRole.OWNER) {
-    return <SaaSMarketing />;
+  // Verifica tanto ai_features quanto crm - precisa de um dos dois
+  const hasMarketingAccess = checkModuleAccess('ai_features') || checkModuleAccess('crm');
+
+  const content = user?.role === UserRole.OWNER ? <SaaSMarketing /> : <ClinicMarketing />;
+
+  if (!hasMarketingAccess) {
+    return (
+      <UpgradeOverlay message="Ative a versão Pro ou superior para acessar Pós-vendas / Marketing com IA.">
+        {content}
+      </UpgradeOverlay>
+    );
   }
 
-  return <ClinicMarketing />;
+  return content;
 };
 
 export default Marketing;

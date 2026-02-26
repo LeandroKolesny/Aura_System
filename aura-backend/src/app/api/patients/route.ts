@@ -8,6 +8,16 @@ import {
   listPatientsQuerySchema,
 } from "@/lib/validations/patient";
 
+// Cache helper
+function createCachedResponse(data: any, cacheSeconds: number = 30) {
+  const response = NextResponse.json(data);
+  response.headers.set(
+    "Cache-Control",
+    `private, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`
+  );
+  return response;
+}
+
 // GET - Listar pacientes da empresa
 export async function GET(request: NextRequest) {
   try {
@@ -85,7 +95,8 @@ export async function GET(request: NextRequest) {
       prisma.patient.count({ where }),
     ]);
 
-    return NextResponse.json({
+    // Cache por 30 segundos
+    return createCachedResponse({
       patients,
       pagination: {
         page,
@@ -93,7 +104,7 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    });
+    }, 30);
   } catch (error) {
     console.error("Erro ao listar pacientes:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

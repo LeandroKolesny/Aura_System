@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { ArrowRight, Lock, User, ArrowLeft, Building, Phone, Users, Mail, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ArrowRight, Lock, User, ArrowLeft, Building, Phone, Users, Mail, AlertTriangle, CheckCircle, Wrench, Loader2, MapPin } from 'lucide-react';
 import AuraLogo from '../components/AuraLogo';
 import { UserRole } from '../types';
 import { maskPhone } from '../utils/maskUtils';
 import { authApi } from '../services/api';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const Login: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const { login, registerCompany, user } = useApp();
   const navigate = useNavigate();
+
+  // Maintenance Mode State
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
 
   // Login State
   const [email, setEmail] = useState('');
@@ -18,10 +24,28 @@ const Login: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [registerSuccess, setRegisterSuccess] = useState('');
 
+  // Verificar modo de manutencao ao carregar
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/system/status`);
+        if (response.ok) {
+          const data = await response.json();
+          setMaintenanceMode(data.maintenanceMode || false);
+          setMaintenanceMessage(data.maintenanceMessage || '');
+        }
+      } catch (error) {
+        console.error('Erro ao verificar status do sistema:', error);
+      }
+    };
+    checkMaintenance();
+  }, []);
+
   // Register State
   const [regData, setRegData] = useState({
     name: '', // Novo campo
     companyName: '',
+    state: '', // Estado (UF)
     email: '',
     phone: '',
     professionalsCount: '1',
@@ -76,7 +100,9 @@ const Login: React.FC = () => {
       }
   }, [user, navigate]);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const [isRegistering2, setIsRegistering2] = useState(false); // Loading state para registro
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
@@ -91,25 +117,34 @@ const Login: React.FC = () => {
     }
 
     if (regData.email && regData.password && regData.companyName && regData.name) {
+      setIsRegistering2(true);
       try {
         // Cria uma nova empresa e o usuário admin dessa empresa com o nome correto
-        registerCompany(regData.companyName, {
+        const result = await registerCompany(regData.companyName, {
             name: regData.name,
             email: regData.email,
             password: regData.password,
-            phone: regData.phone
+            phone: regData.phone,
+            state: regData.state || undefined
         });
-        
+
+        if (!result.success) {
+          setLoginError(result.error || 'Erro ao criar a conta. Tente novamente.');
+          setIsRegistering2(false);
+          return;
+        }
+
         // Sucesso: Voltar para tela de login e mostrar mensagem
         setIsRegistering(false);
         setRegisterSuccess('Conta criada com sucesso! Faça login para continuar.');
         setEmail(regData.email); // Preenche o email automaticamente para facilitar
         setPassword(''); // Limpa a senha por segurança
-        
+
         // Limpa form de registro
         setRegData({
             name: '',
             companyName: '',
+            state: '',
             email: '',
             phone: '',
             professionalsCount: '1',
@@ -119,6 +154,8 @@ const Login: React.FC = () => {
 
       } catch (err) {
         setLoginError('Ocorreu um erro ao criar a conta. Tente novamente.');
+      } finally {
+        setIsRegistering2(false);
       }
     }
   };
@@ -168,6 +205,24 @@ const Login: React.FC = () => {
         </div>
 
         <div className="p-8 pt-2">
+          {/* Banner de Manutenção */}
+          {maintenanceMode && (
+            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl animate-fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Wrench className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-red-800">Sistema em Manutenção</p>
+                  <p className="text-sm text-red-600">
+                    {maintenanceMessage || 'Estamos realizando melhorias no sistema. Por favor, retorne mais tarde.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Banner de erro OAuth Google */}
           {oauthError && googleErrorMessages[oauthError] && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
               {googleErrorMessages[oauthError]}
@@ -194,18 +249,60 @@ const Login: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Sua empresa</label>
-                <div className="relative">
-                  <Building className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input 
-                    type="text" 
-                    required
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
-                    placeholder="Nome da sua clínica"
-                    value={regData.companyName}
-                    onChange={(e) => setRegData({...regData, companyName: e.target.value})}
-                  />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Sua empresa</label>
+                  <div className="relative">
+                    <Building className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
+                      placeholder="Nome da sua clínica"
+                      value={regData.companyName}
+                      onChange={(e) => setRegData({...regData, companyName: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Estado</label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <select
+                      className="w-full pl-10 pr-2 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm appearance-none"
+                      value={regData.state}
+                      onChange={(e) => setRegData({...regData, state: e.target.value})}
+                    >
+                      <option value="">UF</option>
+                      <option value="AC">AC</option>
+                      <option value="AL">AL</option>
+                      <option value="AP">AP</option>
+                      <option value="AM">AM</option>
+                      <option value="BA">BA</option>
+                      <option value="CE">CE</option>
+                      <option value="DF">DF</option>
+                      <option value="ES">ES</option>
+                      <option value="GO">GO</option>
+                      <option value="MA">MA</option>
+                      <option value="MT">MT</option>
+                      <option value="MS">MS</option>
+                      <option value="MG">MG</option>
+                      <option value="PA">PA</option>
+                      <option value="PB">PB</option>
+                      <option value="PR">PR</option>
+                      <option value="PE">PE</option>
+                      <option value="PI">PI</option>
+                      <option value="RJ">RJ</option>
+                      <option value="RN">RN</option>
+                      <option value="RS">RS</option>
+                      <option value="RO">RO</option>
+                      <option value="RR">RR</option>
+                      <option value="SC">SC</option>
+                      <option value="SP">SP</option>
+                      <option value="SE">SE</option>
+                      <option value="TO">TO</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -303,9 +400,22 @@ const Login: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full bg-primary-500 hover:bg-primary-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30 transform hover:-translate-y-0.5 mt-2"
+                disabled={maintenanceMode || isRegistering2}
+                className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all mt-2 ${
+                  maintenanceMode || isRegistering2
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30 transform hover:-translate-y-0.5'
+                }`}
               >
-                <User className="w-4 h-4" /> Criar conta
+                {isRegistering2 ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Criando conta...
+                  </>
+                ) : (
+                  <>
+                    <User className="w-4 h-4" /> {maintenanceMode ? 'Indisponível' : 'Criar conta'}
+                  </>
+                )}
               </button>
 
               {/* Divider */}
@@ -396,10 +506,14 @@ const Login: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full bg-secondary-900 hover:bg-black text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading || maintenanceMode}
+                className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                  maintenanceMode
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-secondary-900 hover:bg-black text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
               >
-                {isLoading ? 'Entrando...' : 'Acessar Sistema'} {!isLoading && <ArrowRight className="w-4 h-4" />}
+                {maintenanceMode ? 'Indisponivel' : isLoading ? 'Entrando...' : 'Acessar Sistema'} {!isLoading && !maintenanceMode && <ArrowRight className="w-4 h-4" />}
               </button>
 
               {/* Divider */}
@@ -459,12 +573,17 @@ const Login: React.FC = () => {
               </div>
 
               <div className="text-center mt-2">
-                <button 
+                <button
                   type="button"
-                  onClick={() => setIsRegistering(true)}
-                  className="text-sm text-secondary-600 hover:text-primary-600 transition-colors"
+                  onClick={() => !maintenanceMode && setIsRegistering(true)}
+                  disabled={maintenanceMode}
+                  className={`text-sm transition-colors ${
+                    maintenanceMode
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-secondary-600 hover:text-primary-600'
+                  }`}
                 >
-                  Não tem conta? <span className="font-bold underline">Cadastre-se grátis</span>
+                  Não tem conta? <span className={maintenanceMode ? '' : 'font-bold underline'}>{maintenanceMode ? 'Registro indisponivel' : 'Cadastre-se grátis'}</span>
                 </button>
               </div>
             </form>

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         patient: true,
         procedure: true,
         professional: true,
-        transaction: true,
+        transactions: true,
       },
     });
 

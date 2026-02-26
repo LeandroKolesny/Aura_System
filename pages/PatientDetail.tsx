@@ -12,7 +12,7 @@ const PatientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { patients, updatePatient, toggleConsent, signConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly } = useApp();
+  const { patients, updatePatient, toggleConsent, signConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos } = useApp();
   
   const [activeTab, setActiveTab] = useState<'overview' | 'anamnesis' | 'photos'>('overview');
   const [isEditing, setIsEditing] = useState(false);
@@ -28,6 +28,11 @@ const PatientDetail: React.FC = () => {
         window.history.replaceState({}, document.title);
     }
   }, [location, isReadOnly]);
+
+  // Carregar fotos quando a página abrir
+  useEffect(() => {
+    loadPhotos(); // Carrega todas as fotos da empresa (lazy loading)
+  }, [loadPhotos]);
 
   const [photoModalConfig, setPhotoModalConfig] = useState<{
     isOpen: boolean;

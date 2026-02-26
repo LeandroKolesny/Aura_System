@@ -1,18 +1,46 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus, User as UserIcon, AlertCircle, X, CheckCircle, Bell, Info, XCircle } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus, User as UserIcon, AlertCircle, X, CheckCircle, Bell, Info, XCircle, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NewAppointmentModal, CheckoutModal, ReviewAppointmentModal, PatientAppointmentViewModal } from '../components/Modals';
 import { Appointment, UserRole, AppNotification } from '../types';
 import { isWithinBusinessHours, getUnavailabilityRule } from '../utils/availabilityUtils';
 import { APPOINTMENT_VISUAL_CONFIG } from '../utils/statusUtils';
+import { useLocation } from 'react-router-dom';
 
 const Schedule: React.FC = () => {
-  const { appointments, professionals, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead } = useApp();
+  const { appointments, professionals, patients, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead, loadAppointments, loadPatients, loadProcedures, loadingStates } = useApp();
+  const location = useLocation();
+
+  // Ler procedureId do state (vindo da página de procedimentos)
+  const preSelectedProcedureId = (location.state as { procedureId?: string })?.procedureId;
+
+  // Para pacientes logados, usar o patientId do user (vem do login)
+  const currentPatientId = useMemo(() => {
+    if (user?.role === UserRole.PATIENT) {
+      return user.patientId || null;
+    }
+    return null;
+  }, [user]);
+
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<string>('all');
   const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [preSelectedTime, setPreSelectedTime] = useState<Date | undefined>(undefined);
+
+  // Lazy loading: carregar dados quando a página montar
+  useEffect(() => {
+    loadAppointments();
+    loadPatients();
+    loadProcedures();
+  }, [loadAppointments, loadPatients, loadProcedures]);
+
+  // Se veio da página de procedimentos com um procedimento selecionado, abrir modal automaticamente
+  useEffect(() => {
+    if (preSelectedProcedureId) {
+      setIsNewAppointmentModalOpen(true);
+    }
+  }, [preSelectedProcedureId]);
 
   const changeDate = (days: number) => {
     const newDate = new Date(selectedDate);
@@ -107,20 +135,27 @@ const Schedule: React.FC = () => {
           const isBlocked = !!unavRule;
           const isGoogleBlock = unavRule?.description?.startsWith('google:');
 
+          // Verificar se é horário passado (para pacientes, bloquear agendamentos no passado)
+          const now = new Date();
+          const isPastTime = dateRef.getTime() < now.getTime();
+
           const hourAppointments = filteredAppointments.filter(appt => {
               const apptStart = new Date(appt.date).getTime();
               const apptEnd = apptStart + (appt.durationMinutes * 60000);
               return Math.max(hourStart, apptStart) < Math.min(hourEnd, apptEnd);
           });
 
+          // Determinar se o slot está disponível para clique
+          const isClickable = isBusinessHour && !isBlocked && !isPastTime && !isReadOnly;
+
           return (
-            <div key={hour} className={`flex min-h-[80px] border-b border-slate-100 relative ${!isBusinessHour ? 'bg-slate-50/50' : isBlocked ? (isGoogleBlock ? 'bg-blue-50/40' : 'bg-red-50/40') : ''}`}>
-              <div className="w-16 py-2 text-xs font-medium text-slate-400 text-center border-r border-slate-100 flex flex-col justify-between">
+            <div key={hour} className={`flex min-h-[80px] border-b border-slate-100 relative ${!isBusinessHour ? 'bg-slate-50/50' : isBlocked ? (isGoogleBlock ? 'bg-blue-50/40' : 'bg-red-50/40') : isPastTime ? 'bg-slate-100/60' : ''}`}>
+              <div className={`w-16 py-2 text-xs font-medium text-center border-r border-slate-100 flex flex-col justify-between ${isPastTime ? 'text-slate-300' : 'text-slate-400'}`}>
                 <span>{hour.toString().padStart(2, '0')}:00</span>
               </div>
 
-              <div className="flex-1 p-2 relative group" onClick={() => {
-                    if (isReadOnly || isBlocked || !isBusinessHour) return;
+              <div className={`flex-1 p-2 relative group ${isClickable ? 'cursor-pointer' : 'cursor-not-allowed'}`} onClick={() => {
+                    if (!isClickable) return;
                     setPreSelectedTime(dateRef);
                     setIsNewAppointmentModalOpen(true);
                 }}>
@@ -152,10 +187,11 @@ const Schedule: React.FC = () => {
                     </div>
                   </div>
                 )}
+                {isPastTime && isBusinessHour && !isBlocked && <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-slate-100/40"><span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest -rotate-12 select-none opacity-50">Passado</span></div>}
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 relative z-10 h-full">
                     {hourAppointments.map(appt => {
-                        const isOtherPatientAppt = isPatient && appt.patientId !== user?.id;
+                        const isOtherPatientAppt = isPatient && currentPatientId && appt.patientId !== currentPatientId;
                         const apptStart = new Date(appt.date);
                         const isContinuation = apptStart.getHours() < hour;
 
@@ -197,7 +233,7 @@ const Schedule: React.FC = () => {
                         );
                     })}
                 </div>
-                {isBusinessHour && !isBlocked && !isReadOnly && hourAppointments.length === 0 && <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="bg-primary-50 text-primary-600 rounded-full p-1 shadow-sm"><Plus className="w-4 h-4" /></button></div>}
+                {isClickable && hourAppointments.length === 0 && <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><button className="bg-primary-50 text-primary-600 rounded-full p-1 shadow-sm"><Plus className="w-4 h-4" /></button></div>}
               </div>
             </div>
           );
@@ -207,6 +243,19 @@ const Schedule: React.FC = () => {
   };
 
   const dateInputValue = selectedDate.toISOString().split('T')[0];
+
+  // Loading state
+  const isLoading = loadingStates.appointments && appointments.length === 0;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Carregando agenda...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -277,7 +326,7 @@ const Schedule: React.FC = () => {
             <div className="flex-1 overflow-y-auto custom-scrollbar p-1">{renderDayView()}</div>
         </div>
 
-        {isNewAppointmentModalOpen && !isReadOnly && <NewAppointmentModal onClose={() => setIsNewAppointmentModalOpen(false)} preSelectedDate={preSelectedTime || selectedDate} preSelectedProfessionalId={selectedProfessionalId} />}
+        {isNewAppointmentModalOpen && !isReadOnly && <NewAppointmentModal onClose={() => setIsNewAppointmentModalOpen(false)} preSelectedDate={preSelectedTime || selectedDate} preSelectedProfessionalId={selectedProfessionalId} preSelectedProcedureId={preSelectedProcedureId} />}
         
         {selectedAppointment && (
             isPatient ? (
