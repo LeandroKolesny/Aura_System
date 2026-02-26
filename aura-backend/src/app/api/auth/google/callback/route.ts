@@ -114,6 +114,23 @@ export async function GET(request: NextRequest) {
       });
 
       if (existing) {
+        // Ghost PATIENT account (created by old signin mode): upgrade to ADMIN
+        if (existing.role === 'PATIENT' && !existing.companyId) {
+          const upgraded = await prisma.user.update({
+            where: { id: existing.id },
+            data: { role: 'ADMIN', googleId: userInfo.sub, avatar: userInfo.picture ?? undefined },
+          });
+          const token = generateJWT({ id: upgraded.id, email: upgraded.email, role: upgraded.role, companyId: null });
+          const response = NextResponse.redirect(`${FRONTEND_URL}/auth/google-callback?token=${token}&newAccount=true`);
+          response.cookies.set('aura_session', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24 * 7,
+            path: '/',
+          });
+          return response;
+        }
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_already_registered`);
       }
 

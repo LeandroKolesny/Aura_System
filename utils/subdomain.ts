@@ -24,6 +24,7 @@ const ADMIN_ROUTES = [
   'business-hours',
   'onboarding',
   'history',
+  'auth', // prevents /auth/google-callback from being treated as a clinic slug
 ];
 
 /**
