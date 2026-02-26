@@ -58,7 +58,7 @@ const Inventory: React.FC = () => {
     <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">
                     <Package className="w-6 h-6 text-primary-600" /> Controle de Estoque
                 </h1>
                 <p className="text-slate-500">Gerencie insumos, produtos e controle de baixa automática.</p>

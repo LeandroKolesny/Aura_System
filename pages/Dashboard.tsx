@@ -448,12 +448,12 @@ const ClinicDashboard: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Dashboard <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-[10px] font-bold uppercase rounded-full border border-primary-100">{user?.role === UserRole.ADMIN ? currentCompany?.name : 'Recepção'}</span></h1>
+            <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">Dashboard <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-[10px] font-bold uppercase rounded-full border border-primary-100">{user?.role === UserRole.ADMIN ? currentCompany?.name : 'Recepção'}</span></h1>
             <p className="text-slate-500">Visão geral da clínica e performance em tempo real.</p>
           </div>
-          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                 {['7d', '30d'].map(r => (
-                    <button key={r} onClick={() => setRevenueRange(r as any)} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${revenueRange === r ? 'bg-primary-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>{r.toUpperCase()}</button>
+                    <button key={r} onClick={() => setRevenueRange(r as any)} className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all tracking-wider ${revenueRange === r ? 'bg-white text-secondary-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{r.toUpperCase()}</button>
                 ))}
           </div>
       </div>
@@ -575,32 +575,59 @@ const ClinicDashboard: React.FC = () => {
         <StatCard title="Taxa de Cancelamento" value={`${kpis.cancelRate}%`} icon={UserCheck} color="bg-indigo-500" subtitle="Performance" />
       </div>
 
-      <div className="bg-white p-4 lg:p-6 rounded-xl lg:rounded-2xl border border-slate-200 shadow-sm grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
-          <div className="flex items-center gap-2 lg:gap-4">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100 shrink-0"><History className="w-5 h-5 lg:w-6 lg:h-6" /></div>
-              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Agendamentos</p><p className="text-lg lg:text-xl font-bold text-slate-800">{kpis.appointmentsTotal}</p></div>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100">
+          <div className="p-4 lg:p-5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 shrink-0 border border-slate-100">
+              <History className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-400">Total</p>
+              <p className="text-2xl font-serif font-bold text-secondary-900 leading-none">{kpis.appointmentsTotal}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 lg:gap-4">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500 border border-green-100 shrink-0"><CheckCircle className="w-5 h-5 lg:w-6 lg:h-6" /></div>
-              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Confirmadas</p><p className="text-lg lg:text-xl font-bold text-slate-800">{kpis.appointmentsConfirmed}</p></div>
+          <div className="p-4 lg:p-5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 border border-emerald-100">
+              <CheckCircle className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-400">Confirmadas</p>
+              <p className="text-2xl font-serif font-bold text-emerald-600 leading-none">{kpis.appointmentsConfirmed}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 lg:gap-4">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100 shrink-0"><XCircle className="w-5 h-5 lg:w-6 lg:h-6" /></div>
-              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Canceladas</p><p className="text-lg lg:text-xl font-bold text-slate-800">{kpis.appointmentsCanceled}</p></div>
+          <div className="p-4 lg:p-5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center shrink-0 border border-red-100">
+              <XCircle className="w-4 h-4 text-red-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-400">Canceladas</p>
+              <p className="text-2xl font-serif font-bold text-red-500 leading-none">{kpis.appointmentsCanceled}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 lg:gap-4 bg-slate-50 rounded-lg lg:rounded-xl p-2 lg:p-3 border border-slate-100">
-              <div><p className="text-[9px] lg:text-[10px] font-bold text-slate-400 uppercase">Taxa de Falta</p><p className={`text-lg lg:text-xl font-bold ${kpis.cancelRate > 20 ? 'text-red-600' : 'text-slate-800'}`}>{kpis.cancelRate}%</p></div>
+          <div className="p-4 lg:p-5 flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${kpis.cancelRate > 20 ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+              <ArrowRight className={`w-4 h-4 ${kpis.cancelRate > 20 ? 'text-red-400' : 'text-slate-400'}`} />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-400">Taxa de Falta</p>
+              <p className={`text-2xl font-serif font-bold leading-none ${kpis.cancelRate > 20 ? 'text-red-600' : 'text-secondary-900'}`}>{kpis.cancelRate}%</p>
+            </div>
           </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-        <div className="lg:col-span-2 bg-white p-4 lg:p-6 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-primary-500 opacity-20"></div>
-          <h3 className="text-base lg:text-lg font-bold text-slate-800 mb-4 lg:mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 lg:w-5 lg:h-5 text-primary-500" /> Histórico de Receita</h3>
+        <div className="lg:col-span-2 bg-white p-5 lg:p-6 rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="p-1.5 rounded-lg bg-primary-50">
+              <TrendingUp className="w-4 h-4 text-primary-500" />
+            </div>
+            <h3 className="text-sm font-semibold text-secondary-800 tracking-wide">Histórico de Receita</h3>
+          </div>
           <SimpleRevenueChart data={charts.revenueChart} />
         </div>
-        <div className="bg-white p-4 lg:p-6 rounded-xl border border-slate-100 shadow-sm">
-          <h3 className="text-base lg:text-lg font-bold text-slate-800 mb-4 lg:mb-6">Procedimentos Populares</h3>
+        <div className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <h3 className="text-sm font-semibold text-secondary-800 tracking-wide mb-5">Procedimentos Populares</h3>
           <SimpleBarChart data={charts.topProcedures} />
         </div>
       </div>
@@ -620,7 +647,7 @@ const SaaSDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">SaaS Overview <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase rounded-full border border-amber-200">Global Admin</span></h1>
+        <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">SaaS Overview <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase rounded-full border border-amber-200">Global Admin</span></h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard title="Receita (MRR)" value={formatCurrency(mrr)} icon={DollarSign} color="bg-emerald-600" trend="+15%" />
             <StatCard title="Clínicas Ativas" value={companies.length} icon={Building} color="bg-blue-600" />

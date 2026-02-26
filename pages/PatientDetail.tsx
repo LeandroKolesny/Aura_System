@@ -262,7 +262,7 @@ const PatientDetail: React.FC = () => {
                         {patient.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900">{patient.name}</h1>
+                        <h1 className="text-3xl font-serif font-bold text-secondary-900">{patient.name}</h1>
                         <div className="flex wrap gap-3 mt-1 text-sm text-slate-500 items-center">
                             <span>{formatDate(patient.birthDate)}</span>
                             <span>•</span>

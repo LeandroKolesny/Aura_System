@@ -188,7 +188,7 @@ const AccessLink: React.FC = () => {
   return (
     <div className="space-y-8 pb-10">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Agenda Online</h1>
+        <h1 className="text-3xl font-serif font-bold text-secondary-900">Agenda Online</h1>
         <p className="text-slate-500">
           Configure como seus pacientes visualizam e agendam horários pelo link público.
         </p>

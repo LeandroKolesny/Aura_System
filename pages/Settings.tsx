@@ -281,9 +281,39 @@ const Settings: React.FC = () => {
           </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
-        <p className="text-slate-500">Gerencie o perfil do negócio e preferências.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-secondary-900">Configurações</h1>
+          <p className="text-slate-500">Gerencie o perfil do negócio e preferências.</p>
+        </div>
+        {calendarConnected ? (
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-green-400" />
+              <span className="text-sm text-slate-500 hidden sm:inline">Google Calendar conectado</span>
+            </div>
+            <button
+              onClick={handleDisconnectCalendar}
+              disabled={calendarLoading}
+              className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {calendarLoading ? 'Desconectando...' : 'Desconectar'}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleConnectCalendar}
+            className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex-shrink-0"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4" width="18" height="18" rx="2" stroke="#4285F4" strokeWidth="1.5"/>
+              <path d="M3 9h18" stroke="#4285F4" strokeWidth="1.5"/>
+              <path d="M8 2v4M16 2v4" stroke="#4285F4" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="12" cy="15" r="2" fill="#EA4335"/>
+            </svg>
+            <span className="text-slate-600">Conectar Google Calendar</span>
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -519,53 +549,6 @@ const Settings: React.FC = () => {
         </div>
       </form>
 
-      {/* Google Calendar Integration */}
-      <div className="bg-white rounded-2xl border border-secondary-200 p-6 mt-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="4" width="18" height="18" rx="2" stroke="#4285F4" strokeWidth="1.5"/>
-                <path d="M3 9h18" stroke="#4285F4" strokeWidth="1.5"/>
-                <path d="M8 2v4M16 2v4" stroke="#4285F4" strokeWidth="1.5" strokeLinecap="round"/>
-                <circle cx="12" cy="15" r="2" fill="#EA4335"/>
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-secondary-800 font-sans">Google Calendar</h3>
-              <p className="text-sm text-secondary-500">
-                {calendarConnected
-                  ? 'Calendário conectado — agendamentos sincronizam automaticamente'
-                  : 'Sincronize seus agendamentos com o Google Calendar'}
-              </p>
-            </div>
-          </div>
-
-          {calendarConnected ? (
-            <button
-              onClick={handleDisconnectCalendar}
-              disabled={calendarLoading}
-              className="px-4 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
-            >
-              {calendarLoading ? 'Desconectando...' : 'Desconectar'}
-            </button>
-          ) : (
-            <button
-              onClick={handleConnectCalendar}
-              className="px-4 py-2 text-sm bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors"
-            >
-              Conectar
-            </button>
-          )}
-        </div>
-
-        {calendarConnected && (
-          <div className="mt-4 pt-4 border-t border-secondary-100 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400" />
-            <span className="text-xs text-secondary-500">Sincronização bidirecional ativa</span>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

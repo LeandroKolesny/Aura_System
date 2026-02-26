@@ -34,7 +34,7 @@ const SystemAlerts: React.FC = () => {
   return (
     <div className="space-y-8">
         <div>
-            <h1 className="text-2xl font-bold text-slate-900">Alertas do Sistema</h1>
+            <h1 className="text-3xl font-serif font-bold text-secondary-900">Alertas do Sistema</h1>
             <p className="text-slate-500">Gerencie os comunicados enviados para as clínicas.</p>
         </div>
 

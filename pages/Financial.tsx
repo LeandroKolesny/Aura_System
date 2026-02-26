@@ -52,7 +52,7 @@ const SaaSFinancial: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div><h1 className="text-2xl font-bold text-slate-900">Gestão Financeira SaaS</h1><p className="text-slate-500">Controle de mensalidades e despesas.</p></div>
+        <div><h1 className="text-3xl font-serif font-bold text-secondary-900">Gestão Financeira SaaS</h1><p className="text-slate-500">Controle de mensalidades e despesas.</p></div>
         <div className="flex gap-4 items-center">
            <button onClick={() => setIsExpenseModalOpen(true)} className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center gap-2 border border-red-200 font-medium"><MinusCircle className="w-4 h-4" /> Despesa</button>
            <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm"><span className="text-sm text-slate-500 block">Saldo</span><span className={`text-xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(balance)}</span></div>
@@ -149,13 +149,40 @@ const ClinicFinancial: React.FC = () => {
     return <FinancialSkeleton />;
   }
 
+  const totalRevenue = visibleTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
+  const totalCost = visibleTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div><h1 className="text-2xl font-bold text-slate-900">Financeiro Clínica</h1><p className="text-slate-500">Fluxo de caixa e lançamentos.</p></div>
-        <div className="flex gap-4 items-center">
-          {user?.role === UserRole.ADMIN && <button onClick={() => setIsExpenseModalOpen(true)} disabled={isReadOnly} className={`px-4 py-2 rounded-lg flex items-center gap-2 border font-medium ${isReadOnly ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'}`}><MinusCircle className="w-4 h-4" /> Despesas</button>}
-          <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm"><span className="text-sm text-slate-500 block">Saldo Atual</span><span className={`text-xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(balance)}</span></div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-secondary-900">Financeiro Clínica</h1>
+          <p className="text-slate-500">Fluxo de caixa e lançamentos.</p>
+        </div>
+        {user?.role === UserRole.ADMIN && (
+          <button onClick={() => setIsExpenseModalOpen(true)} disabled={isReadOnly}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${isReadOnly ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' : 'bg-white text-red-600 hover:bg-red-50 border-red-200'}`}>
+            <MinusCircle className="w-4 h-4" /> Lançar Despesa
+          </button>
+        )}
+      </div>
+
+      {/* Cards de resumo */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-400 to-emerald-600 opacity-60" />
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 mb-1">Receita Total</p>
+          <p className="text-3xl font-serif font-bold text-emerald-600 leading-none">{formatCurrency(totalRevenue)}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-400 to-red-600 opacity-60" />
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 mb-1">Custo Total</p>
+          <p className="text-3xl font-serif font-bold text-red-500 leading-none">{formatCurrency(totalCost)}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden">
+          <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r opacity-60 ${balance >= 0 ? 'from-blue-400 to-blue-600' : 'from-red-400 to-red-600'}`} />
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 mb-1">Saldo Atual</p>
+          <p className={`text-3xl font-serif font-bold leading-none ${balance >= 0 ? 'text-secondary-900' : 'text-red-600'}`}>{formatCurrency(balance)}</p>
         </div>
       </div>
       {user?.role === UserRole.ADMIN && (
@@ -168,16 +195,16 @@ const ClinicFinancial: React.FC = () => {
                       <div className="flex justify-end">{saveMsg && <span className="text-green-600 font-medium text-sm mr-4 animate-fade-in">{saveMsg}</span>}<button onClick={() => { if (currentCompany && !isReadOnly) { updateCompany(currentCompany.id, { paymentMethods: selectedPaymentMethods }); setSaveMsg('Salvo!'); setTimeout(() => setSaveMsg(''), 2000); } }} disabled={isReadOnly} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold ${isReadOnly ? 'bg-slate-300 text-white cursor-not-allowed' : 'bg-slate-800 text-white'}`}><Save className="w-4 h-4" /> Salvar</button></div></div>)}</section>)}
 
       {/* Tabela de transações agrupadas */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="w-full text-left">
           <thead>
-            <tr className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
-              <th className="px-6 py-3">Data</th>
-              <th className="px-6 py-3">Procedimento</th>
-              <th className="px-6 py-3 text-right">Receita</th>
-              <th className="px-6 py-3 text-right">Custo Insumos</th>
-              <th className="px-6 py-3 text-right">Lucro</th>
-              <th className="px-6 py-3 text-center">Status</th>
+            <tr className="border-b border-slate-100">
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Data</th>
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Procedimento</th>
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Receita</th>
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Custo</th>
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Lucro</th>
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-center">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">

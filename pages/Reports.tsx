@@ -577,7 +577,7 @@ const Reports: React.FC = () => {
                 <BarChart3 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Relatórios de Inteligência</h1>
+                <h1 className="text-3xl font-serif font-bold text-secondary-900">Relatórios de Inteligência</h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-semibold rounded-md border border-primary-100">
                     {roleLabel}

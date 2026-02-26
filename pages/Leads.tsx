@@ -61,7 +61,7 @@ const Leads: React.FC = () => {
 
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">CRM Comercial</h1>
+          <h1 className="text-3xl font-serif font-bold text-secondary-900">CRM Comercial</h1>
           <p className="text-slate-500">Pipeline de vendas e gestão de leads.</p>
         </div>
         <button 
