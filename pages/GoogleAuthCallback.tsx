@@ -10,6 +10,7 @@ export default function GoogleAuthCallback() {
   useEffect(() => {
     const token = searchParams.get('token');
     const returnTo = searchParams.get('returnTo') || '/';
+    const newAccount = searchParams.get('newAccount');
 
     if (!token) {
       navigate('/login?error=no_token');
@@ -18,7 +19,11 @@ export default function GoogleAuthCallback() {
 
     loginWithToken(token).then((ok: boolean) => {
       if (ok) {
-        navigate(decodeURIComponent(returnTo));
+        if (newAccount === 'true') {
+          navigate('/onboarding');
+        } else {
+          navigate(decodeURIComponent(returnTo));
+        }
       } else {
         navigate('/login?error=invalid_token');
       }
