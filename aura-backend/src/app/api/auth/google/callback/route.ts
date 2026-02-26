@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { exchangeCodeForTokens, getGoogleUserInfo } from '@/lib/google';
-import { generateSessionToken, getAuthUser } from '@/lib/auth';
+import { generateJWT, getAuthUser } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
       }
 
+      // Auto-link: accounts are admin-created (not public self-registration), so email match is safe
       // Link googleId if not already linked (only for active users)
       if (!user.googleId) {
         await prisma.user.update({
@@ -91,9 +92,10 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const token = generateSessionToken(user.id);
+      const token = generateJWT({ id: user.id, email: user.email, role: user.role, companyId: user.company?.id ?? null });
+      const safeReturnTo = state.returnTo?.startsWith('/') && !state.returnTo.startsWith('//') ? state.returnTo : '/';
       const response = NextResponse.redirect(
-        `${FRONTEND_URL}/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(state.returnTo || '/')}`
+        `${FRONTEND_URL}/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(safeReturnTo)}`
       );
       response.cookies.set('aura_session', token, {
         httpOnly: true,
@@ -130,7 +132,7 @@ export async function GET(request: NextRequest) {
         include: { company: true },
       });
 
-      const token = generateSessionToken(newUser.id);
+      const token = generateJWT({ id: newUser.id, email: newUser.email, role: newUser.role, companyId: null });
       const response = NextResponse.redirect(
         `${FRONTEND_URL}/auth/google-callback?token=${token}&newAccount=true`
       );
