@@ -207,7 +207,7 @@ const PublicBooking: React.FC = () => {
     return slots;
   };
 
-  const handleBooking = (e: React.FormEvent) => {
+  const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
 
@@ -223,8 +223,9 @@ const PublicBooking: React.FC = () => {
         const isoDate = new Date(selectedDate);
         isoDate.setHours(hours, minutes, 0, 0);
         const finalPro = selectedProfessional || professionals[0];
-        const result = addAppointment({
-            patientId: `temp-${Date.now()}`, 
+        const result = await addAppointment({
+            procedureId: selectedProcedure.id,
+            patientId: `temp-${Date.now()}`,
             patientName: patientData.name,
             professionalId: finalPro.id,
             professionalName: finalPro.name,
@@ -233,11 +234,12 @@ const PublicBooking: React.FC = () => {
             durationMinutes: selectedProcedure.durationMinutes,
             date: isoDate.toISOString(),
             status: 'pending_approval',
-            roomId: 0 
+            roomId: 0
         }, true, companyId, {
+            name: patientData.name,
             email: patientData.email,
             phone: patientData.phone,
-            password: patientData.password 
+            password: patientData.password
         });
         if (result.success) setBookingSuccess(true);
         else setBookingError(result.error || "Desculpe, este horário não está disponível.");
