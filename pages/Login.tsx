@@ -55,6 +55,7 @@ const Login: React.FC = () => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessingToken, setIsProcessingToken] = useState(false);
 
   // OAuth error handling from URL params
   const oauthError = searchParams.get('error');
@@ -62,16 +63,25 @@ const Login: React.FC = () => {
   // Google OAuth token passado via ?token= (sem página intermediária)
   useEffect(() => {
     const token = searchParams.get('token');
-    console.log('[GoogleAuth] useEffect montado. token na URL:', token ? token.substring(0, 30) + '...' : 'NENHUM');
-    console.log('[GoogleAuth] loginWithToken disponível:', typeof loginWithToken);
     if (!token) return;
-    window.history.replaceState({}, '', '/login');
-    console.log('[GoogleAuth] Chamando loginWithToken...');
-    loginWithToken(token).then((ok: boolean) => {
-      console.log('[GoogleAuth] loginWithToken retornou:', ok);
-    }).catch((err: any) => {
-      console.error('[GoogleAuth] loginWithToken erro:', err);
-    });
+
+    setIsProcessingToken(true);
+    loginWithToken(token)
+      .then((ok: boolean) => {
+        if (ok) {
+          // Limpa o token da URL após sucesso — navegação feita pelo useEffect [user] abaixo
+          window.history.replaceState({}, '', '/login');
+        } else {
+          window.history.replaceState({}, '', '/login');
+          setLoginError('Não foi possível autenticar com Google. Tente novamente.');
+          setIsProcessingToken(false);
+        }
+      })
+      .catch(() => {
+        window.history.replaceState({}, '', '/login');
+        setLoginError('Erro ao processar autenticação Google. Tente novamente.');
+        setIsProcessingToken(false);
+      });
   }, []);
 
   const googleErrorMessages: Record<string, string> = {
@@ -106,7 +116,6 @@ const Login: React.FC = () => {
   
   // UseEffect para redirecionar corretamente após o login ser processado
   React.useEffect(() => {
-      console.log('[GoogleAuth] useEffect [user] disparou. user:', user ? `${user.email} (${user.role})` : 'null');
       if (user) {
           if (user.role === UserRole.PATIENT || user.role === UserRole.RECEPTIONIST || user.role === UserRole.ESTHETICIAN) {
               navigate('/schedule');
@@ -221,6 +230,14 @@ const Login: React.FC = () => {
         </div>
 
         <div className="p-8 pt-2">
+          {/* Banner de processamento do token Google */}
+          {isProcessingToken && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3 text-blue-700 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+              Autenticando com Google...
+            </div>
+          )}
+
           {/* Banner de Manutenção */}
           {maintenanceMode && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl animate-fade-in">
