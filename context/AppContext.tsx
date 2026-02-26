@@ -32,6 +32,7 @@ interface AppContextType {
   loginWithToken: (token: string) => Promise<boolean>;
   logout: () => Promise<void>;
   registerCompany: (companyName: string, adminData: any) => Promise<{ success: boolean; error?: string }>;
+  setupGoogleCompany: (companyName: string, state?: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
 
   companies: Company[];
   currentCompany: Company | null;
@@ -951,6 +952,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro de conexão no registro:', error);
         return { success: false, error: 'Erro de conexão. Tente novamente.' };
       }
+  };
+
+  const setupGoogleCompany = async (companyName: string, state?: string, phone?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await authApi.googleSetupCompany({ companyName, state, phone });
+      if (!result.success) {
+        return { success: false, error: result.error || 'Erro ao criar empresa' };
+      }
+      // Refresh session so user.companyId and companies state are updated
+      const token = localStorage.getItem('aura_token');
+      if (token) {
+        await loginWithToken(token);
+      }
+      return { success: true };
+    } catch {
+      return { success: false, error: 'Erro de conexão. Tente novamente.' };
+    }
   };
 
   const updateCompany = async (companyId: string, data: Partial<Company>) => {
@@ -1927,6 +1945,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       loginWithToken,
       logout,
       registerCompany,
+      setupGoogleCompany,
       companies,
       currentCompany,
       updateCompany,
