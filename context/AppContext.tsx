@@ -323,7 +323,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
               subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
               businessHours: apiUser.company.businessHours || {},
-              onboardingCompleted: apiUser.company.onboardingCompleted ?? true,
+              onboardingCompleted: apiUser.company.onboardingCompleted ?? false,
             };
             setCompanies([mappedCompany]);
             console.log('🏢 Sessão restaurada - Empresa:', mappedCompany.name);
@@ -807,7 +807,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
               subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
               businessHours: apiUser.company.businessHours || {},
-              onboardingCompleted: apiUser.company.onboardingCompleted ?? true,
+              onboardingCompleted: apiUser.company.onboardingCompleted ?? false,
             };
             setCompanies(prev => {
               const exists = prev.find(c => c.id === mappedCompany.id);
@@ -867,7 +867,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
             subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
             businessHours: apiUser.company.businessHours || {},
-            onboardingCompleted: apiUser.company.onboardingCompleted ?? true,
+            onboardingCompleted: apiUser.company.onboardingCompleted ?? false,
           };
           setCompanies(prev => {
             const exists = prev.find(c => c.id === mappedCompany.id);

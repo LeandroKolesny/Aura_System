@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
         avatar: true,
         role: true,
         isActive: true,
+        phone: true,
         createdAt: true,
         company: {
           select: {
@@ -30,6 +31,11 @@ export async function GET(request: NextRequest) {
             slug: true,
             logo: true,
             plan: true,
+            state: true,
+            subscriptionStatus: true,
+            subscriptionExpiresAt: true,
+            onboardingCompleted: true,
+            businessHours: true,
           },
         },
       },
