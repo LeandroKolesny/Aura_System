@@ -79,16 +79,16 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_no_account`);
       }
 
-      // Link googleId if not already linked
+      if (!user.isActive) {
+        return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
+      }
+
+      // Link googleId if not already linked (only for active users)
       if (!user.googleId) {
         await prisma.user.update({
           where: { id: user.id },
           data: { googleId: userInfo.sub, avatar: userInfo.picture ?? undefined },
         });
-      }
-
-      if (!user.isActive) {
-        return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
       }
 
       const token = generateSessionToken(user.id);
