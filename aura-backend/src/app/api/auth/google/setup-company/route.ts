@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, isAdmin } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Role guard: only ADMIN may set up a company
-    if (authUser.role !== "ADMIN") {
+    if (!isAdmin(authUser)) {
       return NextResponse.json(
         { error: "Acesso negado: apenas administradores podem criar uma empresa" },
         { status: 403 }
@@ -30,21 +30,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse and validate body
-    const body = await request.json();
-    const { companyName, state, phone } = body as {
-      companyName?: string;
-      state?: string;
-      phone?: string;
-    };
+    let companyName: string | undefined, state: string | undefined, phone: string | undefined;
+    try {
+      const body = await request.json();
+      companyName = body.companyName;
+      state = body.state;
+      phone = body.phone;
+    } catch {
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    }
 
-    if (!companyName || typeof companyName !== "string" || companyName.trim().length < 2) {
+    const trimmedName = companyName?.trim();
+    if (!trimmedName || typeof companyName !== "string" || trimmedName.length < 2 || trimmedName.length > 100) {
       return NextResponse.json(
         { error: "Nome da empresa é obrigatório e deve ter pelo menos 2 caracteres" },
         { status: 400 }
       );
     }
 
-    const trimmedName = companyName.trim();
+    const VALID_STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+    if (state !== undefined && state !== null && state !== '') {
+      if (typeof state !== 'string' || !VALID_STATES.includes(state.toUpperCase())) {
+        return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
+      }
+    }
+
+    if (phone !== undefined && phone !== null && phone !== '') {
+      if (typeof phone !== 'string' || phone.length > 20 || !/^[\d\s\-()+.]{7,20}$/.test(phone)) {
+        return NextResponse.json({ error: 'Telefone inválido' }, { status: 400 });
+      }
+    }
 
     // --- Slug generation (same pattern as /api/auth/register) ---
     const baseSlug = slugify(trimmedName);
