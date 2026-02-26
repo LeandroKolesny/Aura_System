@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ArrowRight, Lock, User, ArrowLeft, Building, Phone, Users, Mail, AlertTriangle, CheckCircle, Wrench, Loader2, MapPin } from 'lucide-react';
 import AuraLogo from '../components/AuraLogo';
@@ -55,9 +55,9 @@ const Login: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // OAuth error handling from URL params
-  const urlParams = new URLSearchParams(window.location.search);
-  const oauthError = urlParams.get('error');
+  // OAuth error handling from URL params (useSearchParams funciona corretamente com HashRouter)
+  const [searchParams] = useSearchParams();
+  const oauthError = searchParams.get('error');
 
   const googleErrorMessages: Record<string, string> = {
     google_denied: 'Acesso com Google cancelado.',

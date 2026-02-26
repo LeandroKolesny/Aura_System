@@ -1,15 +1,15 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 export default function GoogleAuthCallback() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { loginWithToken } = useApp() as any;
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    const returnTo = params.get('returnTo') || '/';
+    const token = searchParams.get('token');
+    const returnTo = searchParams.get('returnTo') || '/';
 
     if (!token) {
       navigate('/login?error=no_token');
