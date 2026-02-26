@@ -35,4 +35,12 @@ dist-ssr
 # Vercel
 .vercel
 
-.vercel
+# Google OAuth client secret (NUNCA commitar!)
+client_secret_*.json
+*.apps.googleusercontent.com.json
+
+# Claude settings (locais por máquina)
+.claude/
+
+# Imagens e screenshots de debug
+google\ calendar\ key.png
