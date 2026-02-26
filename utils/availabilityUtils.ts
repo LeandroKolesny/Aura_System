@@ -34,7 +34,7 @@ export const getUnavailabilityRule = (date: Date, rules: UnavailabilityRule[], p
     return rules.find(rule => {
         if (!rule.dates.includes(dateStr)) return false;
         
-        const affectsUser = rule.professionalIds.includes('all') || rule.professionalIds.includes(professionalId);
+        const affectsUser = professionalId === 'all' || rule.professionalIds.includes('all') || rule.professionalIds.includes(professionalId);
         if (!affectsUser) return false;
 
         const [startH, startM] = rule.startTime.split(':').map(Number);
