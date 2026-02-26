@@ -6,6 +6,7 @@ import { maskCpf, maskPhone, validateCPF, validateBirthDate } from '../utils/mas
 import { formatCurrency, formatDateTime, formatDate } from '../utils/formatUtils';
 import { PAYMENT_LABELS, PAYMENT_METHODS_LIST } from '../constants';
 import { BusinessHoursEditor } from './BusinessHoursEditor';
+import { appointmentsApi } from '../services/api';
 
 interface ModalProps {
   onClose: () => void;
@@ -197,14 +198,44 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
   const [price, setPrice] = useState<string | number>('');
   const [roomId, setRoomId] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
+  const [googleConflict, setGoogleConflict] = useState<{ title: string; start: string; end: string } | null>(null);
+  const [isCheckingGoogle, setIsCheckingGoogle] = useState(false);
   const [simulateClientRequest, setSimulateClientRequest] = useState(isPatientUser);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     if (selectedProcId) {
         const proc = procedures.find(p => p.id === selectedProcId);
         if (proc) { setServiceName(proc.name); setPrice(proc.price); setDuration(proc.durationMinutes); }
     }
   }, [selectedProcId, procedures]);
+
+  // Auto-check Google Calendar when professional + date + duration are all set
+  useEffect(() => {
+    if (!professionalId || !date || !duration || isPatientUser) {
+      setGoogleConflict(null);
+      return;
+    }
+    const durationMs = Number(duration) * 60 * 1000;
+    if (!durationMs) return;
+
+    const startTime = new Date(date);
+    if (isNaN(startTime.getTime())) return;
+    const endTime = new Date(startTime.getTime() + durationMs);
+
+    setIsCheckingGoogle(true);
+    setGoogleConflict(null);
+    appointmentsApi.checkGoogleConflicts(professionalId, startTime.toISOString(), endTime.toISOString())
+      .then(res => {
+        if (res.success && res.data?.hasConflict && res.data.event) {
+          setGoogleConflict(res.data.event);
+        } else {
+          setGoogleConflict(null);
+        }
+      })
+      .catch(() => setGoogleConflict(null))
+      .finally(() => setIsCheckingGoogle(false));
+  }, [professionalId, date, duration, isPatientUser]);
   const handleProcedureChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const procId = e.target.value;
     setSelectedProcId(procId);
@@ -277,8 +308,21 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Duração (min)</label><input required type="number" className={`w-full p-2 border rounded-lg ${isPatientUser ? 'bg-slate-50 text-slate-600 cursor-not-allowed' : 'bg-white'}`} value={duration} onChange={e => !isPatientUser && setDuration(e.target.value === '' ? '' : Number(e.target.value))} readOnly={isPatientUser} placeholder="60" /></div>
         </div>
         {!isPatientUser && user?.role !== UserRole.RECEPTIONIST && ( <div className="flex items-center gap-2 py-2"><input type="checkbox" id="simulateClient" checked={simulateClientRequest} onChange={e => setSimulateClientRequest(e.target.checked)} className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500" /><label htmlFor="simulateClient" className="text-sm text-slate-600 select-none cursor-pointer">Simular solicitação do cliente (Pendente de Aprovação)</label></div> )}
+        {isCheckingGoogle && (
+          <div className="p-3 bg-slate-50 text-slate-500 text-sm rounded-lg flex items-center gap-2 border border-slate-200">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" /> Verificando disponibilidade no Google Agenda...
+          </div>
+        )}
+        {googleConflict && !isCheckingGoogle && (
+          <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start gap-2 border border-red-200">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              <strong>Horário indisponível no Google Agenda:</strong> este profissional já tem "{googleConflict.title}" das {googleConflict.start} às {googleConflict.end}. Escolha outro horário ou data.
+            </span>
+          </div>
+        )}
         {error && ( <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2 border border-red-200"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div> )}
-        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Agendando...</>) : (isPatientUser ? 'Solicitar Horário' : 'Agendar')}</button></div>
+        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting || !!googleConflict || isCheckingGoogle} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Agendando...</>) : (isPatientUser ? 'Solicitar Horário' : 'Agendar')}</button></div>
       </form>
     </BaseModal>
   );

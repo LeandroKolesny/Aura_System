@@ -122,6 +122,8 @@ const Settings: React.FC = () => {
         // Clean up URL — remove query string from hash but keep the path
         const hashPath = hash.slice(0, hashQueryIndex);
         window.history.replaceState({}, '', window.location.pathname + hashPath);
+        // Initial sync: import existing Google Calendar events as unavailability blocks
+        calendarApi.sync();
       }
     }
   }, []);

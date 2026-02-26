@@ -220,6 +220,13 @@ export const appointmentsApi = {
     });
   },
 
+  async checkGoogleConflicts(professionalId: string, startTime: string, endTime: string) {
+    const params = new URLSearchParams({ professionalId, startTime, endTime });
+    return fetchApi<{ hasConflict: boolean; event?: { title: string; start: string; end: string } }>(
+      `/api/appointments/check-google-conflicts?${params}`
+    );
+  },
+
   // Booking público (sem autenticação)
   async createPublic(data: {
     companyId: string;
@@ -744,6 +751,10 @@ export const calendarApi = {
 
   async disconnect() {
     return fetchApi('/api/auth/google/calendar/disconnect', { method: 'POST' });
+  },
+
+  async sync() {
+    return fetchApi<{ success: boolean; synced: number }>('/api/auth/google/calendar/sync', { method: 'POST' });
   },
 };
 

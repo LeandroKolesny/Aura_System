@@ -1,11 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus, User as UserIcon, AlertCircle, X, CheckCircle, Bell, Info, XCircle, Loader2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus, User as UserIcon, AlertCircle, X, CheckCircle, Bell, Info, XCircle, Loader2, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NewAppointmentModal, CheckoutModal, ReviewAppointmentModal, PatientAppointmentViewModal } from '../components/Modals';
 import { Appointment, UserRole, AppNotification } from '../types';
 import { isWithinBusinessHours, getUnavailabilityRule } from '../utils/availabilityUtils';
 import { APPOINTMENT_VISUAL_CONFIG } from '../utils/statusUtils';
 import { useLocation } from 'react-router-dom';
+import { calendarApi } from '../services/api';
 
 const Schedule: React.FC = () => {
   const { appointments, professionals, patients, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead, loadAppointments, loadPatients, loadProcedures, loadingStates } = useApp();
@@ -27,6 +28,24 @@ const Schedule: React.FC = () => {
   const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [preSelectedTime, setPreSelectedTime] = useState<Date | undefined>(undefined);
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const handleSyncGoogleCalendar = useCallback(async () => {
+    setIsSyncingCalendar(true);
+    setSyncFeedback(null);
+    const res = await calendarApi.sync();
+    setIsSyncingCalendar(false);
+    if (res.success && res.data) {
+      const count = res.data.synced;
+      setSyncFeedback(count > 0 ? `${count} evento(s) importado(s)` : 'Agenda atualizada');
+      loadAppointments();
+      setTimeout(() => setSyncFeedback(null), 3000);
+    } else {
+      setSyncFeedback('Erro ao sincronizar');
+      setTimeout(() => setSyncFeedback(null), 3000);
+    }
+  }, [loadAppointments]);
 
   // Lazy loading: carregar dados quando a página montar
   useEffect(() => {
@@ -267,9 +286,27 @@ const Schedule: React.FC = () => {
               <p className="text-slate-500">{isPatient ? 'Visualize e solicite seus agendamentos.' : 'Gerencie os atendimentos da clínica.'}</p>
             </div>
             {!isPatient && !isReadOnly && (
-              <button onClick={() => { setPreSelectedTime(undefined); setIsNewAppointmentModalOpen(true); }} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors">
-                <Plus className="w-4 h-4" /> Novo Agendamento
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={handleSyncGoogleCalendar}
+                    disabled={isSyncingCalendar}
+                    title="Sincronizar Google Agenda"
+                    className="border border-slate-300 text-slate-600 hover:bg-slate-50 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 text-sm"
+                  >
+                    {isSyncingCalendar
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <RefreshCw className="w-4 h-4" />}
+                    <span className="hidden sm:inline">Sincronizar Google</span>
+                  </button>
+                  {syncFeedback && (
+                    <span className="absolute -bottom-6 left-0 text-xs text-slate-500 whitespace-nowrap">{syncFeedback}</span>
+                  )}
+                </div>
+                <button onClick={() => { setPreSelectedTime(undefined); setIsNewAppointmentModalOpen(true); }} className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors">
+                  <Plus className="w-4 h-4" /> Novo Agendamento
+                </button>
+              </div>
             )}
         </div>
 
