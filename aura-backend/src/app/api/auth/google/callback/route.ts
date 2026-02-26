@@ -14,11 +14,11 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error');
 
   if (error) {
-    return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=google_denied`);
+    return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_denied`);
   }
 
   if (!code || !stateParam) {
-    return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=invalid_callback`);
+    return NextResponse.redirect(`${FRONTEND_URL}/login?error=invalid_callback`);
   }
 
   let state: { mode: string; returnTo: string };
@@ -28,11 +28,11 @@ export async function GET(request: NextRequest) {
       .update(payload)
       .digest('hex');
     if (!timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
-      return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=invalid_state`);
+      return NextResponse.redirect(`${FRONTEND_URL}/login?error=invalid_state`);
     }
     state = JSON.parse(payload);
   } catch {
-    return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=invalid_state`);
+    return NextResponse.redirect(`${FRONTEND_URL}/login?error=invalid_state`);
   }
 
   try {
@@ -41,14 +41,14 @@ export async function GET(request: NextRequest) {
 
     // Prevent account linking with unverified email addresses
     if (!userInfo.email_verified) {
-      return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=email_not_verified`);
+      return NextResponse.redirect(`${FRONTEND_URL}/login?error=email_not_verified`);
     }
 
     // CALENDAR MODE: user already logged in, just connect calendar
     if (state.mode === 'calendar') {
       const authUser = await getAuthUser(request);
       if (!authUser) {
-        return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=not_authenticated`);
+        return NextResponse.redirect(`${FRONTEND_URL}/login?error=not_authenticated`);
       }
 
       const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       });
 
       // registerCalendarWatch will be called here in Task 7/11
-      return NextResponse.redirect(`${FRONTEND_URL}/#/settings?google_calendar=connected`);
+      return NextResponse.redirect(`${FRONTEND_URL}/settings?google_calendar=connected`);
     }
 
     // SIGNIN MODE: find or create user
@@ -106,13 +106,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (!user.isActive) {
-      return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=account_disabled`);
+      return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
     }
 
     const token = generateSessionToken(user.id);
 
     const response = NextResponse.redirect(
-      `${FRONTEND_URL}/#/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(state.returnTo || '/')}`
+      `${FRONTEND_URL}/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(state.returnTo || '/')}`
     );
     response.cookies.set('aura_session', token, {
       httpOnly: true,
@@ -124,6 +124,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (err) {
     console.error('Google callback error:', err);
-    return NextResponse.redirect(`${FRONTEND_URL}/#/login?error=google_error`);
+    return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_error`);
   }
 }
