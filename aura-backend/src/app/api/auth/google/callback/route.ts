@@ -68,60 +68,84 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${FRONTEND_URL}/settings?google_calendar=connected`);
     }
 
-    // SIGNIN MODE: find or create user
-    let user = await prisma.user.findFirst({
-      where: { googleId: userInfo.sub },
-      include: { company: true },
-    });
-
-    if (!user) {
-      const existing = await prisma.user.findUnique({
-        where: { email: userInfo.email },
+    // LOGIN MODE: only authenticate existing users
+    if (state.mode === 'login' || state.mode === 'signin') {
+      const user = await prisma.user.findFirst({
+        where: { OR: [{ googleId: userInfo.sub }, { email: userInfo.email }] },
         include: { company: true },
       });
 
-      if (existing) {
-        user = await prisma.user.update({
-          where: { id: existing.id },
+      if (!user) {
+        return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_no_account`);
+      }
+
+      // Link googleId if not already linked
+      if (!user.googleId) {
+        await prisma.user.update({
+          where: { id: user.id },
           data: { googleId: userInfo.sub, avatar: userInfo.picture ?? undefined },
-          include: { company: true },
-        });
-      } else {
-        const tempPassword = await bcrypt.hash(randomBytes(16).toString('hex'), 10);
-        user = await prisma.user.create({
-          data: {
-            email: userInfo.email,
-            name: userInfo.name,
-            password: tempPassword,
-            googleId: userInfo.sub,
-            avatar: userInfo.picture ?? undefined,
-            role: 'PATIENT',
-            isActive: true,
-            // companyId is intentionally null — new Google users are unlinked patients
-            // until they complete a public booking or are invited by an admin
-          },
-          include: { company: true },
         });
       }
+
+      if (!user.isActive) {
+        return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
+      }
+
+      const token = generateSessionToken(user.id);
+      const response = NextResponse.redirect(
+        `${FRONTEND_URL}/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(state.returnTo || '/')}`
+      );
+      response.cookies.set('aura_session', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7,
+        path: '/',
+      });
+      return response;
     }
 
-    if (!user.isActive) {
-      return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
+    // REGISTER MODE: create new ADMIN user (no company yet — company created in onboarding)
+    if (state.mode === 'register') {
+      const existing = await prisma.user.findFirst({
+        where: { OR: [{ googleId: userInfo.sub }, { email: userInfo.email }] },
+      });
+
+      if (existing) {
+        return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_already_registered`);
+      }
+
+      const tempPassword = await bcrypt.hash(randomBytes(16).toString('hex'), 10);
+      const newUser = await prisma.user.create({
+        data: {
+          email: userInfo.email,
+          name: userInfo.name,
+          password: tempPassword,
+          googleId: userInfo.sub,
+          avatar: userInfo.picture ?? undefined,
+          role: 'ADMIN',
+          isActive: true,
+          // companyId intentionally null — admin creates company during onboarding
+        },
+        include: { company: true },
+      });
+
+      const token = generateSessionToken(newUser.id);
+      const response = NextResponse.redirect(
+        `${FRONTEND_URL}/auth/google-callback?token=${token}&newAccount=true`
+      );
+      response.cookies.set('aura_session', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7,
+        path: '/',
+      });
+      return response;
     }
 
-    const token = generateSessionToken(user.id);
-
-    const response = NextResponse.redirect(
-      `${FRONTEND_URL}/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(state.returnTo || '/')}`
-    );
-    response.cookies.set('aura_session', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
-    });
-    return response;
+    // Unknown mode fallback
+    return NextResponse.redirect(`${FRONTEND_URL}/login?error=invalid_mode`);
   } catch (err) {
     console.error('Google callback error:', err);
     return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_error`);
