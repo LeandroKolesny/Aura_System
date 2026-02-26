@@ -62,11 +62,16 @@ const Login: React.FC = () => {
   // Google OAuth token passado via ?token= (sem página intermediária)
   useEffect(() => {
     const token = searchParams.get('token');
+    console.log('[GoogleAuth] useEffect montado. token na URL:', token ? token.substring(0, 30) + '...' : 'NENHUM');
+    console.log('[GoogleAuth] loginWithToken disponível:', typeof loginWithToken);
     if (!token) return;
-    // Limpa o token da URL imediatamente para não ficar exposto
     window.history.replaceState({}, '', '/login');
-    loginWithToken(token);
-    // A navegação é feita pelo useEffect [user, navigate] abaixo
+    console.log('[GoogleAuth] Chamando loginWithToken...');
+    loginWithToken(token).then((ok: boolean) => {
+      console.log('[GoogleAuth] loginWithToken retornou:', ok);
+    }).catch((err: any) => {
+      console.error('[GoogleAuth] loginWithToken erro:', err);
+    });
   }, []);
 
   const googleErrorMessages: Record<string, string> = {
@@ -101,12 +106,11 @@ const Login: React.FC = () => {
   
   // UseEffect para redirecionar corretamente após o login ser processado
   React.useEffect(() => {
+      console.log('[GoogleAuth] useEffect [user] disparou. user:', user ? `${user.email} (${user.role})` : 'null');
       if (user) {
           if (user.role === UserRole.PATIENT || user.role === UserRole.RECEPTIONIST || user.role === UserRole.ESTHETICIAN) {
               navigate('/schedule');
           } else {
-              // Se é admin, o PrivateLayout ou OnboardingAuthWrapper vai decidir pra onde ele vai (onboarding ou dashboard)
-              // Mas aqui direcionamos pro dashboard e o router intercepta
               navigate('/dashboard');
           }
       }
