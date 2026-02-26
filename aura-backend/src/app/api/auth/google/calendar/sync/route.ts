@@ -78,11 +78,11 @@ export async function POST(request: NextRequest) {
       if (event.extendedProperties?.private?.source === AURA_SOURCE_TAG) continue;
       if (event.status === 'cancelled' || !event.start?.dateTime) continue;
 
-      const start = new Date(event.start.dateTime);
-      const end = new Date(event.end.dateTime);
-      const dateStr = start.toISOString().split('T')[0];
-      const startTime = start.toTimeString().slice(0, 5);
-      const endTime = end.toTimeString().slice(0, 5);
+      // Extract date/time directly from Google's string to preserve the original local timezone
+      // e.g. "2026-03-05T10:00:00-03:00" → dateStr="2026-03-05", startTime="10:00"
+      const dateStr = event.start.dateTime.slice(0, 10);
+      const startTime = event.start.dateTime.slice(11, 16);
+      const endTime = event.end.dateTime.slice(11, 16);
       const googleEventRef = `google:${event.id}`;
 
       const existing = await prisma.unavailabilityRule.findFirst({
