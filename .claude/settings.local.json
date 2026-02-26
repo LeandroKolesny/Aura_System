@@ -19,7 +19,10 @@
       "Bash(VITE_API_URL=https://aura-backend-api.vercel.app vercel:*)",
       "Bash(vercel env:*)",
       "WebSearch",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(cd:*)",
+      "Bash(git push:*)",
+      "Bash(git:*)"
     ]
   }
 }

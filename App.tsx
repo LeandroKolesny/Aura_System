@@ -27,7 +27,6 @@ import Marketing from './pages/Marketing';
 import Inventory from './pages/Inventory';
 import PatientHistory from './pages/PatientHistory';
 import Onboarding from './pages/Onboarding';
-import GoogleAuthCallback from './pages/GoogleAuthCallback';
 // King (Owner) Pages
 import KingLayout from './pages/king/KingLayout';
 import KingDashboard from './pages/king/KingDashboard';
@@ -210,9 +209,6 @@ const AppRoutes: React.FC = () => {
         <Route path="/plans" element={<Plans />} />
         <Route path="/system-alerts" element={<SystemAlerts />} />
       </Route>
-
-      {/* Google OAuth Callback */}
-      <Route path="/auth/google-callback" element={<GoogleAuthCallback />} />
 
       {/* Fallback - redireciona rotas não encontradas para landing */}
       <Route path="*" element={<Navigate to="/" replace />} />

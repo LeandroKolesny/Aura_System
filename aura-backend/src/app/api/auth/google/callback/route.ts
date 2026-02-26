@@ -83,8 +83,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
       }
 
+      // PATIENT sem empresa = conta fantasma → upgrade para ADMIN e manda para onboarding
+      if (user.role === 'PATIENT' && !user.companyId) {
+        const upgraded = await prisma.user.update({
+          where: { id: user.id },
+          data: { role: 'ADMIN', googleId: userInfo.sub, avatar: userInfo.picture ?? undefined },
+        });
+        const token = generateJWT({ id: upgraded.id, email: upgraded.email, role: upgraded.role, companyId: null });
+        const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
+        response.cookies.set('aura_session', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 24 * 7, path: '/' });
+        return response;
+      }
+
       // Auto-link: accounts are admin-created (not public self-registration), so email match is safe
-      // Link googleId if not already linked (only for active users)
       if (!user.googleId) {
         await prisma.user.update({
           where: { id: user.id },
@@ -93,10 +104,7 @@ export async function GET(request: NextRequest) {
       }
 
       const token = generateJWT({ id: user.id, email: user.email, role: user.role, companyId: user.company?.id ?? null });
-      const safeReturnTo = state.returnTo?.startsWith('/') && !state.returnTo.startsWith('//') ? state.returnTo : '/';
-      const response = NextResponse.redirect(
-        `${FRONTEND_URL}/auth/google-callback?token=${token}&returnTo=${encodeURIComponent(safeReturnTo)}`
-      );
+      const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
       response.cookies.set('aura_session', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -114,21 +122,15 @@ export async function GET(request: NextRequest) {
       });
 
       if (existing) {
-        // Ghost PATIENT account (created by old signin mode): upgrade to ADMIN
+        // PATIENT sem empresa = conta fantasma → upgrade para ADMIN e manda para onboarding
         if (existing.role === 'PATIENT' && !existing.companyId) {
           const upgraded = await prisma.user.update({
             where: { id: existing.id },
             data: { role: 'ADMIN', googleId: userInfo.sub, avatar: userInfo.picture ?? undefined },
           });
           const token = generateJWT({ id: upgraded.id, email: upgraded.email, role: upgraded.role, companyId: null });
-          const response = NextResponse.redirect(`${FRONTEND_URL}/auth/google-callback?token=${token}&newAccount=true`);
-          response.cookies.set('aura_session', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 60 * 60 * 24 * 7,
-            path: '/',
-          });
+          const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
+          response.cookies.set('aura_session', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 24 * 7, path: '/' });
           return response;
         }
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_already_registered`);
@@ -150,9 +152,7 @@ export async function GET(request: NextRequest) {
       });
 
       const token = generateJWT({ id: newUser.id, email: newUser.email, role: newUser.role, companyId: null });
-      const response = NextResponse.redirect(
-        `${FRONTEND_URL}/auth/google-callback?token=${token}&newAccount=true`
-      );
+      const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
       response.cookies.set('aura_session', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',

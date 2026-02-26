@@ -12,7 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const Login: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [isRegistering, setIsRegistering] = useState(searchParams.get('tab') === 'register');
-  const { login, registerCompany, user } = useApp();
+  const { login, registerCompany, user, loginWithToken } = useApp() as any;
   const navigate = useNavigate();
 
   // Maintenance Mode State
@@ -56,8 +56,18 @@ const Login: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // OAuth error handling from URL params (useSearchParams funciona corretamente com HashRouter)
+  // OAuth error handling from URL params
   const oauthError = searchParams.get('error');
+
+  // Google OAuth token passado via ?token= (sem página intermediária)
+  useEffect(() => {
+    const token = searchParams.get('token');
+    if (!token) return;
+    // Limpa o token da URL imediatamente para não ficar exposto
+    window.history.replaceState({}, '', '/login');
+    loginWithToken(token);
+    // A navegação é feita pelo useEffect [user, navigate] abaixo
+  }, []);
 
   const googleErrorMessages: Record<string, string> = {
     google_denied: 'Acesso com Google cancelado.',
