@@ -38,23 +38,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Criar usuário no Supabase Auth
-    const supabase = await createAdminClient();
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
-
-    if (authError) {
-      console.error("Erro ao criar usuário no Supabase:", authError);
-      return NextResponse.json(
-        { error: "Erro ao criar conta" },
-        { status: 500 }
-      );
-    }
-
-    // Hash da senha para o Prisma (backup)
+    // Hash da senha
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Criar empresa se fornecido
@@ -72,12 +56,12 @@ export async function POST(request: NextRequest) {
     // Criar usuário no Prisma
     const user = await prisma.user.create({
       data: {
-        id: authData.user.id,
         email,
         name,
         password: hashedPassword,
         role: companyId ? "ADMIN" : "ESTHETICIAN",
         companyId,
+        isActive: true,
       },
       select: {
         id: true,
@@ -88,6 +72,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log("✅ Usuário criado com sucesso:", user.email);
+
     return NextResponse.json(
       {
         message: "Conta criada com sucesso!",
@@ -96,7 +82,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Erro no registro:", error);
+    console.error("❌ Erro no registro:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }

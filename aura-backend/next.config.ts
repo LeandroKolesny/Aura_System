@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
           key: "Access-Control-Allow-Origin",
           value: process.env.NODE_ENV === "development"
             ? "http://localhost:3000"
-            : process.env.FRONTEND_URL || "*",
+            : process.env.FRONTEND_URL || "https://aura-system-mu.vercel.app",
         },
         {
           key: "Access-Control-Allow-Methods",
