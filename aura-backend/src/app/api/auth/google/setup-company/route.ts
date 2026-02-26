@@ -86,12 +86,15 @@ export async function POST(request: NextRequest) {
       // Priority 2: numeric suffix (e.g. minha-clinica-2, minha-clinica-3, ...)
       if (existingCompany) {
         let counter = 1;
-        while (existingCompany) {
+        while (existingCompany && counter <= 100) {
           counter++;
           finalSlug = `${baseSlug}-${counter}`;
           existingCompany = await prisma.company.findUnique({
             where: { slug: finalSlug },
           });
+        }
+        if (existingCompany) {
+          return NextResponse.json({ error: 'Não foi possível gerar um slug único. Tente um nome diferente.' }, { status: 409 });
         }
       }
     }
