@@ -134,6 +134,7 @@ interface AppContextType {
   loadInventory: (forceReload?: boolean) => Promise<void>;
   loadPhotos: (patientId?: string, forceReload?: boolean) => Promise<void>;
   loadLeads: (forceReload?: boolean) => Promise<void>;
+  loadUnavailabilityRules: (forceReload?: boolean) => Promise<void>;
 
   // Estados de loading individuais
   loadingStates: {
@@ -362,6 +363,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     plans: false,
     photos: false,
     leads: false,
+    unavailabilityRules: false,
   });
 
   const loadedRef = React.useRef({
@@ -374,6 +376,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     plans: false,
     photos: false,
     leads: false,
+    unavailabilityRules: false,
   });
 
   const loadPatients = useCallback(async () => {
@@ -899,8 +902,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('Erro no logout via API:', error);
       }
       // Reset dos refs de lazy loading
-      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false };
-      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false };
+      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false };
+      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false };
       setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false });
       // Limpar dados
       setPatients([]);
@@ -1888,6 +1891,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  const loadUnavailabilityRules = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.unavailabilityRules || loadingRef.current.unavailabilityRules)) return;
+    if (forceReload) loadedRef.current.unavailabilityRules = false;
+    loadingRef.current.unavailabilityRules = true;
+    try {
+      const res = await unavailabilityApi.list({ limit: 500 });
+      if (res.success && res.data?.rules) {
+        setUnavailabilityRules(res.data.rules);
+        loadedRef.current.unavailabilityRules = true;
+        console.log('✅ Regras de indisponibilidade carregadas:', res.data.rules.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar regras de indisponibilidade:', error);
+    } finally {
+      loadingRef.current.unavailabilityRules = false;
+    }
+  }, []);
+
   // --- Inventory Actions (SEMPRE via API) ---
   const addInventoryItem = async (item: Omit<InventoryItem, 'id' | 'companyId'>) => {
       checkWriteAccess();
@@ -2027,6 +2048,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       loadInventory,
       loadPhotos,
       loadLeads,
+      loadUnavailabilityRules,
       loadingStates,
       loadedStates
     }}>

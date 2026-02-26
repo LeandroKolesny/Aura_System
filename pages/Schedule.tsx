@@ -9,7 +9,7 @@ import { useLocation } from 'react-router-dom';
 import { calendarApi } from '../services/api';
 
 const Schedule: React.FC = () => {
-  const { appointments, professionals, patients, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead, loadAppointments, loadPatients, loadProcedures, loadingStates } = useApp();
+  const { appointments, professionals, patients, currentCompany, user, isReadOnly, unavailabilityRules, notifications, markNotificationAsRead, loadAppointments, loadPatients, loadProcedures, loadUnavailabilityRules, loadingStates } = useApp();
   const location = useLocation();
 
   // Ler procedureId do state (vindo da página de procedimentos)
@@ -40,6 +40,7 @@ const Schedule: React.FC = () => {
       const count = res.data.synced;
       setSyncFeedback(count > 0 ? `${count} evento(s) importado(s)` : 'Agenda atualizada');
       loadAppointments();
+      loadUnavailabilityRules(true);
       setTimeout(() => setSyncFeedback(null), 3000);
     } else {
       setSyncFeedback('Erro ao sincronizar');
@@ -52,7 +53,8 @@ const Schedule: React.FC = () => {
     loadAppointments();
     loadPatients();
     loadProcedures();
-  }, [loadAppointments, loadPatients, loadProcedures]);
+    loadUnavailabilityRules();
+  }, [loadAppointments, loadPatients, loadProcedures, loadUnavailabilityRules]);
 
   // Se veio da página de procedimentos com um procedimento selecionado, abrir modal automaticamente
   useEffect(() => {
