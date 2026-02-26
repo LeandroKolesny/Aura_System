@@ -69,6 +69,9 @@ const PrivateLayout: React.FC = () => {
   }
 
   // Redirecionar para Onboarding se não completou
+  if (user.role === UserRole.ADMIN && !currentCompany) {
+    return <Navigate to="/onboarding" replace />;
+  }
   if (user.role === UserRole.ADMIN && currentCompany && currentCompany.onboardingCompleted === false) {
       return <Navigate to="/onboarding" replace />;
   }
