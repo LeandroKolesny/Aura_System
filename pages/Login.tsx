@@ -10,7 +10,8 @@ import { authApi } from '../services/api';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const Login: React.FC = () => {
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [isRegistering, setIsRegistering] = useState(searchParams.get('tab') === 'register');
   const { login, registerCompany, user } = useApp();
   const navigate = useNavigate();
 
@@ -56,7 +57,6 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   // OAuth error handling from URL params (useSearchParams funciona corretamente com HashRouter)
-  const [searchParams] = useSearchParams();
   const oauthError = searchParams.get('error');
 
   const googleErrorMessages: Record<string, string> = {
@@ -65,6 +65,8 @@ const Login: React.FC = () => {
     email_not_verified: 'Seu email do Google não está verificado.',
     account_disabled: 'Esta conta está desativada.',
     invalid_token: 'Token inválido. Faça login novamente.',
+    google_no_account: 'Nenhuma conta encontrada com este Google. Cadastre-se primeiro.',
+    google_already_registered: 'Este Google já tem uma conta. Faça login na aba de acesso.',
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -431,7 +433,7 @@ const Login: React.FC = () => {
               {/* Google Sign-In Button */}
               <button
                 type="button"
-                onClick={() => authApi.googleSignIn('signin', '/')}
+                onClick={() => authApi.googleSignIn('register', '/')}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-secondary-300 rounded-xl text-secondary-700 hover:bg-secondary-50 transition-colors font-sans text-sm"
               >
                 <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
@@ -440,7 +442,7 @@ const Login: React.FC = () => {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Continuar com Google
+                Cadastrar com Google
               </button>
 
               <div className="text-center mt-4">
@@ -529,7 +531,7 @@ const Login: React.FC = () => {
               {/* Google Sign-In Button */}
               <button
                 type="button"
-                onClick={() => authApi.googleSignIn('signin', '/')}
+                onClick={() => authApi.googleSignIn('login', '/')}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-secondary-300 rounded-xl text-secondary-700 hover:bg-secondary-50 transition-colors font-sans text-sm"
               >
                 <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
@@ -538,7 +540,7 @@ const Login: React.FC = () => {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Continuar com Google
+                Entrar com Google
               </button>
 
                {/* Acesso Rápido Demo */}
