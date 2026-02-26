@@ -94,10 +94,17 @@ export const authApi = {
     return fetchApi<{ user: any }>('/api/auth/me');
   },
 
-  async googleSignIn(mode: 'signin' | 'calendar' = 'signin', returnTo = '/') {
+  async googleSignIn(mode: 'login' | 'register' | 'calendar' = 'login', returnTo = '/') {
     // Redirects browser to Google OAuth — no fetch needed
     const params = new URLSearchParams({ mode, returnTo });
     window.location.href = `${API_BASE_URL}/api/auth/google?${params}`;
+  },
+
+  async googleSetupCompany(data: { companyName: string; state?: string; phone?: string }) {
+    return fetchApi('/api/auth/google/setup-company', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 
