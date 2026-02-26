@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Syringe, Clock, Check, ChevronRight, ChevronLeft, Upload, Building, Palette, Image as ImageIcon, DollarSign } from 'lucide-react';
@@ -7,9 +7,10 @@ import AuraLogo from '../components/AuraLogo';
 import { BusinessHours, DaySchedule } from '../types';
 
 const Onboarding: React.FC = () => {
-  const { addProcedure, updateCompany, currentCompany, completeOnboarding } = useApp();
+  const { addProcedure, updateCompany, currentCompany, completeOnboarding, setupGoogleCompany } = useApp();
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
+  const needsCompany = !currentCompany;
+  const [step, setStep] = useState(needsCompany ? 0 : 1);
 
   // Step 1: Service
   const [serviceName, setServiceName] = useState('');
@@ -31,6 +32,21 @@ const Onboarding: React.FC = () => {
   const [logo, setLogo] = useState('');
   const [themeColor, setThemeColor] = useState('#bd7b65');
   const [industry, setIndustry] = useState('Estética');
+
+  // Step 0 state (for Google-registered admins without a company)
+  const [setupCompanyName, setSetupCompanyName] = useState('');
+  const [setupState, setSetupState] = useState('');
+  const [setupPhone, setSetupPhone] = useState('');
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState('');
+  const [awaitingCompany, setAwaitingCompany] = useState(false);
+
+  useEffect(() => {
+    if (awaitingCompany && currentCompany) {
+      setAwaitingCompany(false);
+      setStep(1);
+    }
+  }, [currentCompany, awaitingCompany]);
 
   const handleNextStep1 = () => {
       if (serviceName && servicePrice) {
@@ -86,6 +102,23 @@ const Onboarding: React.FC = () => {
       }
   };
 
+  const handleCreateCompany = async () => {
+    if (!setupCompanyName.trim()) {
+      setSetupError('Nome da clínica é obrigatório.');
+      return;
+    }
+    setSetupLoading(true);
+    setSetupError('');
+    const result = await setupGoogleCompany(setupCompanyName.trim(), setupState || undefined, setupPhone || undefined);
+    if (!result.success) {
+      setSetupError(result.error || 'Erro ao criar empresa. Tente novamente.');
+      setSetupLoading(false);
+      return;
+    }
+    setAwaitingCompany(true);
+    setSetupLoading(false);
+  };
+
   const dayLabels: Record<keyof BusinessHours, string> = {
       monday: 'Segunda-feira',
       tuesday: 'Terça-feira',
@@ -113,13 +146,75 @@ const Onboarding: React.FC = () => {
 
             {/* Steps Indicator */}
             <div className="flex justify-center gap-2 mb-8">
-                {[1, 2, 3].map(i => (
+                {step > 0 && [1, 2, 3].map((i) => (
                     <div key={i} className={`h-1 w-12 rounded-full transition-colors ${step >= i ? 'bg-primary-600' : 'bg-slate-200'}`}></div>
                 ))}
             </div>
 
             <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
                 
+                {/* STEP 0: CREATE COMPANY (Google-registered admins) */}
+                {step === 0 && (
+                  <div className="p-8">
+                    <div className="space-y-5">
+                      <div className="text-center mb-6">
+                        <h2 className="text-xl font-bold text-slate-800">Bem-vindo(a) ao Aura!</h2>
+                        <p className="text-slate-500 text-sm mt-1">Para começar, nos conte sobre sua clínica.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nome da Clínica *</label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:outline-none text-sm"
+                          placeholder="Ex: Studio Bella Estética"
+                          value={setupCompanyName}
+                          onChange={(e) => setSetupCompanyName(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Estado</label>
+                          <select
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:outline-none text-sm"
+                            value={setupState}
+                            onChange={(e) => setSetupState(e.target.value)}
+                          >
+                            <option value="">Selecione</option>
+                            {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
+                              <option key={uf} value={uf}>{uf}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Celular</label>
+                          <input
+                            type="tel"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:outline-none text-sm"
+                            placeholder="(99) 99999-9999"
+                            value={setupPhone}
+                            onChange={(e) => setSetupPhone(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {setupError && (
+                        <p className="text-red-600 text-sm">{setupError}</p>
+                      )}
+
+                      <button
+                        onClick={handleCreateCompany}
+                        disabled={setupLoading}
+                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        {setupLoading ? 'Criando...' : 'Continuar'}
+                        {!setupLoading && <ChevronRight className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* STEP 1: SERVICE */}
                 {step === 1 && (
                     <div className="p-8">
