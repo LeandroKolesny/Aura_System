@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building, Users, CalendarCheck, DollarSign, TrendingUp,
-  Crown, RefreshCw, AlertTriangle, CheckCircle, Clock
+  RefreshCw, AlertTriangle, CheckCircle, Clock
 } from 'lucide-react';
 import { kingApi } from '../../services/api';
 import { formatCurrency } from '../../utils/formatUtils';
@@ -24,11 +24,11 @@ const StatCard: React.FC<{
   color: string;
   subtitle?: string;
 }> = ({ title, value, icon: Icon, color, subtitle }) => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 hover:shadow-md transition-shadow">
     <div className="flex items-start justify-between">
       <div>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p>
-        <p className="text-2xl font-bold text-slate-900">{value}</p>
+        <p className="font-serif text-3xl font-bold text-slate-900 leading-none">{value}</p>
         {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
       </div>
       <div className={`p-3 rounded-xl ${color}`}>
@@ -119,8 +119,7 @@ const KingDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            <Crown className="w-8 h-8 text-amber-500" />
+          <h1 className="font-serif text-3xl font-bold text-slate-900">
             King Dashboard
           </h1>
           <p className="text-slate-500 mt-1">Visão global do Aura System</p>
@@ -168,8 +167,8 @@ const KingDashboard: React.FC = () => {
       {/* Detalhes */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Distribuição por Plano */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 className="font-serif font-bold text-slate-800 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-slate-400" />
             Distribuição por Plano
           </h3>
@@ -184,13 +183,13 @@ const KingDashboard: React.FC = () => {
         </div>
 
         {/* Receita do Mês */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 className="font-serif font-bold text-slate-800 mb-4 flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-slate-400" />
             Receita Operacional do Mês
           </h3>
           <div className="text-center py-8">
-            <p className="text-4xl font-bold text-emerald-600">
+            <p className="font-serif text-5xl font-bold text-emerald-700">
               {formatCurrency(stats.monthlyRevenue || 0)}
             </p>
             <p className="text-sm text-slate-500 mt-2">
