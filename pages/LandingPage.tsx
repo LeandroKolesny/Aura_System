@@ -102,6 +102,82 @@ const LP_STYLES = `
   }
 `;
 
+const DashboardMockup: React.FC = () => {
+  const S2 = { bg: '#ffffff', border: '#ede8e3', rose: '#bd7b65', ink: '#1a1512', muted: '#6b5e54', faint: '#a89890', green: '#2b9e5e', cream: '#fdfaf7' };
+  const bars = [42, 68, 55, 80, 63, 90, 74];
+  const appointments = [
+    { name: 'Ana Paula M.', time: '10:00', proc: 'Limpeza de Pele' },
+    { name: 'Mariana Costa', time: '11:30', proc: 'Drenagem Linfática' },
+    { name: 'Roberta Faria', time: '14:00', proc: 'Toxina Botulínica' },
+  ];
+
+  return (
+    <div style={{
+      background: S2.bg, borderRadius: '12px',
+      boxShadow: '0 32px 64px rgba(26,21,18,0.14), 0 8px 24px rgba(26,21,18,0.08)',
+      overflow: 'hidden', border: `1px solid ${S2.border}`,
+      transform: 'rotate(-1.5deg)',
+      fontFamily: "'DM Sans', sans-serif",
+    }}>
+      {/* Browser bar */}
+      <div style={{ background: '#f4f0ec', borderBottom: `1px solid ${S2.border}`, padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.35rem' }}>
+          {['#ff6b6b','#ffd93d','#6bcb77'].map(c => (
+            <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />
+          ))}
+        </div>
+        <div style={{ flex: 1, background: S2.bg, borderRadius: '6px', padding: '0.2rem 0.75rem', marginLeft: '0.5rem', fontSize: '0.65rem', color: S2.faint, border: `1px solid ${S2.border}` }}>
+          aura-system-mu.vercel.app/dashboard
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '1.25rem', background: '#fdfbf8' }}>
+        {/* KPI cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.65rem', marginBottom: '1.1rem' }}>
+          {[
+            { label: 'Receita', value: 'R$ 12.4k', color: S2.rose },
+            { label: 'Consultas', value: '48', color: '#3d7ea6' },
+            { label: 'Satisfação', value: '94%', color: S2.green },
+          ].map(kpi => (
+            <div key={kpi.label} style={{ background: S2.bg, border: `1px solid ${S2.border}`, borderRadius: '8px', padding: '0.75rem', boxShadow: '0 2px 8px rgba(26,21,18,0.04)' }}>
+              <div style={{ fontSize: '0.55rem', color: S2.faint, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.3rem' }}>{kpi.label}</div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.3rem', fontWeight: 600, color: kpi.color, lineHeight: 1 }}>{kpi.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mini bar chart */}
+        <div style={{ background: S2.bg, border: `1px solid ${S2.border}`, borderRadius: '8px', padding: '0.75rem', marginBottom: '1.1rem', boxShadow: '0 2px 8px rgba(26,21,18,0.04)' }}>
+          <div style={{ fontSize: '0.55rem', color: S2.faint, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.65rem' }}>Receita — 7 dias</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '48px' }}>
+            {bars.map((h, i) => (
+              <div key={i} style={{ flex: 1, background: i === 5 ? S2.rose : `rgba(189,123,101,${0.18 + i * 0.04})`, borderRadius: '3px 3px 0 0', height: `${h}%`, transition: 'height 0.4s' }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Appointment list */}
+        <div style={{ background: S2.bg, border: `1px solid ${S2.border}`, borderRadius: '8px', padding: '0.75rem', boxShadow: '0 2px 8px rgba(26,21,18,0.04)' }}>
+          <div style={{ fontSize: '0.55rem', color: S2.faint, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.55rem' }}>Próximos Agendamentos</div>
+          {appointments.map((a, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0', borderBottom: i < 2 ? `1px solid ${S2.border}` : 'none' }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: `rgba(189,123,101,${0.15 + i * 0.08})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: S2.rose, flexShrink: 0 }}>
+                {a.name.charAt(0)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 500, color: S2.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                <div style={{ fontSize: '0.58rem', color: S2.faint }}>{a.proc}</div>
+              </div>
+              <div style={{ fontSize: '0.6rem', color: S2.rose, fontWeight: 600, flexShrink: 0 }}>{a.time}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const LandingPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -302,61 +378,9 @@ const LandingPage: React.FC = () => {
                 </p>
               </div>
 
-              {/* Right: Image */}
-              <div className="lg:col-span-7 relative reveal rd2">
-                <div className="img-frame" />
-                <div className="relative z-10 overflow-hidden" style={{ borderRadius: '1px' }}>
-                  <img
-                    src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=2668&auto=format&fit=crop"
-                    alt="Gestão de Clínica de Estética"
-                    style={{ width: '100%', objectFit: 'cover', height: 'clamp(320px,50vh,580px)', display: 'block' }}
-                  />
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(26,21,18,0.18) 0%, transparent 55%)' }} />
-
-                  {/* Floating: Notification */}
-                  <div
-                    className="absolute flex items-center gap-3"
-                    style={{
-                      top: '1.5rem', right: '1.5rem',
-                      background: 'rgba(253,250,247,0.93)', backdropFilter: 'blur(14px)',
-                      padding: '0.8rem 1.1rem', borderRadius: '1px',
-                      border: '1px solid rgba(255,255,255,0.55)',
-                      boxShadow: '0 8px 30px rgba(26,21,18,0.08)',
-                      maxWidth: '250px',
-                    }}
-                  >
-                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0" style={{ border: `1.5px solid ${S.border}` }}>
-                      <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80" alt="Beatriz" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                    <div>
-                      <p style={{ fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: '0.78rem', color: S.ink }}>Beatriz Lima</p>
-                      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.68rem', color: S.faint }}>Toxina Botulínica · 14:30</p>
-                    </div>
-                    <div className="ml-2 p-1.5 rounded-full" style={{ background: '#edf7f0' }}>
-                      <CheckCircle className="w-3.5 h-3.5" style={{ color: '#3db870' }} />
-                    </div>
-                  </div>
-
-                  {/* Floating: Revenue */}
-                  <div
-                    className="absolute flex items-center gap-4"
-                    style={{
-                      bottom: '1.5rem', left: '1.5rem',
-                      background: 'rgba(253,250,247,0.93)', backdropFilter: 'blur(14px)',
-                      padding: '0.9rem 1.25rem', borderRadius: '1px',
-                      border: '1px solid rgba(255,255,255,0.55)',
-                      boxShadow: '0 8px 30px rgba(26,21,18,0.08)',
-                    }}
-                  >
-                    <div style={{ background: S.roseLight, borderRadius: '1px', padding: '0.6rem' }}>
-                      <TrendingUp className="w-5 h-5" style={{ color: S.rose }} />
-                    </div>
-                    <div>
-                      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.58rem', color: S.faint, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600 }}>Receita Mensal</p>
-                      <p style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.65rem', fontWeight: 600, color: S.ink, lineHeight: 1.1 }}>+ R$ 42.500</p>
-                    </div>
-                  </div>
-                </div>
+              {/* Right: Dashboard Mockup */}
+              <div className="lg:col-span-7 relative reveal rd2 hidden lg:block">
+                <DashboardMockup />
               </div>
             </div>
           </div>
