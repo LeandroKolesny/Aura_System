@@ -298,7 +298,7 @@ const KingPatients: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Patients Table (Expanded) */}
+                {/* Patients Grid (Expanded) */}
                 {isExpanded && (
                   <div className="border-t border-slate-200 animate-fade-in">
                     {companyPatients.length === 0 ? (
