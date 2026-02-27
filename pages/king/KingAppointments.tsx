@@ -66,6 +66,58 @@ const PlanBadge: React.FC<{ plan: string }> = ({ plan }) => {
   );
 };
 
+const AppointmentCard: React.FC<{ appointment: Appointment }> = ({ appointment }) => {
+  const dateFormatted = new Date(appointment.date).toLocaleDateString('pt-BR', {
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+  });
+  const timeFormatted = new Date(appointment.date).toLocaleTimeString('pt-BR', {
+    hour: '2-digit', minute: '2-digit',
+  });
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-amber-100 transition-all duration-200">
+      {/* Header: avatar + patient name + procedure */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 font-bold text-sm flex items-center justify-center shrink-0">
+          {appointment.patient.name.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-slate-900 truncate">{appointment.patient.name}</p>
+          <p className="text-xs text-slate-400 truncate">{appointment.procedure.name || '—'}</p>
+        </div>
+      </div>
+
+      {/* Details */}
+      <div className="space-y-1.5 mb-3 text-xs text-slate-500">
+        <div className="flex items-center gap-2">
+          <CalendarCheck className="w-3 h-3 shrink-0" />
+          <span>{dateFormatted} às {timeFormatted}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Clock className="w-3 h-3 shrink-0" />
+          <span>{appointment.durationMinutes}min</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <User className="w-3 h-3 shrink-0" />
+          <span className="truncate">{appointment.professional.name}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Building className="w-3 h-3 shrink-0" />
+          <span className="truncate">{appointment.company.name}</span>
+        </div>
+      </div>
+
+      {/* Price + status */}
+      <div className="flex items-center justify-between border-t border-slate-50 pt-2">
+        <span className="font-semibold text-slate-800 text-sm">
+          {appointment.price ? formatCurrency(appointment.price) : '—'}
+        </span>
+        <StatusBadge status={appointment.status} />
+      </div>
+    </div>
+  );
+};
+
 const KingAppointments: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -157,14 +209,6 @@ const KingAppointments: React.FC = () => {
   // Agrupar agendamentos por empresa
   const getCompanyAppointments = (companyId: string) => {
     return appointments.filter(a => a.company.id === companyId);
-  };
-
-  const formatDateTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return {
-      date: date.toLocaleDateString('pt-BR'),
-      time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    };
   };
 
   // Calcular totais
@@ -331,7 +375,7 @@ const KingAppointments: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Appointments Table (Expanded) */}
+                {/* Appointments Card Grid (Expanded) */}
                 {isExpanded && (
                   <div className="border-t border-slate-200 animate-fade-in">
                     {companyAppointments.length === 0 ? (
@@ -339,52 +383,11 @@ const KingAppointments: React.FC = () => {
                         Nenhum agendamento encontrado nesta clínica.
                       </div>
                     ) : (
-                      <table className="w-full">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Data/Hora</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Paciente</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Procedimento</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Profissional</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Status</th>
-                            <th className="text-right px-6 py-3 text-xs font-bold text-slate-500 uppercase">Valor</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {companyAppointments.map((appt) => {
-                            const { date, time } = formatDateTime(appt.date);
-                            return (
-                              <tr key={appt.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-6 py-4">
-                                  <div>
-                                    <p className="font-medium text-slate-900">{date}</p>
-                                    <p className="text-sm text-slate-500 flex items-center gap-1">
-                                      <Clock className="w-3 h-3" /> {time} ({appt.durationMinutes}min)
-                                    </p>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <p className="font-medium text-slate-900">{appt.patient.name}</p>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <p className="text-sm text-slate-700">{appt.procedure.name}</p>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <p className="text-sm text-slate-600 flex items-center gap-1">
-                                    <User className="w-3 h-3" /> {appt.professional.name}
-                                  </p>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <StatusBadge status={appt.status} />
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <span className="font-medium text-emerald-600">{formatCurrency(appt.price)}</span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                        {companyAppointments.map(appointment => (
+                          <AppointmentCard key={appointment.id} appointment={appointment} />
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
