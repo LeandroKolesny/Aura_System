@@ -111,10 +111,10 @@ const KingLayout: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] text-amber-600/70 uppercase tracking-[0.2em] font-medium">Aura System</p>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif" }} className="text-xl font-bold text-slate-900">Painel Administrativo Master</h2>
+              <h2 className="font-serif text-xl font-bold text-slate-900">Painel Administrativo Master</h2>
             </div>
             <div className="flex items-center gap-4">
-              <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg relative">
+              <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-amber-50 rounded-lg relative">
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
