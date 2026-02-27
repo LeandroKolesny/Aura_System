@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  DollarSign, Building, RefreshCw, AlertTriangle, TrendingUp,
+  DollarSign, RefreshCw, AlertTriangle, TrendingUp,
   CreditCard, Calendar, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp,
-  Wallet, PiggyBank, ArrowUpRight, ArrowDownRight, Mail, Phone
+  Wallet, PiggyBank, ArrowUpRight, ArrowDownRight, Mail, Phone, CalendarCheck
 } from 'lucide-react';
 import { kingApi, plansApi } from '../../services/api';
 import { formatCurrency } from '../../utils/formatUtils';
@@ -58,6 +58,67 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: React.Elem
   TRIAL: { bg: 'bg-blue-100', text: 'text-blue-700', icon: Clock, label: 'Trial' },
   OVERDUE: { bg: 'bg-amber-100', text: 'text-amber-700', icon: AlertTriangle, label: 'Inadimplente' },
   CANCELED: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircle, label: 'Cancelado' },
+};
+
+interface CompanyCardProps {
+  company: Company;
+  price: number;
+  planName: string;
+}
+
+const CompanyCard: React.FC<CompanyCardProps> = ({ company, price, planName }) => {
+  const statusConfig = STATUS_CONFIG[company.subscriptionStatus] || STATUS_CONFIG.CANCELED;
+  const StatusIcon = statusConfig.icon;
+  const isActive = company.subscriptionStatus === 'ACTIVE';
+  const planColors = PLAN_COLORS[planName] || getDefaultPlanColor();
+
+  const expiresFormatted = company.subscriptionExpiresAt
+    ? new Date(company.subscriptionExpiresAt).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      })
+    : null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-amber-100 transition-all duration-200">
+      {/* Status badge + plan */}
+      <div className="flex items-center justify-between mb-3">
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase ${statusConfig.bg} ${statusConfig.text}`}>
+          <StatusIcon className="w-3 h-3" />
+          {statusConfig.label}
+        </span>
+        <span className={`px-2 py-0.5 rounded text-xs font-bold ${planColors.bg} ${planColors.text}`}>
+          {planName}
+        </span>
+      </div>
+
+      {/* Amount — serif large */}
+      <p className={`font-serif text-2xl font-bold mb-1 ${isActive ? 'text-emerald-700' : 'text-slate-400'}`}>
+        {isActive ? formatCurrency(price) : '—'}
+      </p>
+
+      {/* Company name */}
+      <p className="text-sm text-slate-700 font-medium mb-3 truncate">{company.name}</p>
+
+      {/* Details */}
+      <div className="space-y-1.5 text-xs text-slate-500 mb-3">
+        <div className="flex items-center gap-2">
+          <CalendarCheck className="w-3 h-3 shrink-0" />
+          <span>{expiresFormatted ?? 'Sem vencimento'}</span>
+        </div>
+        {company.adminContact && (
+          <div className="flex items-center gap-2">
+            <Mail className="w-3 h-3 shrink-0" />
+            <span className="truncate">{company.adminContact.email}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Slug */}
+      <p className="text-xs text-amber-600 font-medium truncate border-t border-slate-50 pt-2">
+        /{company.slug}
+      </p>
+    </div>
+  );
 };
 
 const KingRevenue: React.FC = () => {
@@ -515,50 +576,17 @@ const KingRevenue: React.FC = () => {
 
                       {/* Empresas do Plano (Expandido) */}
                       {isExpanded && planCompanies.length > 0 && (
-                        <div className="bg-slate-50 border-t border-slate-100 p-4">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="text-xs font-bold text-slate-500 uppercase">
-                                <th className="text-left pb-2">Empresa</th>
-                                <th className="text-left pb-2">Status</th>
-                                <th className="text-left pb-2">Vencimento</th>
-                                <th className="text-right pb-2">Valor</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {planCompanies.map(company => {
-                                const statusConfig = STATUS_CONFIG[company.subscriptionStatus] || STATUS_CONFIG.CANCELED;
-                                const StatusIcon = statusConfig.icon;
-
-                                return (
-                                  <tr key={company.id} className="text-sm">
-                                    <td className="py-2">
-                                      <p className="font-medium text-slate-800">{company.name}</p>
-                                      <p className="text-xs text-slate-400">/{company.slug}</p>
-                                    </td>
-                                    <td className="py-2">
-                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}>
-                                        <StatusIcon className="w-3 h-3" />
-                                        {statusConfig.label}
-                                      </span>
-                                    </td>
-                                    <td className="py-2 text-slate-600">
-                                      {company.subscriptionExpiresAt
-                                        ? formatDate(company.subscriptionExpiresAt)
-                                        : '-'
-                                      }
-                                    </td>
-                                    <td className="py-2 text-right font-medium text-emerald-600">
-                                      {company.subscriptionStatus === 'ACTIVE'
-                                        ? formatCurrency(price)
-                                        : <span className="text-slate-400">-</span>
-                                      }
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                        <div className="bg-slate-50 border-t border-slate-100">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                            {planCompanies.map(company => (
+                              <CompanyCard
+                                key={company.id}
+                                company={company}
+                                price={price}
+                                planName={plan.name}
+                              />
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
