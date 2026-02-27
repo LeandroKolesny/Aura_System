@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building, Users, CalendarCheck, RefreshCw, AlertTriangle,
-  Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, Clock
+  Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, Clock, UserCheck
 } from 'lucide-react';
 import { kingApi } from '../../services/api';
-import { formatCurrency } from '../../utils/formatUtils';
 
 interface Company {
   id: string;
@@ -84,7 +83,7 @@ const CompanyCard: React.FC<{ company: Company }> = ({ company }) => {
         {[
           { icon: Users, label: 'Pacientes', value: company._count.patients },
           { icon: CalendarCheck, label: 'Agend.', value: company._count.appointments },
-          { icon: Building, label: 'Usuários', value: company._count.users },
+          { icon: UserCheck, label: 'Usuários', value: company._count.users },
         ].map(({ icon: Icon, label, value }) => (
           <div key={label} className="text-center p-2 bg-slate-50 rounded-xl">
             <Icon className="w-3.5 h-3.5 text-slate-400 mx-auto mb-0.5" />
@@ -212,7 +211,7 @@ const KingCompanies: React.FC = () => {
             Nenhuma empresa encontrada
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
             {companies.map(company => (
               <CompanyCard key={company.id} company={company} />
             ))}
