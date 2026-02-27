@@ -626,7 +626,7 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* ═══════════════ ANTES vs DEPOIS ═══════════════ */}
-        <section className="py-28" style={{ background: S.cream, borderTop: `1px solid ${S.borderLight}` }}>
+        <section className="py-28" style={{ background: 'rgba(189,123,101,0.055)', borderTop: `1px solid rgba(189,123,101,0.12)` }}>
           <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
             <div className="text-center mb-16 reveal">
               <span className="sec-label">Realidade vs Transformação</span>
