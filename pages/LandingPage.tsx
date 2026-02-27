@@ -33,7 +33,7 @@ const LP_STYLES = `
     background: #bd7b65; color: #fff;
     font-family: 'DM Sans', sans-serif; font-size: 0.72rem; font-weight: 500;
     letter-spacing: 0.14em; text-transform: uppercase;
-    padding: 0.85rem 2rem; border: none; border-radius: 1px;
+    padding: 0.85rem 2rem; border: none; border-radius: 8px;
     cursor: pointer; text-decoration: none;
     transition: background 0.25s, transform 0.25s;
   }
@@ -44,7 +44,7 @@ const LP_STYLES = `
     background: transparent; color: #1a1512;
     font-family: 'DM Sans', sans-serif; font-size: 0.72rem; font-weight: 500;
     letter-spacing: 0.14em; text-transform: uppercase;
-    padding: 0.85rem 2rem; border: 1px solid #d8cec8; border-radius: 1px;
+    padding: 0.85rem 2rem; border: 1px solid #d8cec8; border-radius: 8px;
     cursor: pointer; text-decoration: none;
     transition: border-color 0.25s, color 0.25s, transform 0.25s;
   }
@@ -412,9 +412,9 @@ const LandingPage: React.FC = () => {
                 },
               ].map((row, i) => (
                 <div key={i} className={`grid grid-cols-1 md:grid-cols-2 gap-5 reveal ${i > 0 ? 'rd1' : ''}`}>
-                  <div style={{ background: '#fdf5f4', border: '1px solid #f0ddd9', padding: '2.25rem', borderRadius: '1px' }}>
+                  <div style={{ background: '#fdf5f4', border: '1px solid #f0ddd9', padding: '2.25rem', borderRadius: '12px', boxShadow: '0 10px 30px rgba(26,21,18,0.05)' }}>
                     <div className="flex items-center gap-3 mb-5">
-                      <div style={{ background: '#fee2df', padding: '0.55rem', borderRadius: '1px' }}>
+                      <div style={{ background: '#fee2df', padding: '0.55rem', borderRadius: '8px' }}>
                         <row.problem.icon className="w-4 h-4" style={{ color: '#c0392b' }} />
                       </div>
                       <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.faint }}>O Problema</span>
@@ -429,9 +429,9 @@ const LandingPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div style={{ background: '#f3fbf6', border: '1px solid #c8ead8', padding: '2.25rem', borderRadius: '1px' }}>
+                  <div style={{ background: '#f3fbf6', border: '1px solid #c8ead8', padding: '2.25rem', borderRadius: '12px', boxShadow: '0 10px 30px rgba(26,21,18,0.05)' }}>
                     <div className="flex items-center gap-3 mb-5">
-                      <div style={{ background: '#d0f0e0', padding: '0.55rem', borderRadius: '1px' }}>
+                      <div style={{ background: '#d0f0e0', padding: '0.55rem', borderRadius: '8px' }}>
                         <row.solution.icon className="w-4 h-4" style={{ color: '#2b9e5e' }} />
                       </div>
                       <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#2b9e5e' }}>A Solução Aura</span>
@@ -486,7 +486,7 @@ const LandingPage: React.FC = () => {
                     <span className="pilar-num">{p.num}</span>
                   </div>
                   <div className="col-span-10 md:col-span-3 flex items-start gap-4 pt-1">
-                    <div style={{ background: `${p.color}18`, padding: '0.6rem', borderRadius: '1px', flexShrink: 0 }}>
+                    <div style={{ background: `${p.color}18`, padding: '0.6rem', borderRadius: '8px', flexShrink: 0 }}>
                       <p.Icon className="w-4.5 h-4.5" style={{ color: p.color, width: '1.1rem', height: '1.1rem' }} />
                     </div>
                     <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.55rem', fontWeight: 500, color: S.ink, lineHeight: 1.2 }}>{p.label}</h3>
@@ -609,7 +609,7 @@ const LandingPage: React.FC = () => {
               </div>
 
               <div className="lg:col-span-7 order-1 lg:order-2 relative">
-                <div style={{ position: 'absolute', inset: 0, background: S.roseLight, borderRadius: '1px', transform: 'rotate(1.5deg) scale(0.97)', zIndex: 0 }} />
+                <div style={{ position: 'absolute', inset: 0, background: S.roseLight, borderRadius: '12px', transform: 'rotate(1.5deg) scale(0.97)', zIndex: 0 }} />
                 <img
                   src={
                     activeDemoTab === 'dashboard' ? 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426' :
@@ -618,7 +618,7 @@ const LandingPage: React.FC = () => {
                     'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426'
                   }
                   alt={`Tela ${activeDemoTab}`}
-                  style={{ position: 'relative', zIndex: 10, width: '100%', borderRadius: '1px', minHeight: '300px', maxHeight: '460px', objectFit: 'cover', border: `1px solid ${S.border}`, boxShadow: '0 24px 60px rgba(26,21,18,0.08)' }}
+                  style={{ position: 'relative', zIndex: 10, width: '100%', borderRadius: '12px', minHeight: '300px', maxHeight: '460px', objectFit: 'cover', border: `1px solid ${S.border}`, boxShadow: '0 24px 60px rgba(26,21,18,0.08)' }}
                 />
               </div>
             </div>
@@ -638,7 +638,7 @@ const LandingPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="overflow-hidden reveal" style={{ border: `1px solid ${S.border}`, borderRadius: '1px' }}>
+            <div className="overflow-hidden reveal" style={{ border: `1px solid ${S.border}`, borderRadius: '12px' }}>
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="p-9 md:p-12" style={{ background: '#f8f5f2', borderRight: `1px solid ${S.border}` }}>
                   <h3 className="flex items-center gap-2 mb-8" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.faint }}>
@@ -719,7 +719,7 @@ const LandingPage: React.FC = () => {
                       background: isStarter ? S.dark : S.white,
                       border: `1px solid ${isStarter ? S.dark : S.border}`,
                       padding: '2.5rem',
-                      borderRadius: '1px',
+                      borderRadius: '12px',
                       transform: isStarter ? 'translateY(-10px)' : undefined,
                       transitionDelay: `${idx * 80}ms`,
                     }}
@@ -752,7 +752,7 @@ const LandingPage: React.FC = () => {
                         color: isStarter ? S.white : S.ink,
                         border: isStarter ? 'none' : `1px solid ${S.border}`,
                         justifyContent: 'center',
-                        borderRadius: '1px',
+                        borderRadius: '8px',
                       }}
                     >
                       {isStarter ? 'Assinar Agora' : 'Começar Teste'}
@@ -783,7 +783,7 @@ const LandingPage: React.FC = () => {
 
             <div
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 reveal"
-              style={{ border: `1px solid ${S.border}`, borderRadius: '1px', overflow: 'hidden' }}
+              style={{ border: `1px solid ${S.border}`, borderRadius: '12px', overflow: 'hidden' }}
             >
               {[
                 { Icon: Shield, title: 'Segurança SSL', desc: 'Criptografia de ponta a ponta. Seus dados e dos seus clientes blindados contra invasões.' },
@@ -802,7 +802,7 @@ const LandingPage: React.FC = () => {
                   onMouseEnter={e => (e.currentTarget.style.background = S.cream)}
                   onMouseLeave={e => (e.currentTarget.style.background = S.white)}
                 >
-                  <div style={{ background: S.roseLight, padding: '0.65rem', borderRadius: '1px', width: 'fit-content', marginBottom: '1.25rem' }}>
+                  <div style={{ background: S.roseLight, padding: '0.65rem', borderRadius: '8px', width: 'fit-content', marginBottom: '1.25rem' }}>
                     <card.Icon className="w-5 h-5" style={{ color: S.rose }} />
                   </div>
                   <h3 style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.9rem', fontWeight: 600, color: S.ink, marginBottom: '0.5rem' }}>{card.title}</h3>
