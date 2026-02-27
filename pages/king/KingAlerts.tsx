@@ -73,7 +73,7 @@ const KingAlerts: React.FC = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Total de Alertas</p>
@@ -85,7 +85,7 @@ const KingAlerts: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Ativos</p>
@@ -97,7 +97,7 @@ const KingAlerts: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Inativos</p>
@@ -109,7 +109,7 @@ const KingAlerts: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Globais</p>
@@ -123,7 +123,7 @@ const KingAlerts: React.FC = () => {
       </div>
 
       {/* Alerts List */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-200 flex items-center gap-3">
           <History className="w-5 h-5 text-slate-500" />
           <h2 className="font-bold text-slate-800">Histórico de Alertas</h2>
