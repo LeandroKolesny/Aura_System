@@ -171,19 +171,19 @@ const KingLeads: React.FC = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">Total de Leads</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{totalLeads}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">Leads Ganhos</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{wonLeads}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">Valor Potencial</p>
           <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(totalPotential)}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">MRR Conquistado</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(wonValue)}</p>
         </div>
@@ -197,7 +197,7 @@ const KingLeads: React.FC = () => {
             const colValue = colLeads.reduce((acc, l) => acc + (l.value || 0), 0);
 
             return (
-              <div key={col.id} className="w-80 flex flex-col h-full rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
+              <div key={col.id} className="w-80 flex flex-col h-full rounded-2xl bg-slate-50 border border-slate-100 shadow-sm overflow-hidden">
                 {/* Column Header */}
                 <div className={`p-4 border-t-4 ${col.color} bg-white border-b border-slate-200`}>
                   <div className="flex justify-between items-center">
@@ -219,7 +219,7 @@ const KingLeads: React.FC = () => {
                   {colLeads.map(lead => (
                     <div
                       key={lead.id}
-                      className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative"
+                      className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-amber-100 transition-all duration-200 group relative"
                     >
                       {/* Card Header */}
                       <div className="flex justify-between items-start mb-3">
