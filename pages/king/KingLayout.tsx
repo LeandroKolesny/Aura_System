@@ -46,7 +46,7 @@ const KingLayout: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex">
+    <div className="min-h-screen bg-[#FDFBF8] flex">
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full">
         {/* Logo */}
@@ -107,19 +107,19 @@ const KingLayout: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 ml-64">
         {/* Top Bar */}
-        <header className="bg-white border-b border-slate-200 px-8 py-4 sticky top-0 z-10">
+        <header className="bg-[#FDFBF8] border-b border-amber-100/60 px-8 py-4 sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Aura System</p>
-              <h2 className="font-bold text-slate-800">Painel Administrativo Master</h2>
+              <p className="text-[10px] text-amber-600/70 uppercase tracking-[0.2em] font-medium">Aura System</p>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif" }} className="text-xl font-bold text-slate-900">Painel Administrativo Master</h2>
             </div>
             <div className="flex items-center gap-4">
               <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg relative">
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <div className="h-8 w-px bg-slate-200"></div>
-              <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full uppercase">
+              <div className="h-8 w-px bg-amber-100"></div>
+              <span className="px-3 py-1 bg-amber-500 text-white text-xs font-bold rounded-full uppercase tracking-wide">
                 Owner
               </span>
             </div>
@@ -127,7 +127,7 @@ const KingLayout: React.FC = () => {
         </header>
 
         {/* Page Content */}
-        <div className="p-8">
+        <div className="px-8 py-6">
           <Outlet />
         </div>
       </main>
