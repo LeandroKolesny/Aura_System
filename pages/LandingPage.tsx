@@ -854,6 +854,38 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* ═══════════════ CTA FINAL ═══════════════ */}
+        <section style={{ background: '#1a1512', padding: '5rem 1.5rem' }}>
+          <div style={{ maxWidth: '760px', margin: '0 auto', textAlign: 'center' }}>
+            <span className="sec-label" style={{ color: 'rgba(189,123,101,0.8)' }}>Comece hoje</span>
+            <h2
+              className="reveal"
+              style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(2.2rem,5vw,3.8rem)', fontWeight: 400, color: '#fdfaf7', lineHeight: 1.15, marginBottom: '1.25rem' }}
+            >
+              Sua clínica merece uma{' '}
+              <em style={{ color: '#bd7b65', fontStyle: 'italic' }}>gestão à altura.</em>
+            </h2>
+            <p
+              className="reveal rd1"
+              style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.95rem', fontWeight: 300, color: '#6b5e54', lineHeight: 1.8, maxWidth: '44ch', margin: '0 auto 2.5rem' }}
+            >
+              7 dias grátis, sem cartão. Configure em minutos e veja a diferença no primeiro dia.
+            </p>
+            <div className="reveal rd2" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center' }}>
+              <Link to="/login" className="lp-btn-solid" style={{ borderRadius: '8px', fontSize: '0.75rem', padding: '0.95rem 2.25rem' }}>
+                Testar 7 Dias Grátis <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+              <button
+                onClick={() => scrollToSection('plans')}
+                className="lp-btn-outline"
+                style={{ borderRadius: '8px', borderColor: 'rgba(255,255,255,0.12)', color: '#a89890', fontSize: '0.75rem', padding: '0.95rem 2.25rem' }}
+              >
+                Ver Planos
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* ═══════════════ FOOTER ═══════════════ */}
         <footer style={{ background: S.dark, borderTop: `1px solid ${S.darkBorder}` }}>
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-16">
