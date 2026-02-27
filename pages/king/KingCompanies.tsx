@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building, Users, CalendarCheck, RefreshCw, AlertTriangle,
-  Search, ChevronLeft, ChevronRight, ExternalLink, CheckCircle, XCircle, Clock
+  Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, Clock
 } from 'lucide-react';
 import { kingApi } from '../../services/api';
 import { formatCurrency } from '../../utils/formatUtils';
@@ -52,6 +52,53 @@ const PlanBadge: React.FC<{ plan: string }> = ({ plan }) => {
     <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${colors[plan] || colors.FREE}`}>
       {plan}
     </span>
+  );
+};
+
+const CompanyCard: React.FC<{ company: Company }> = ({ company }) => {
+  const expiresAt = company.subscriptionExpiresAt
+    ? new Date(company.subscriptionExpiresAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'Sem data';
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-amber-100 transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 font-bold text-lg flex items-center justify-center shrink-0">
+          {company.name.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-slate-900 text-lg leading-tight truncate">{company.name}</p>
+          <p className="text-xs text-slate-400 truncate">{company.slug}</p>
+        </div>
+      </div>
+
+      {/* Badges */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <PlanBadge plan={company.plan} />
+        <StatusBadge status={company.subscriptionStatus} />
+      </div>
+
+      {/* Métricas */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {[
+          { icon: Users, label: 'Pacientes', value: company._count.patients },
+          { icon: CalendarCheck, label: 'Agend.', value: company._count.appointments },
+          { icon: Building, label: 'Usuários', value: company._count.users },
+        ].map(({ icon: Icon, label, value }) => (
+          <div key={label} className="text-center p-2 bg-slate-50 rounded-xl">
+            <Icon className="w-3.5 h-3.5 text-slate-400 mx-auto mb-0.5" />
+            <p className="text-sm font-bold text-slate-800">{value}</p>
+            <p className="text-[10px] text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Expiração */}
+      <p className="text-xs text-slate-400 border-t border-slate-50 pt-2 mt-1">
+        Expira: <span className="text-slate-600 font-medium">{expiresAt}</span>
+      </p>
+    </div>
   );
 };
 
@@ -165,52 +212,11 @@ const KingCompanies: React.FC = () => {
             Nenhuma empresa encontrada
           </div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Empresa</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Plano</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Status</th>
-                <th className="text-center px-6 py-3 text-xs font-bold text-slate-500 uppercase">Usuários</th>
-                <th className="text-center px-6 py-3 text-xs font-bold text-slate-500 uppercase">Pacientes</th>
-                <th className="text-center px-6 py-3 text-xs font-bold text-slate-500 uppercase">Agendamentos</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Criada em</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {companies.map((company) => (
-                <tr key={company.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-slate-900">{company.name}</p>
-                      <p className="text-xs text-slate-400">/{company.slug}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <PlanBadge plan={company.plan} />
-                  </td>
-                  <td className="px-6 py-4">
-                    <StatusBadge status={company.subscriptionStatus} />
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="inline-flex items-center gap-1 text-slate-600">
-                      <Users className="w-4 h-4" />
-                      {company._count.users}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="font-medium text-slate-900">{company._count.patients}</span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="font-medium text-slate-900">{company._count.appointments}</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-500">
-                    {new Date(company.createdAt).toLocaleDateString('pt-BR')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {companies.map(company => (
+              <CompanyCard key={company.id} company={company} />
+            ))}
+          </div>
         )}
 
         {/* Pagination */}
@@ -223,7 +229,7 @@ const KingCompanies: React.FC = () => {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -233,7 +239,7 @@ const KingCompanies: React.FC = () => {
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
