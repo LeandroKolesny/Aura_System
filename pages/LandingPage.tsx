@@ -227,7 +227,10 @@ const LandingPage: React.FC = () => {
         </nav>
 
         {/* ═══════════════ HERO ═══════════════ */}
-        <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
+        <section
+          className="relative min-h-screen flex items-center pt-16 overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, rgba(189,123,101,0.09) 0%, #fdfaf7 55%)' }}
+        >
           {/* Decorative radial glow */}
           <div
             className="absolute pointer-events-none"
