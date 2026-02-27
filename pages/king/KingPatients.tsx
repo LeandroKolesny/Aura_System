@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Building, RefreshCw, AlertTriangle,
-  Search, ChevronDown, ChevronUp, Mail, Phone, ChevronLeft, ChevronRight
+  Search, ChevronDown, ChevronUp, Mail, Phone
 } from 'lucide-react';
 import { kingApi } from '../../services/api';
 
@@ -63,6 +63,45 @@ const PlanBadge: React.FC<{ plan: string }> = ({ plan }) => {
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[plan] || colors.FREE}`}>
       {plan}
     </span>
+  );
+};
+
+const PatientCard: React.FC<{ patient: Patient }> = ({ patient }) => {
+  const lastVisit = patient.lastVisit
+    ? new Date(patient.lastVisit).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'Sem visita';
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-amber-100 transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 font-bold text-sm flex items-center justify-center shrink-0">
+          {patient.name.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-slate-900 truncate">{patient.name}</p>
+          <p className="text-xs text-amber-600 truncate">{patient.company.name}</p>
+        </div>
+        <StatusBadge status={patient.status} />
+      </div>
+
+      {/* Contato */}
+      <div className="space-y-1.5 mb-3">
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <Mail className="w-3 h-3 shrink-0" />
+          <span className="truncate">{patient.email || '—'}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <Phone className="w-3 h-3 shrink-0" />
+          <span>{patient.phone || '—'}</span>
+        </div>
+      </div>
+
+      {/* Última visita */}
+      <p className="text-xs text-slate-400 border-t border-slate-50 pt-2">
+        Última visita: <span className="text-slate-600 font-medium">{lastVisit}</span>
+      </p>
+    </div>
   );
 };
 
@@ -267,53 +306,11 @@ const KingPatients: React.FC = () => {
                         Nenhum paciente encontrado nesta clínica.
                       </div>
                     ) : (
-                      <table className="w-full">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Paciente</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Contato</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Status</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Última Visita</th>
-                            <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase">Cadastro</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {companyPatients.map((patient) => (
-                            <tr key={patient.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">
-                                    {patient.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                                  </div>
-                                  <span className="font-medium text-slate-900">{patient.name}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="space-y-1">
-                                  <p className="text-sm text-slate-600 flex items-center gap-1">
-                                    <Mail className="w-3 h-3" /> {patient.email}
-                                  </p>
-                                  <p className="text-sm text-slate-500 flex items-center gap-1">
-                                    <Phone className="w-3 h-3" /> {patient.phone}
-                                  </p>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <StatusBadge status={patient.status} />
-                              </td>
-                              <td className="px-6 py-4 text-sm text-slate-500">
-                                {patient.lastVisit
-                                  ? new Date(patient.lastVisit).toLocaleDateString('pt-BR')
-                                  : <span className="text-slate-400">-</span>
-                                }
-                              </td>
-                              <td className="px-6 py-4 text-sm text-slate-500">
-                                {new Date(patient.createdAt).toLocaleDateString('pt-BR')}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                        {companyPatients.map(patient => (
+                          <PatientCard key={patient.id} patient={patient} />
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
