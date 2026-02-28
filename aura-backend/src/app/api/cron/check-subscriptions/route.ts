@@ -1,8 +1,33 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-// Proteger endpoint com secret (Vercel Cron envia este header automaticamente)
-const CRON_SECRET = process.env.CRON_SECRET;
+/**
+ * Validates the cron request using the Authorization: Bearer <CRON_SECRET> header.
+ * Uses timingSafeEqual to prevent timing-based secret enumeration attacks.
+ * Vercel Cron Jobs send this header automatically when CRON_SECRET is set.
+ */
+function validateCronSecret(req: NextRequest): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    console.error("[CRON] CRON_SECRET environment variable is not set");
+    return false;
+  }
+
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!token) return false;
+
+  try {
+    const provided = Buffer.from(token);
+    const expected = Buffer.from(cronSecret);
+    if (provided.length !== expected.length) return false;
+    return timingSafeEqual(provided, expected);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * GET /api/cron/check-subscriptions
@@ -12,24 +37,17 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * 2. Salvar o plano atual em lastPlan
  * 3. Mover para plano BASIC
  * 4. Atualizar status para OVERDUE
+ *
+ * Authentication: Authorization: Bearer <CRON_SECRET>
+ * (Vercel Cron Jobs send this header automatically)
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autorização (Vercel Cron ou chamada manual com secret)
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = request.nextUrl.searchParams.get("secret");
-
-    // Em produção, exigir autenticação
-    if (process.env.NODE_ENV === "production" && CRON_SECRET) {
-      const isValidCron = authHeader === `Bearer ${CRON_SECRET}`;
-      const isValidManual = cronSecret === CRON_SECRET;
-
-      if (!isValidCron && !isValidManual) {
-        return NextResponse.json(
-          { error: "Não autorizado" },
-          { status: 401 }
-        );
-      }
+    if (!validateCronSecret(request)) {
+      return NextResponse.json(
+        { error: "Não autorizado" },
+        { status: 401 }
+      );
     }
 
     const now = new Date();

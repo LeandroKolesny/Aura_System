@@ -1,11 +1,38 @@
+import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { registerCalendarWatch } from '@/lib/calendarSync';
 
+/**
+ * Validates the cron request using the Authorization: Bearer <CRON_SECRET> header.
+ * Uses timingSafeEqual to prevent timing-based secret enumeration attacks.
+ * Vercel Cron Jobs send this header automatically when CRON_SECRET is set.
+ */
+function validateCronSecret(req: NextRequest): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    console.error('[CRON] CRON_SECRET environment variable is not set');
+    return false;
+  }
+
+  const authHeader = req.headers.get('authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) return false;
+
+  try {
+    const provided = Buffer.from(token);
+    const expected = Buffer.from(cronSecret);
+    if (provided.length !== expected.length) return false;
+    return timingSafeEqual(provided, expected);
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: NextRequest) {
-  // Vercel Cron authenticates with a Bearer token
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Vercel Cron authenticates with Authorization: Bearer <CRON_SECRET>
+  if (!validateCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
