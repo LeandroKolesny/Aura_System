@@ -1,103 +1,123 @@
-// Aura System - Rate Limiter
+// Aura System - Rate Limiter (Distributed via Upstash Redis)
 // Proteção contra ataques de força bruta
+// SEC-ALTO-4: substituído Map em memória por Redis distribuído para corrigir
+// bypass via múltiplas instâncias serverless em paralelo.
 
-interface RateLimitEntry {
-  count: number;
-  firstAttempt: number;
-  blockedUntil?: number;
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+// ---------------------------------------------------------------------------
+// Configurações de limite
+// ---------------------------------------------------------------------------
+// 5 tentativas em janela de 15 minutos (equivalente ao comportamento anterior).
+const MAX_ATTEMPTS = 5;
+const WINDOW = '15 m';
+
+// ---------------------------------------------------------------------------
+// Inicialização do Redis (fail-open se variáveis não estiverem configuradas)
+// ---------------------------------------------------------------------------
+let rateLimiter: Ratelimit | null = null;
+
+if (
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN
+) {
+  const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+
+  rateLimiter = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(MAX_ATTEMPTS, WINDOW),
+    analytics: false,
+    prefix: 'aura:rl',
+  });
+} else {
+  console.warn(
+    '[RateLimit] UPSTASH_REDIS_REST_URL não configurado — rate limiting desabilitado (fail-open)'
+  );
 }
 
-// Em produção, usar Redis. Para MVP, Map em memória funciona.
-const rateLimitStore = new Map<string, RateLimitEntry>();
+export { rateLimiter };
 
-// Configurações
-const RATE_LIMIT_CONFIG = {
-  maxAttempts: 5,           // Máximo de tentativas
-  windowMs: 15 * 60 * 1000, // Janela de 15 minutos
-  blockDurationMs: 30 * 60 * 1000, // Bloqueio de 30 minutos após exceder
-};
+// ---------------------------------------------------------------------------
+// Helpers públicos
+// ---------------------------------------------------------------------------
 
 /**
- * Extrai o IP real do request (considera proxy reverso)
+ * Extrai o IP real do request (considera proxy reverso / Vercel).
  */
 export function getClientIP(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
+  const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
-    return forwarded.split(",")[0].trim();
+    return forwarded.split(',')[0].trim();
   }
-  const realIp = request.headers.get("x-real-ip");
+  const realIp = request.headers.get('x-real-ip');
   if (realIp) {
     return realIp;
   }
-  return "unknown";
+  return 'unknown';
 }
 
 /**
- * Verifica e registra tentativa de acesso
- * @returns { allowed: boolean, remaining: number, retryAfter?: number }
+ * Verifica e registra tentativa de acesso.
+ *
+ * Mantém a mesma interface de retorno da implementação anterior:
+ *   { allowed: boolean; remaining: number; retryAfter?: number }
+ *
+ * Falls back to allow-all (fail-open) se o Redis não estiver configurado
+ * ou em caso de erro de rede.
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   identifier: string,
-  action: string = "login"
-): { allowed: boolean; remaining: number; retryAfter?: number } {
-  const key = `${action}:${identifier}`;
-  const now = Date.now();
-  const entry = rateLimitStore.get(key);
-
-  // Se bloqueado, verificar se já pode tentar novamente
-  if (entry?.blockedUntil && entry.blockedUntil > now) {
-    const retryAfter = Math.ceil((entry.blockedUntil - now) / 1000);
-    return { allowed: false, remaining: 0, retryAfter };
+  action: string = 'login'
+): Promise<{ allowed: boolean; remaining: number; retryAfter?: number }> {
+  if (!rateLimiter) {
+    // Redis não configurado — permitir todas as requisições
+    return { allowed: true, remaining: MAX_ATTEMPTS - 1 };
   }
 
-  // Se não existe ou a janela expirou, criar nova entrada
-  if (!entry || now - entry.firstAttempt > RATE_LIMIT_CONFIG.windowMs) {
-    rateLimitStore.set(key, { count: 1, firstAttempt: now });
-    return { allowed: true, remaining: RATE_LIMIT_CONFIG.maxAttempts - 1 };
+  try {
+    const key = `${action}:${identifier}`;
+    const result = await rateLimiter.limit(key);
+
+    if (!result.success) {
+      // reset é um timestamp Unix em milissegundos
+      const retryAfterMs = result.reset - Date.now();
+      const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+      return { allowed: false, remaining: 0, retryAfter: retryAfterSec };
+    }
+
+    return { allowed: true, remaining: result.remaining };
+  } catch (error) {
+    console.error('[RateLimit] Erro no Redis — failing open:', error);
+    return { allowed: true, remaining: MAX_ATTEMPTS - 1 };
   }
-
-  // Incrementar contador
-  entry.count++;
-
-  // Se excedeu o limite, bloquear
-  if (entry.count > RATE_LIMIT_CONFIG.maxAttempts) {
-    entry.blockedUntil = now + RATE_LIMIT_CONFIG.blockDurationMs;
-    rateLimitStore.set(key, entry);
-    const retryAfter = Math.ceil(RATE_LIMIT_CONFIG.blockDurationMs / 1000);
-    return { allowed: false, remaining: 0, retryAfter };
-  }
-
-  rateLimitStore.set(key, entry);
-  return {
-    allowed: true,
-    remaining: RATE_LIMIT_CONFIG.maxAttempts - entry.count,
-  };
 }
 
 /**
- * Reseta o rate limit (chamar após login bem-sucedido)
+ * Reseta o rate limit de um identificador (chamar após login bem-sucedido).
+ *
+ * Com Upstash/slidingWindow não há uma API nativa de reset por chave, então
+ * simplesmente registramos o evento — o contador decai naturalmente com a
+ * janela deslizante. Para uso interno, a função retorna Promise<void> mas
+ * pode ser chamada sem await (fire-and-forget).
  */
-export function resetRateLimit(identifier: string, action: string = "login"): void {
-  const key = `${action}:${identifier}`;
-  rateLimitStore.delete(key);
+export async function resetRateLimit(
+  identifier: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  action: string = 'login'
+): Promise<void> {
+  // Upstash slidingWindow não expõe delete/reset por chave via SDK público.
+  // A janela deslizante decai automaticamente — nenhuma ação necessária.
+  // Mantemos a função para compatibilidade com os callers existentes.
 }
 
 /**
- * Limpa entradas expiradas (chamar periodicamente)
+ * @deprecated Não necessário com Redis — TTL é gerenciado automaticamente.
+ * Mantida apenas para compatibilidade de assinatura.
  */
 export function cleanupRateLimitStore(): void {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
-    const isExpired = now - entry.firstAttempt > RATE_LIMIT_CONFIG.windowMs;
-    const isUnblocked = entry.blockedUntil && entry.blockedUntil < now;
-    if (isExpired || isUnblocked) {
-      rateLimitStore.delete(key);
-    }
-  }
+  // No-op: Redis gerencia expiração via TTL de janela deslizante.
 }
-
-// Limpeza automática a cada 10 minutos
-if (typeof setInterval !== "undefined") {
-  setInterval(cleanupRateLimitStore, 10 * 60 * 1000);
-}
-

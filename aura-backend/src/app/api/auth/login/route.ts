@@ -13,9 +13,9 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // RATE LIMITING - Proteção contra força bruta
+    // RATE LIMITING - Proteção contra força bruta (distribuído via Upstash Redis)
     const clientIP = getClientIP(request);
-    const rateLimitResult = checkRateLimit(clientIP, "login");
+    const rateLimitResult = await checkRateLimit(clientIP, "login");
 
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
@@ -119,8 +119,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Login bem-sucedido - resetar rate limit
-    resetRateLimit(clientIP, "login");
+    // Login bem-sucedido - resetar rate limit (fire-and-forget, não bloqueia resposta)
+    resetRateLimit(clientIP, "login").catch(() => {});
 
     // Log de auditoria - Login bem-sucedido
     logLogin(user.id, email, request);
