@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { refreshAccessToken } from '@/lib/google';
 import { AURA_SOURCE_TAG } from '@/lib/calendarSync';
+import { encrypt, decrypt } from '@/lib/crypto';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
   const user = watch.user;
 
   // Ensure we have a valid token (refresh if needed)
-  let token = user.googleAccessToken;
+  let token = user.googleAccessToken ? decrypt(user.googleAccessToken) : null;
 
   if (
     user.googleTokenExpiresAt &&
@@ -47,12 +48,13 @@ export async function POST(request: NextRequest) {
   ) {
     if (user.googleRefreshToken) {
       try {
-        const refreshed = await refreshAccessToken(user.googleRefreshToken);
+        const decryptedRefreshToken = decrypt(user.googleRefreshToken);
+        const refreshed = await refreshAccessToken(decryptedRefreshToken);
         token = refreshed.access_token;
         await prisma.user.update({
           where: { id: user.id },
           data: {
-            googleAccessToken: refreshed.access_token,
+            googleAccessToken: encrypt(refreshed.access_token),
             googleTokenExpiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
           },
         });

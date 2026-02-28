@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { decrypt } from '@/lib/crypto';
 
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request);
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
       fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${dbUser.googleAccessToken}`,
+          Authorization: `Bearer ${decrypt(dbUser.googleAccessToken)}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

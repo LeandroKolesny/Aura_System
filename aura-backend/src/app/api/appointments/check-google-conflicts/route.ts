@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { refreshAccessToken } from '@/lib/google';
 import prisma from '@/lib/prisma';
+import { encrypt, decrypt } from '@/lib/crypto';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 const AURA_SOURCE_TAG = 'aura-system';
@@ -41,16 +42,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Refresh token if needed
-    let token = professional.googleAccessToken;
+    let token = decrypt(professional.googleAccessToken);
     if (professional.googleTokenExpiresAt && new Date(professional.googleTokenExpiresAt) < new Date(Date.now() + 60_000)) {
       if (professional.googleRefreshToken) {
         try {
-          const refreshed = await refreshAccessToken(professional.googleRefreshToken);
+          const decryptedRefreshToken = decrypt(professional.googleRefreshToken);
+          const refreshed = await refreshAccessToken(decryptedRefreshToken);
           token = refreshed.access_token;
           await prisma.user.update({
             where: { id: professionalId },
             data: {
-              googleAccessToken: refreshed.access_token,
+              googleAccessToken: encrypt(refreshed.access_token),
               googleTokenExpiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
             },
           });

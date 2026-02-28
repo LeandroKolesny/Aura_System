@@ -4,6 +4,7 @@ import { exchangeCodeForTokens, getGoogleUserInfo } from '@/lib/google';
 import { generateJWT, getAuthUser } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { encrypt } from '@/lib/crypto';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -62,8 +63,8 @@ export async function GET(request: NextRequest) {
       await prisma.user.update({
         where: { id: authUser.id },
         data: {
-          googleAccessToken: tokens.access_token,
-          googleRefreshToken: tokens.refresh_token ?? undefined,
+          googleAccessToken: encrypt(tokens.access_token),
+          googleRefreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : undefined,
           googleCalendarId: 'primary',
           googleCalendarConnected: true,
           googleTokenExpiresAt: expiresAt,
