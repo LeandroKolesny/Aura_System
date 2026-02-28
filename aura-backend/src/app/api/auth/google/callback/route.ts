@@ -89,17 +89,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=account_disabled`);
       }
 
-      // PATIENT sem empresa = conta fantasma → upgrade para ADMIN e manda para onboarding
-      if (user.role === 'PATIENT' && !user.companyId) {
-        const upgraded = await prisma.user.update({
-          where: { id: user.id },
-          data: { role: 'ADMIN', googleId: userInfo.sub, avatar: userInfo.picture ?? undefined },
-        });
-        const token = generateJWT({ id: upgraded.id, email: upgraded.email, role: upgraded.role, companyId: null });
-        const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
-        response.cookies.set('aura_session', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 24 * 7, path: '/' });
-        return response;
-      }
+      // SEC-FIX: do NOT promote role — keep the user's existing role as-is.
+      // If the user has no company, the frontend onboarding flow handles that.
 
       // Auto-link: accounts are admin-created (not public self-registration), so email match is safe
       if (!user.googleId) {
@@ -128,17 +119,7 @@ export async function GET(request: NextRequest) {
       });
 
       if (existing) {
-        // PATIENT sem empresa = conta fantasma → upgrade para ADMIN e manda para onboarding
-        if (existing.role === 'PATIENT' && !existing.companyId) {
-          const upgraded = await prisma.user.update({
-            where: { id: existing.id },
-            data: { role: 'ADMIN', googleId: userInfo.sub, avatar: userInfo.picture ?? undefined },
-          });
-          const token = generateJWT({ id: upgraded.id, email: upgraded.email, role: upgraded.role, companyId: null });
-          const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
-          response.cookies.set('aura_session', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 24 * 7, path: '/' });
-          return response;
-        }
+        // SEC-FIX: do NOT promote role — account already exists, redirect to login.
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_already_registered`);
       }
 
@@ -150,9 +131,11 @@ export async function GET(request: NextRequest) {
           password: tempPassword,
           googleId: userInfo.sub,
           avatar: userInfo.picture ?? undefined,
-          role: 'ADMIN',
+          // SEC-FIX: new Google accounts start as PATIENT; role elevation and company
+          // assignment happen explicitly through the onboarding flow, never here.
+          role: 'PATIENT',
           isActive: true,
-          // companyId intentionally null — admin creates company during onboarding
+          // companyId intentionally null — company is created during onboarding
         },
         include: { company: true },
       });
