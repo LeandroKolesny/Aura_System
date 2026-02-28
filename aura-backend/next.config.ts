@@ -2,37 +2,21 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Configurações de segurança (CORS é tratado no middleware.ts)
-  headers: async () => [
-    {
-      source: "/:path*",
-      headers: [
-        {
-          key: "X-DNS-Prefetch-Control",
-          value: "on",
-        },
-        {
-          key: "Strict-Transport-Security",
-          value: "max-age=63072000; includeSubDomains; preload",
-        },
-        {
-          key: "X-Content-Type-Options",
-          value: "nosniff",
-        },
-        {
-          key: "X-Frame-Options",
-          value: "SAMEORIGIN",
-        },
-        {
-          key: "X-XSS-Protection",
-          value: "1; mode=block",
-        },
-        {
-          key: "Referrer-Policy",
-          value: "origin-when-cross-origin",
-        },
-      ],
-    },
-  ],
+  // Nota: HSTS é gerenciado automaticamente pelo Vercel; CSP não se aplica a APIs JSON
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+          { key: 'X-DNS-Prefetch-Control', value: 'off' },
+        ],
+      },
+    ];
+  },
   
   // Permitir imagens externas (Unsplash, etc)
   images: {
