@@ -9,8 +9,14 @@ export async function GET(request: NextRequest) {
   const rawReturnTo = searchParams.get('returnTo') || '/';
   const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//') ? rawReturnTo : '/';
 
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    console.error('SESSION_SECRET environment variable is required');
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+
   const payload = JSON.stringify({ mode, returnTo, nonce: randomBytes(8).toString('hex') });
-  const sig = createHmac('sha256', process.env.SESSION_SECRET || 'aura-dev-secret')
+  const sig = createHmac('sha256', secret)
     .update(payload)
     .digest('hex');
   const state = Buffer.from(JSON.stringify({ payload, sig })).toString('base64url');

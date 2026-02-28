@@ -21,10 +21,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${FRONTEND_URL}/login?error=invalid_callback`);
   }
 
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    console.error('SESSION_SECRET environment variable is required');
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+
   let state: { mode: string; returnTo: string };
   try {
     const { payload, sig } = JSON.parse(Buffer.from(stateParam, 'base64url').toString());
-    const expectedSig = createHmac('sha256', process.env.SESSION_SECRET || 'aura-dev-secret')
+    const expectedSig = createHmac('sha256', secret)
       .update(payload)
       .digest('hex');
     if (!timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
