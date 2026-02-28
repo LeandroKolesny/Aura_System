@@ -34,7 +34,7 @@ async function fetchApi<T>(
   };
 
   // Adiciona token de autenticação se existir (in-memory — não localStorage)
-  const token = _memoryToken;
+  const token = getAuthToken();
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }

@@ -860,6 +860,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           companyId: apiUser.company?.id || apiUser.companyId,
           avatar: apiUser.avatar,
           isActive: apiUser.isActive ?? true,
+          patientId: apiUser.patientId,
         };
 
         // Se tiver dados da empresa, adiciona à lista de companies
