@@ -48,7 +48,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ user });
+    // Include the session token in the response so the frontend can store it
+    // for subsequent Bearer auth requests. The token is read from the httpOnly
+    // cookie (never from a URL parameter) — this is the secure retrieval path.
+    const sessionToken = request.cookies.get("aura_session")?.value ?? null;
+
+    return NextResponse.json({ user, token: sessionToken });
   } catch (error) {
     console.error("Erro ao buscar usuário:", error);
     return NextResponse.json(

@@ -102,7 +102,9 @@ export async function GET(request: NextRequest) {
       }
 
       const token = generateJWT({ id: user.id, email: user.email, role: user.role, companyId: user.company?.id ?? null });
-      const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
+      // SEC-FIX [SEC-ALTO-2]: redirect without ?token= in URL — JWT is conveyed
+      // exclusively via the httpOnly cookie set below, never via URL parameters.
+      const response = NextResponse.redirect(`${FRONTEND_URL}/login?google=ok`);
       response.cookies.set('aura_session', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -142,7 +144,9 @@ export async function GET(request: NextRequest) {
       });
 
       const token = generateJWT({ id: newUser.id, email: newUser.email, role: newUser.role, companyId: null });
-      const response = NextResponse.redirect(`${FRONTEND_URL}/login?token=${token}`);
+      // SEC-FIX [SEC-ALTO-2]: redirect without ?token= in URL — JWT is conveyed
+      // exclusively via the httpOnly cookie set below, never via URL parameters.
+      const response = NextResponse.redirect(`${FRONTEND_URL}/login?google=ok`);
       response.cookies.set('aura_session', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',

@@ -60,25 +60,33 @@ const Login: React.FC = () => {
   // OAuth error handling from URL params
   const oauthError = searchParams.get('error');
 
-  // Google OAuth token passado via ?token= (sem página intermediária)
+  // Google OAuth callback — SEC-FIX [SEC-ALTO-2]: token is no longer passed in
+  // the URL. Instead we detect ?google=ok, then fetch the token from the backend
+  // via GET /api/auth/me (which reads the httpOnly aura_session cookie).
   useEffect(() => {
-    const token = searchParams.get('token');
-    if (!token) return;
+    const googleOk = searchParams.get('google');
+    if (googleOk !== 'ok') return;
 
     setIsProcessingToken(true);
-    loginWithToken(token)
-      .then((ok: boolean) => {
-        if (ok) {
-          // Limpa o token da URL após sucesso — navegação feita pelo useEffect [user] abaixo
-          window.history.replaceState({}, '', '/login');
-        } else {
-          window.history.replaceState({}, '', '/login');
+    // Clean the indicator param from the URL immediately so it doesn't linger
+    window.history.replaceState({}, '', '/login');
+
+    authApi.me()
+      .then(async (result: any) => {
+        const token = result?.data?.token;
+        if (!token) {
+          setLoginError('Não foi possível autenticar com Google. Tente novamente.');
+          setIsProcessingToken(false);
+          return;
+        }
+        const ok = await loginWithToken(token);
+        if (!ok) {
           setLoginError('Não foi possível autenticar com Google. Tente novamente.');
           setIsProcessingToken(false);
         }
+        // On success: navigation is handled by the useEffect [user] below
       })
       .catch(() => {
-        window.history.replaceState({}, '', '/login');
         setLoginError('Erro ao processar autenticação Google. Tente novamente.');
         setIsProcessingToken(false);
       });
