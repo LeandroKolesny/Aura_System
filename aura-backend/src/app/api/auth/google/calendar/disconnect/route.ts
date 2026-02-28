@@ -19,7 +19,11 @@ export async function POST(request: NextRequest) {
       select: { googleAccessToken: true },
     });
 
-    if (dbUser?.googleAccessToken && watch.resourceId) {
+    if (!dbUser?.googleAccessToken) {
+      return NextResponse.json({ error: 'No Google Calendar connection found' }, { status: 400 });
+    }
+
+    if (dbUser.googleAccessToken && watch.resourceId) {
       // Best-effort: stop the Google push channel
       fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
         method: 'POST',

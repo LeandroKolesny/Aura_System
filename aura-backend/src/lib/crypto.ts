@@ -40,7 +40,7 @@ export function encrypt(plaintext: string): string {
  */
 export function decrypt(encryptedData: string): string {
   const key = getEncryptionKey();
-  const [ivHex, authTagHex, encryptedHex] = encryptedData.split(':');
+  const [ivHex, authTagHex, encryptedHex] = encryptedData.split(':', 3);
 
   if (!ivHex || !authTagHex || !encryptedHex) {
     throw new Error('Invalid encrypted data format');
@@ -49,6 +49,13 @@ export function decrypt(encryptedData: string): string {
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
   const encrypted = Buffer.from(encryptedHex, 'hex');
+
+  if (iv.length !== IV_LENGTH) {
+    throw new Error('Invalid IV length in encrypted data');
+  }
+  if (authTag.length !== AUTH_TAG_LENGTH) {
+    throw new Error('Invalid auth tag length in encrypted data');
+  }
 
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
