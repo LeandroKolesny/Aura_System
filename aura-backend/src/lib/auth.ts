@@ -31,7 +31,7 @@ export interface JWTPayload {
 
 // Cache simples para evitar múltiplas queries no mesmo request
 const userCache = new Map<string, { user: AuthUser; timestamp: number }>();
-const CACHE_TTL = 60000; // 1 minuto
+const CACHE_TTL = 15000; // 15 segundos
 
 /**
  * Gera um token JWT assinado para o usuário
