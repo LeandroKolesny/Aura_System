@@ -31,6 +31,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Usuário sem empresa" }, { status: 403 });
     }
 
+    // SECURITY (LGPD): Pacientes não podem listar todos os pacientes da clínica.
+    // O portal do paciente usa endpoints próprios para acessar seus próprios dados.
+    if (user.role === 'PATIENT') {
+      return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 });
+    }
+
     // Parse query params
     const { searchParams } = new URL(request.url);
     const queryValidation = listPatientsQuerySchema.safeParse({
