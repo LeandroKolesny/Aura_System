@@ -6,7 +6,10 @@ import prisma from "./prisma";
 import { hasPermission, Resource, Action, canAccessCompany } from "./rbac";
 
 // JWT Secret - deve ser configurado em variáveis de ambiente
-const JWT_SECRET = process.env.JWT_SECRET || "aura-system-jwt-secret-key-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 const JWT_EXPIRES_IN = "7d"; // Token expira em 7 dias
 
 export interface AuthUser {
