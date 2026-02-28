@@ -34,12 +34,11 @@ export async function middleware(request: NextRequest) {
 
   // CSRF protection: reject state-mutating requests from disallowed origins
   const method = request.method;
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const csrfOrigin = request.headers.get('origin');
-    if (csrfOrigin && !isOriginAllowed(csrfOrigin)) {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    if (origin && !isOriginAllowed(origin)) {
       return new NextResponse(
-        JSON.stringify({ success: false, error: 'Forbidden' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: "Forbidden" }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
       );
     }
   }
