@@ -131,9 +131,9 @@ export async function GET(request: NextRequest) {
           password: tempPassword,
           googleId: userInfo.sub,
           avatar: userInfo.picture ?? undefined,
-          // SEC-FIX: new Google accounts start as PATIENT; role elevation and company
-          // assignment happen explicitly through the onboarding flow, never here.
-          role: 'PATIENT',
+          // New Google registrations start as ADMIN so the onboarding flow can create their company.
+          // Role is granted because this is an explicit registration action (not an upgrade of existing accounts).
+          role: 'ADMIN',
           isActive: true,
           // companyId intentionally null — company is created during onboarding
         },
