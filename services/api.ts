@@ -91,7 +91,7 @@ export const authApi = {
   },
 
   async me() {
-    return fetchApi<{ user: any }>('/api/auth/me');
+    return fetchApi<{ user: any; token: string | null }>('/api/auth/me');
   },
 
   async googleSignIn(mode: 'login' | 'register' | 'calendar' = 'login', returnTo = '/') {
