@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash da senha (gera uma aleatória se não fornecida)
-    const passwordToHash = password || Math.random().toString(36).slice(-10);
+    const passwordToHash = password || randomBytes(16).toString('hex').slice(0, 16);
     const hashedPassword = await bcrypt.hash(passwordToHash, 10);
 
     // Mapear valores para enums corretos (Prisma requer UPPERCASE)
