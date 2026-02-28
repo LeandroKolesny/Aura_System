@@ -22,7 +22,9 @@ import {
   systemAlertsApi,
   notificationsApi,
   plansApi,
-  kingApi
+  kingApi,
+  setAuthToken,
+  getAuthToken,
 } from '../services/api';
 
 interface AppContextType {
@@ -278,20 +280,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const restoreSession = async () => {
-      const token = localStorage.getItem('aura_token');
-
-      if (!token) {
-        // Sem token, não há sessão para restaurar
-        setIsInitializing(false);
-        return;
-      }
-
+      // No localStorage — recover session from httpOnly cookie via /api/auth/me.
+      // The backend reads the aura_session cookie (sent automatically with credentials: 'include')
+      // and echoes the token back in the response body so the frontend can keep it in memory.
       try {
-        // Validar token e obter dados do usuário
+        // Validar sessão via cookie e obter dados do usuário
         const result = await authApi.me();
 
         if (result.success && result.data?.user) {
           const apiUser = result.data.user;
+
+          // Recover token into memory so subsequent Bearer auth requests work
+          if (result.data.token) {
+            setAuthToken(result.data.token);
+          }
 
           // Mapear role da API para o enum UserRole
           const roleMap: Record<string, UserRole> = {
@@ -333,13 +335,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.log('🔐 Sessão restaurada:', { email: apiUser.email, role: mappedRole });
           setUser(mappedUser);
         } else {
-          // Token inválido ou expirado - limpar
-          console.log('⚠️ Token inválido, limpando sessão...');
-          localStorage.removeItem('aura_token');
+          // Cookie ausente ou expirado — nenhuma sessão ativa
+          console.log('⚠️ Sem sessão ativa (cookie ausente ou expirado).');
         }
       } catch (error) {
         console.error('❌ Erro ao restaurar sessão:', error);
-        localStorage.removeItem('aura_token');
+        // No-op: unauthenticated state is handled by the router guards
       } finally {
         setIsInitializing(false);
       }
@@ -765,8 +766,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Carregar dados da API quando usuário loga
   useEffect(() => {
-    const token = localStorage.getItem('aura_token');
-    if (user && token) {
+    // Use in-memory token (no localStorage) — token is set during login or session restore
+    if (user && getAuthToken()) {
       loadDataFromApi();
     }
   }, [user, loadDataFromApi]);
@@ -835,7 +836,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const loginWithToken = async (token: string): Promise<boolean> => {
     try {
-      localStorage.setItem('aura_token', token);
+      // Store token in memory so fetchApi can send it as Bearer on the /me call
+      setAuthToken(token);
       const result = await authApi.me();
       if (result.success && result.data?.user) {
         const apiUser = result.data.user;
@@ -887,10 +889,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // loadDataFromApi será chamado automaticamente pelo useEffect que observa user
         return true;
       }
-      localStorage.removeItem('aura_token');
+      // Token invalid — clear from memory
+      setAuthToken(null);
       return false;
     } catch {
-      localStorage.removeItem('aura_token');
+      // Error — clear from memory
+      setAuthToken(null);
       return false;
     }
   };
@@ -963,8 +967,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!result.success) {
         return { success: false, error: result.error || 'Erro ao criar empresa' };
       }
-      // Refresh session so user.companyId and companies state are updated
-      const token = localStorage.getItem('aura_token');
+      // Refresh session so user.companyId and companies state are updated.
+      // Use in-memory token — no localStorage read needed.
+      const token = getAuthToken();
       if (token) {
         await loginWithToken(token);
       }

@@ -6,11 +6,12 @@ export async function POST() {
       message: "Logout realizado com sucesso!",
     });
 
-    // Limpar cookie de sessão
+    // Limpar cookie de sessão — sameSite: 'none' é necessário para requests cross-origin
+    // (frontend e backend estão em domínios diferentes no Vercel)
     response.cookies.set("aura_session", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "none",
       maxAge: 0,
       path: "/",
     });

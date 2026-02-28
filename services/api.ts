@@ -3,6 +3,17 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// In-memory token storage (XSS-safe — not persisted to localStorage)
+let _memoryToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  _memoryToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return _memoryToken;
+}
+
 // Tipos de resposta da API
 interface ApiResponse<T> {
   success: boolean;
@@ -22,8 +33,8 @@ async function fetchApi<T>(
     'Content-Type': 'application/json',
   };
 
-  // Adiciona token de autenticação se existir
-  const token = localStorage.getItem('aura_token');
+  // Adiciona token de autenticação se existir (in-memory — não localStorage)
+  const token = _memoryToken;
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
@@ -72,7 +83,8 @@ export const authApi = {
     });
 
     if (result.success && result.data?.token) {
-      localStorage.setItem('aura_token', result.data.token);
+      // Store token in memory only — never in localStorage (XSS protection)
+      setAuthToken(result.data.token);
     }
 
     return result;
@@ -86,7 +98,8 @@ export const authApi = {
   },
 
   async logout() {
-    localStorage.removeItem('aura_token');
+    // Clear in-memory token first, then ask backend to expire the httpOnly cookie
+    setAuthToken(null);
     return fetchApi('/api/auth/logout', { method: 'POST' });
   },
 

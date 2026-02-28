@@ -158,11 +158,12 @@ export async function POST(request: NextRequest) {
       token,
     });
 
-    // Setar cookie de sessão
+    // Setar cookie de sessão — sameSite: 'none' é necessário para requests cross-origin
+    // (frontend aura-system-mu.vercel.app e backend aura-backend-api.vercel.app são domínios diferentes)
     response.cookies.set("aura_session", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "none",
       maxAge: 60 * 60 * 24 * 7, // 7 dias
       path: "/",
     });
