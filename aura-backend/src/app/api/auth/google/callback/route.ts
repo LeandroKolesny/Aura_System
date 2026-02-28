@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${FRONTEND_URL}/login?error=google_already_registered`);
       }
 
-      const tempPassword = await bcrypt.hash(randomBytes(16).toString('hex'), 10);
+      const tempPassword = await bcrypt.hash(randomBytes(16).toString('hex'), 12);
       const newUser = await prisma.user.create({
         data: {
           email: userInfo.email,

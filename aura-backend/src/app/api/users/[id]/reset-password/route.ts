@@ -52,7 +52,7 @@ export async function POST(
     }
 
     // Hash da nova senha
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     // Atualizar senha
     await prisma.user.update({

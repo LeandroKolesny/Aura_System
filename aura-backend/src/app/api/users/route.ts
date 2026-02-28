@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     // Hash da senha (gera uma aleatória se não fornecida)
     const passwordToHash = password || randomBytes(16).toString('hex').slice(0, 16);
-    const hashedPassword = await bcrypt.hash(passwordToHash, 10);
+    const hashedPassword = await bcrypt.hash(passwordToHash, 12);
 
     // Mapear valores para enums corretos (Prisma requer UPPERCASE)
     const roleMap: Record<string, string> = {
