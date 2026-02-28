@@ -32,6 +32,18 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // CSRF protection: reject state-mutating requests from disallowed origins
+  const method = request.method;
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfOrigin = request.headers.get('origin');
+    if (csrfOrigin && !isOriginAllowed(csrfOrigin)) {
+      return new NextResponse(
+        JSON.stringify({ success: false, error: 'Forbidden' }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
   // Process normal request
   const response = await updateSession(request);
 
