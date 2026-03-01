@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Settings, LogOut, Syringe, Briefcase, Link as LinkIcon, Megaphone, LifeBuoy, Tag, BellRing, AlertTriangle, Save, Clock, BarChart3, Zap, Package, History, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Settings, LogOut, Syringe, Briefcase, Link as LinkIcon, Megaphone, LifeBuoy, Tag, BellRing, AlertTriangle, Save, Clock, BarChart3, Zap, Package, History, Menu, X, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, SystemModule } from '../types';
 import AuraLogo from './AuraLogo';
@@ -69,6 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
     { path: '/plans', label: 'Planos & Preços', icon: Tag, roles: [UserRole.OWNER] },
     { path: '/system-alerts', label: 'Alertas Sistema', icon: BellRing, roles: [UserRole.OWNER] },
     { path: '/financial', label: 'Financeiro', icon: DollarSign, roles: [UserRole.ADMIN, UserRole.OWNER], module: 'financial' },
+    { path: '/billing', label: 'Planos', icon: CreditCard, roles: [UserRole.ADMIN] },
     { path: '/access-link', label: 'Agenda Online', icon: LinkIcon, roles: [UserRole.ADMIN, UserRole.RECEPTIONIST, UserRole.ESTHETICIAN], module: 'online_booking' },
     { path: '/support', label: 'Suporte', icon: LifeBuoy, roles: [UserRole.ADMIN, UserRole.OWNER], module: 'support' },
   ];
@@ -133,7 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
         <aside
             className={`
               w-64 h-screen fixed left-0 top-0 flex flex-col z-[9999] text-white shadow-2xl transition-all duration-300
-              ${!isPatient ? 'bg-secondary-950' : ''}
+              ${!isPatient ? 'bg-secondary-900' : ''}
               ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
               lg:translate-x-0
             `}
@@ -148,7 +149,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
         </button>
 
         {/* Header */}
-        <div className={`p-5 lg:p-6 border-b shrink-0 ${isPatient ? 'border-white/10' : 'border-white/5'}`}>
+        <div className={`p-5 lg:p-6 border-b shrink-0 ${isPatient ? 'border-white/10' : 'border-secondary-800'}`}>
             {/* Logo + Nome da marca */}
             <div className="flex items-center gap-3 mb-5">
                 {isPatient && currentCompany?.logo ? (
@@ -209,24 +210,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
                 <button
                   key={item.path}
                   onClick={() => handleNavigation(item.path)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-sm relative ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-sm ${
                     active
                       ? (isPatient
                           ? 'bg-white font-semibold shadow-lg'
-                          : 'bg-white/10 text-white font-semibold')
+                          : 'bg-primary-600 text-white font-medium shadow-lg shadow-primary-900/20 translate-x-1')
                       : (isPatient
                           ? 'text-white/75 hover:bg-white/15 hover:text-white'
                           : 'text-secondary-400 hover:bg-white/5 hover:text-white')
                   }`}
                   style={active && isPatient ? { color: patientPrimaryColor } : {}}
                 >
-                  {/* Indicador ativo — barra lateral esquerda */}
-                  {active && !isPatient && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary-400 rounded-r-full" />
-                  )}
                   <item.icon className={`w-4 h-4 lg:w-4 lg:h-4 flex-shrink-0 transition-colors ${
                     active
-                      ? (isPatient ? '' : 'text-primary-400')
+                      ? (isPatient ? '' : 'text-white')
                       : (isPatient ? 'text-white/60 group-hover:text-white' : 'text-secondary-500 group-hover:text-secondary-300')
                   }`} />
                   <span className="tracking-wide text-[13px]">{item.label}</span>
@@ -236,7 +233,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
         </nav>
 
         {/* Rodapé */}
-        <div className={`px-3 py-4 border-t ${isPatient ? 'border-white/10' : 'border-white/5'}`}>
+        <div className={`px-3 py-4 border-t ${isPatient ? 'border-white/10' : 'border-secondary-800'}`}>
             <div className="grid grid-cols-2 gap-2">
                 {user?.role !== UserRole.PATIENT && (
                 <button

@@ -27,6 +27,7 @@ import Marketing from './pages/Marketing';
 import Inventory from './pages/Inventory';
 import PatientHistory from './pages/PatientHistory';
 import Onboarding from './pages/Onboarding';
+import Billing from './pages/admin/Billing';
 // King (Owner) Pages
 import KingLayout from './pages/king/KingLayout';
 import KingDashboard from './pages/king/KingDashboard';
@@ -92,7 +93,7 @@ const PrivateLayout: React.FC = () => {
       {/* Sidebar fora do flex container para evitar problemas de z-index */}
       <Sidebar isMobileOpen={isMobileMenuOpen} onMobileClose={() => setIsMobileMenuOpen(false)} />
 
-      <div className="min-h-screen bg-slate-50 overflow-x-clip">
+      <div className="min-h-screen bg-[#FDFBF8] overflow-x-clip">
         {/* Main content - responsivo: sem margem no mobile, com margem no desktop */}
         <main className="lg:ml-64 flex flex-col min-h-screen overflow-x-clip">
 
@@ -198,6 +199,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/financial" element={<Financial />} />
         <Route path="/access-link" element={<AccessLink />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/billing" element={<Billing />} />
         <Route path="/business-hours" element={<BusinessHoursSettings />} />
 
         {/* Rota de Histórico para Pacientes */}
