@@ -106,6 +106,8 @@ model Company {
   subscriptionExpiresAt   DateTime?
   lastPlan                Plan?
   customPrice             Decimal? @db.Decimal(10, 2) // Preço negociado (ENTERPRISE)
+  asaasCustomerId         String?
+  asaasSubscriptionId     String?
 
   // Status de vendas (CRM do OWNER)
   salesStatus             SalesStatus @default(NEW)
