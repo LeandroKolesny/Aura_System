@@ -747,6 +747,38 @@ export const plansApi = {
 };
 
 // ============================================
+// BILLING API
+// ============================================
+
+export interface BillingPlan {
+  id: string;
+  name: string;
+  displayName: string | null;
+  price: number;
+  features: string[];
+  maxProfessionals: number;
+  maxPatients: number;
+}
+
+export interface BillingPlansResponse {
+  plans: BillingPlan[];
+  currentPlan: string | null;
+  currentStatus: string | null;
+  subscriptionExpiresAt: string | null;
+}
+
+export const billingApi = {
+  getPlans: () =>
+    fetchApi<{ success: boolean; data: BillingPlansResponse }>('/api/billing/plans'),
+
+  checkout: (planId: string) =>
+    fetchApi<{ success: boolean; data: { subscriptionId: string; paymentUrl: string | null; planName: string } }>(
+      '/api/billing/checkout',
+      { method: 'POST', body: JSON.stringify({ planId }) }
+    ),
+};
+
+// ============================================
 // CALENDAR API
 // ============================================
 
@@ -791,6 +823,7 @@ export const api = {
   health: healthApi,
   companies: companiesApi,
   users: usersApi,
+  billing: billingApi,
   calendar: calendarApi,
   public: publicApi,
   king: kingApi,
