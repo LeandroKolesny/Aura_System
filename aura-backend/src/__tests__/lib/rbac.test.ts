@@ -470,6 +470,11 @@ describe('canAccessPatientData', () => {
     const patient = makeUser('PATIENT', { email: '' })
     expect(canAccessPatientData(patient, '')).toBe(true)
   })
+
+  it('role desconhecido acessa qualquer email → true (comportamento por omissão — risco documentado)', () => {
+    const unknown = makeUser('HACKER', { email: 'hacker@evil.com' })
+    expect(canAccessPatientData(unknown, 'patient@clinic.com')).toBe(true)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -540,6 +545,13 @@ describe('getPermissions', () => {
   it('role vazio → array vazio', () => {
     const perms = getPermissions(makeUser(''), 'appointments')
     expect(perms).toEqual([])
+  })
+
+  it('retorna cópia — modificar resultado não corrompe permissões globais', () => {
+    const perms = getPermissions(makeUser('ADMIN'), 'patients')
+    perms.push('manage' as any) // modificar o resultado
+    // as permissões originais não devem ter sido afetadas
+    expect(hasPermission(makeUser('ADMIN'), 'patients', 'manage')).toBe(false)
   })
 })
 

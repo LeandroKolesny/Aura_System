@@ -121,7 +121,7 @@ export function canAccessPatientData(
 export function getPermissions(user: AuthUser, resource: Resource): Action[] {
   const rolePermissions = PERMISSIONS[user.role];
   if (!rolePermissions) return [];
-  return rolePermissions[resource] || [];
+  return [...(rolePermissions[resource] || [])];
 }
 
 /**
