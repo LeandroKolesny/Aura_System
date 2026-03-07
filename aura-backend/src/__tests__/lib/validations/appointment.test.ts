@@ -352,27 +352,36 @@ describe('createAppointmentSchema', () => {
 // publicBookingSchema
 // ===========================================================================
 describe('publicBookingSchema', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2025-06-15T10:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const baseInput = {
+    procedureId: 'procedure-789',
+    professionalId: 'professional-456',
+    patientName: 'Ana Silva',
+    patientEmail: 'ana@example.com',
+    patientPhone: '11987654321',
+  }
+
   describe('date validation', () => {
-    beforeEach(() => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2025-06-15T10:00:00.000Z'))
-    })
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-
-    const baseInput = {
-      procedureId: 'procedure-789',
-      professionalId: 'professional-456',
-      patientName: 'Ana Silva',
-      patientEmail: 'ana@example.com',
-      patientPhone: '11987654321',
-    }
-
     it('valid input with date 3 hours from now → success', () => {
       const result = publicBookingSchema.safeParse({
         ...baseInput,
         date: new Date('2025-06-15T13:00:00.000Z').toISOString(),
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('date exactly 2 hours from now → success (boundary)', () => {
+      // now=10:00:00, schema does now.setHours(now.getHours() + 2) = 12:00:00, date >= 12:00:00
+      const result = publicBookingSchema.safeParse({
+        ...baseInput,
+        date: new Date('2025-06-15T12:00:00.000Z').toISOString(),
       })
       expect(result.success).toBe(true)
     })
@@ -386,7 +395,9 @@ describe('publicBookingSchema', () => {
       const messages = result.error?.issues.map((i) => i.message) ?? []
       expect(messages.some((m) => m.includes('Data inválida ou muito próxima'))).toBe(true)
     })
+  })
 
+  describe('patient field validation', () => {
     it('invalid email → fails', () => {
       const result = publicBookingSchema.safeParse({
         ...baseInput,
@@ -426,6 +437,8 @@ describe('updateAppointmentSchema', () => {
   })
 
   it('valid partial update with date, price and notes → success', () => {
+    // Note: updateAppointmentSchema.date is z.string().optional() with no format refine —
+    // any string value passes. This is intentional (backend validates on use).
     const result = updateAppointmentSchema.safeParse({
       date: '2025-07-01T10:00:00.000Z',
       price: 200,
