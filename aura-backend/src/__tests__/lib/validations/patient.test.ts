@@ -36,45 +36,6 @@ describe('createPatientSchema', () => {
       expect(result.success).toBe(true)
     })
 
-    it('with birthDate in the past → success', () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-03-07T12:00:00.000Z'))
-      try {
-        const result = createPatientSchema.safeParse({
-          name: 'Ana Silva',
-          email: 'ana@example.com',
-          phone: '1198765432',
-          birthDate: '1990-01-01',
-        })
-        expect(result.success).toBe(true)
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it('with all fields including anamnesisSummary → success', () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-03-07T12:00:00.000Z'))
-      try {
-        const result = createPatientSchema.safeParse({
-          name: 'Maria Oliveira',
-          email: 'maria@example.com',
-          phone: '11987654321',
-          birthDate: '1985-06-15',
-          cpf: '529.982.247-25',
-          status: 'LEAD',
-          anamnesisSummary: 'Paciente com histórico de alergia a determinados cosméticos.',
-        })
-        expect(result.success).toBe(true)
-        if (result.success) {
-          expect(result.data.anamnesisSummary).toBe(
-            'Paciente com histórico de alergia a determinados cosméticos.'
-          )
-        }
-      } finally {
-        vi.useRealTimers()
-      }
-    })
   })
 
   // -------------------------------------------------------------------------
@@ -100,7 +61,6 @@ describe('createPatientSchema', () => {
     })
 
     it('name with exactly 100 chars → success (maximum boundary)', () => {
-      const longName = 'A'.repeat(50) + ' ' + 'B'.repeat(49) // 101 chars without space, pad to 100
       const name100 = 'A'.repeat(49) + ' ' + 'B'.repeat(50) // 100 chars total
       const result = createPatientSchema.safeParse({
         name: name100,
@@ -204,6 +164,9 @@ describe('createPatientSchema', () => {
 
   // -------------------------------------------------------------------------
   // phone validation
+  // Note: phoneRegex is defined in patient.ts source but is NOT applied in the
+  // schema — only min(10)/max(20) length constraints are enforced. Any string
+  // of 10–20 chars passes, regardless of formatting.
   // -------------------------------------------------------------------------
   describe('phone validation', () => {
     it('phone with exactly 10 chars → success (minimum boundary)', () => {
@@ -307,6 +270,33 @@ describe('createPatientSchema', () => {
         birthDate: undefined,
       })
       expect(result.success).toBe(true)
+    })
+
+    it('with birthDate in the past and CPF → success (full valid input)', () => {
+      const result = createPatientSchema.safeParse({
+        ...baseInput,
+        birthDate: '1990-01-01',
+        cpf: '529.982.247-25',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('with all fields including anamnesisSummary → success', () => {
+      const result = createPatientSchema.safeParse({
+        name: 'Maria Oliveira',
+        email: 'maria@example.com',
+        phone: '11987654321',
+        birthDate: '1985-06-15',
+        cpf: '529.982.247-25',
+        status: 'LEAD',
+        anamnesisSummary: 'Paciente com histórico de alergia a determinados cosméticos.',
+      })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.anamnesisSummary).toBe(
+          'Paciente com histórico de alergia a determinados cosméticos.'
+        )
+      }
     })
   })
 
