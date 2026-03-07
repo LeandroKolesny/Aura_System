@@ -26,6 +26,15 @@ interface AsaasWebhookPayload {
 }
 
 export async function POST(request: NextRequest) {
+  // Validar token de autenticação do Asaas
+  const webhookToken = request.headers.get('asaas-access-token');
+  const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN;
+
+  if (expectedToken && webhookToken !== expectedToken) {
+    console.warn('[Asaas Webhook] Token inválido — requisição rejeitada');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   let payload: AsaasWebhookPayload;
 
   try {

@@ -79,10 +79,10 @@ export async function POST(request: NextRequest) {
   nextDueDate.setDate(nextDueDate.getDate() + 1);
   const nextDueDateStr = nextDueDate.toISOString().split('T')[0];
 
-  // Criar assinatura
+  // Criar assinatura — UNDEFINED permite que o cliente escolha PIX ou cartão no checkout
   const subscription = await createSubscription({
     customer: asaasCustomerId,
-    billingType: 'PIX',
+    billingType: 'UNDEFINED',
     value: Number(saasPlan.price),
     nextDueDate: nextDueDateStr,
     description: `Aura System — Plano ${saasPlan.displayName ?? saasPlan.name}`,
