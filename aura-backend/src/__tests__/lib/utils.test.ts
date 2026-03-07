@@ -1,7 +1,7 @@
 // aura-backend/src/__tests__/lib/utils.test.ts
 // Comprehensive tests for src/lib/utils.ts
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   cn,
   formatCurrency,
@@ -356,14 +356,17 @@ describe('delay', () => {
     }
   })
 
-  it('does not resolve before time elapses (fake timers)', () => {
+  it('does not resolve before time elapses (fake timers)', async () => {
     vi.useFakeTimers()
     try {
       let resolved = false
       delay(500).then(() => { resolved = true })
-      // Advance only 499ms — should NOT have resolved yet
       vi.advanceTimersByTime(499)
+      await Promise.resolve() // flush microtask queue
       expect(resolved).toBe(false)
+      vi.advanceTimersByTime(1)
+      await Promise.resolve() // flush microtask queue again
+      expect(resolved).toBe(true)
     } finally {
       vi.useRealTimers()
     }
