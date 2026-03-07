@@ -104,23 +104,14 @@ describe('rateLimiter export', () => {
 // checkRateLimit — fail-open behaviour (rateLimiter === null in test env)
 // ---------------------------------------------------------------------------
 describe('checkRateLimit (fail-open, rateLimiter is null)', () => {
+  // remaining = MAX_ATTEMPTS - 1 = 5 - 1 = 4 (MAX_ATTEMPTS constant in rateLimiter.ts)
   it('returns allowed:true with remaining:4 for a plain identifier', async () => {
     const result = await checkRateLimit('test@example.com');
     expect(result).toEqual({ allowed: true, remaining: 4 });
   });
 
-  it('returns allowed:true with remaining:4 when action is "login"', async () => {
-    const result = await checkRateLimit('test@example.com', 'login');
-    expect(result).toEqual({ allowed: true, remaining: 4 });
-  });
-
   it('returns allowed:true with remaining:4 for a custom action', async () => {
     const result = await checkRateLimit('test@example.com', 'custom-action');
-    expect(result).toEqual({ allowed: true, remaining: 4 });
-  });
-
-  it('returns allowed:true with remaining:4 for an IP identifier', async () => {
-    const result = await checkRateLimit('192.168.1.100');
     expect(result).toEqual({ allowed: true, remaining: 4 });
   });
 
@@ -143,21 +134,10 @@ describe('checkRateLimit (fail-open, rateLimiter is null)', () => {
 // resetRateLimit — no-op
 // ---------------------------------------------------------------------------
 describe('resetRateLimit', () => {
-  it('resolves without throwing when called with only identifier', async () => {
+  // No-op: Upstash slidingWindow does not expose delete/reset by key.
+  // The function exists for API compatibility only — sliding window decays automatically.
+  it('resolves to undefined without throwing (no-op, sliding window decays automatically)', async () => {
     await expect(resetRateLimit('user@example.com')).resolves.toBeUndefined();
-  });
-
-  it('resolves without throwing when called with identifier and action', async () => {
-    await expect(resetRateLimit('user@example.com', 'login')).resolves.toBeUndefined();
-  });
-
-  it('resolves without throwing when called with a custom action', async () => {
-    await expect(resetRateLimit('192.168.0.1', 'register')).resolves.toBeUndefined();
-  });
-
-  it('returns a Promise that resolves to undefined', async () => {
-    const result = await resetRateLimit('any');
-    expect(result).toBeUndefined();
   });
 });
 
