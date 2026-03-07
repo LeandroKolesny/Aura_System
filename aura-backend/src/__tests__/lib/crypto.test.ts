@@ -23,12 +23,10 @@ describe('crypto - AES-256-GCM', () => {
       expect(decrypt(encrypt(plaintext))).toBe(plaintext);
     });
 
-    it('handles an empty string (decrypt throws due to falsy empty ciphertext guard)', () => {
-      // encrypt('') produces "iv:authTag:" where the ciphertext part is an empty string.
-      // decrypt checks `if (!encryptedHex)` which is truthy for '', so it throws.
-      // This is a known limitation of the current implementation.
-      const plaintext = '';
-      expect(() => decrypt(encrypt(plaintext))).toThrow('Invalid encrypted data format');
+    it('empty string roundtrip returns empty string', () => {
+      const encrypted = encrypt('')
+      const decrypted = decrypt(encrypted)
+      expect(decrypted).toBe('')
     });
 
     it('handles unicode / Portuguese characters', () => {
@@ -152,23 +150,14 @@ describe('crypto - AES-256-GCM', () => {
     });
   });
 
-  describe('tampered IV throws or decrypts garbage', () => {
-    it('throws or returns wrong plaintext when IV is replaced', () => {
-      const plaintext = 'secret text';
-      const encrypted = encrypt(plaintext);
-      const parts = encrypted.split(':');
-      // Replace IV with a different fixed IV (same length)
-      parts[0] = 'aabbccddeeff00112233aabb';
-      // Either throws (if GCM auth fails due to different IV) or returns wrong data
-      let result: string | undefined;
-      try {
-        result = decrypt(parts.join(':'));
-      } catch {
-        // Expected — decryption failed due to auth tag mismatch
-        return;
-      }
-      // If it didn't throw, the plaintext must not match (auth tag coincidentally matches — extremely unlikely)
-      expect(result).not.toBe(plaintext);
+  describe('tampered IV throws', () => {
+    it('tampered IV throws during decrypt', () => {
+      const plaintext = 'test tamper IV'
+      const encrypted = encrypt(plaintext)
+      const [ivHex, authTagHex, encryptedHex] = encrypted.split(':')
+      const tamperedIV = 'deadbeef'.repeat(3) // 24 hex chars = 12 bytes, valid length but different value
+      const tampered = `${tamperedIV}:${authTagHex}:${encryptedHex}`
+      expect(() => decrypt(tampered)).toThrow()
     });
   });
 

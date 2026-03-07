@@ -42,7 +42,7 @@ export function decrypt(encryptedData: string): string {
   const key = getEncryptionKey();
   const [ivHex, authTagHex, encryptedHex] = encryptedData.split(':', 3);
 
-  if (!ivHex || !authTagHex || !encryptedHex) {
+  if (!ivHex || !authTagHex || encryptedHex === undefined) {
     throw new Error('Invalid encrypted data format');
   }
 
