@@ -235,12 +235,13 @@ export function useDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const result = await dashboardApi.getStats(period);
+      const days = period ? Number(period) : undefined;
+      const result = await dashboardApi.getStats(days);
       if (result.success && result.data) {
-        setMetrics(result.data.metrics);
+        setMetrics(result.data.kpis);
         setCharts(result.data.charts);
         setAlerts(result.data.alerts);
-        setActivities(result.data.recentActivities || []);
+        setActivities([]);
       } else {
         setError(result.error || 'Erro ao carregar dashboard');
       }

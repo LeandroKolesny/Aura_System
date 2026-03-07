@@ -154,7 +154,7 @@ const KingRevenue: React.FC = () => {
       }
 
       // Planos vêm como array direto ou dentro de data
-      const plansData = plansRes.data as SaasPlan[] | { plans: SaasPlan[] };
+      const plansData = plansRes.data as unknown as SaasPlan[] | { plans: SaasPlan[] };
       if (plansRes.success && plansData) {
         const plans = Array.isArray(plansData) ? plansData : (plansData as any).plans || [];
         setSaasPlans(plans);

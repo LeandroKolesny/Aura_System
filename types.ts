@@ -260,9 +260,10 @@ export interface Lead {
   phone: string;
   email: string;
   status: LeadStatus;
-  value: number; 
+  value: number;
   createdAt: string;
   notes?: string;
+  companyId?: string;
 }
 
 export interface TicketMessage {

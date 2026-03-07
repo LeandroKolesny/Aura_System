@@ -932,7 +932,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           email: adminData.email,
           password: adminData.password,
           companyName: companyName,
-          state: adminData.state,
         });
 
         if (!response.success) {
@@ -1336,8 +1335,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
 
           // Atualizar estoque local (já foi atualizado na API)
-          if (response.data?.inventory) {
-            response.data.inventory.forEach((item: any) => {
+          const responseData = response.data as any;
+          if (responseData?.inventory) {
+            responseData.inventory.forEach((item: any) => {
               setInventory(prev => prev.map(i => i.id === item.id ? { ...i, currentStock: Number(item.currentStock) } : i));
             });
           }
@@ -1595,6 +1595,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             id: response.data.plan.id,
             name: response.data.plan.name,
             price: Number(response.data.plan.price),
+            maxProfessionals: response.data.plan.maxProfessionals ?? -1,
+            maxPatients: response.data.plan.maxPatients ?? -1,
+            modules: response.data.plan.modules || [],
             features: response.data.plan.features || [],
             active: response.data.plan.active ?? true,
             stripePaymentLink: response.data.plan.stripePaymentLink || '',
@@ -1620,6 +1623,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             id: response.data.plan.id,
             name: response.data.plan.name,
             price: Number(response.data.plan.price),
+            maxProfessionals: response.data.plan.maxProfessionals ?? -1,
+            maxPatients: response.data.plan.maxPatients ?? -1,
+            modules: response.data.plan.modules || [],
             features: response.data.plan.features || [],
             active: response.data.plan.active ?? true,
             stripePaymentLink: response.data.plan.stripePaymentLink || '',

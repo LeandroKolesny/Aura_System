@@ -714,6 +714,9 @@ export interface SaasPlan {
   id: string;
   name: string;
   price: number;
+  maxProfessionals?: number;
+  maxPatients?: number;
+  modules?: string[];
   features: string[];
   active: boolean;
   stripePaymentLink: string;
