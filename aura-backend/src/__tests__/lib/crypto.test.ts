@@ -117,13 +117,10 @@ describe('crypto - AES-256-GCM', () => {
     });
 
     it('throws when ciphertext first hex char is flipped', () => {
-      const encrypted = encrypt('sensitive data');
+      const encrypted = encrypt('sensitive data'); // 14 bytes — ciphertext is never empty
       const parts = encrypted.split(':');
       const ct = parts[2];
-      if (ct.length === 0) {
-        // Empty ciphertext — cannot tamper, skip
-        return;
-      }
+      expect(ct.length).toBeGreaterThan(0); // assert assumption rather than silently skip
       const firstChar = ct[0];
       const flipped = firstChar === 'f' ? '0' : 'f';
       parts[2] = flipped + ct.slice(1);
