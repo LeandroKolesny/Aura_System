@@ -16,6 +16,7 @@ vi.mock('../../lib/prisma', () => ({
   },
 }))
 
+import type { User } from '@prisma/client'
 import {
   generateJWT,
   verifyJWT,
@@ -37,6 +38,7 @@ const BASE_USER = {
   email: 'test@aura.com',
   role: 'ADMIN',
   companyId: 'company-001',
+  tokenVersion: 0,
 }
 
 const DB_USER_ACTIVE = {
@@ -46,6 +48,7 @@ const DB_USER_ACTIVE = {
   role: 'ADMIN',
   companyId: 'company-001',
   isActive: true,
+  tokenVersion: 0,
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +251,7 @@ describe('getAuthUser', () => {
 
   describe('token via cookie aura_session', () => {
     it('cookie válido com usuário ativo retorna AuthUser', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
       const token = generateJWT(BASE_USER)
       const req = makeRequestWithCookie(token)
       const user = await getAuthUser(req)
@@ -258,7 +261,7 @@ describe('getAuthUser', () => {
     })
 
     it('cookie válido retorna name do banco', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
       const token = generateJWT(BASE_USER)
       const req = makeRequestWithCookie(token)
       const user = await getAuthUser(req)
@@ -282,7 +285,7 @@ describe('getAuthUser', () => {
 
   describe('token via header Authorization: Bearer', () => {
     it('header válido com usuário ativo retorna AuthUser', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
       const token = generateJWT(BASE_USER)
       const req = makeRequestWithHeader(token)
       const user = await getAuthUser(req)
@@ -311,7 +314,7 @@ describe('getAuthUser', () => {
   describe('usuário inativo', () => {
     it('usuário com isActive: false → null', async () => {
       const inactiveUser = { ...DB_USER_ACTIVE, isActive: false }
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(inactiveUser as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(inactiveUser as unknown as User)
       const token = generateJWT(BASE_USER)
       const req = makeRequestWithCookie(token)
       const user = await getAuthUser(req)
@@ -320,7 +323,7 @@ describe('getAuthUser', () => {
 
     it('prisma não é chamado mais de 1x quando usuário inativo (sem cache para inativo)', async () => {
       const inactiveUser = { ...DB_USER_ACTIVE, isActive: false }
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(inactiveUser as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(inactiveUser as unknown as User)
       const token = generateJWT(BASE_USER)
       const req = makeRequestWithCookie(token)
       await getAuthUser(req)
@@ -341,7 +344,7 @@ describe('getAuthUser', () => {
         ...DB_USER_ACTIVE,
         role: 'PATIENT', // banco tem PATIENT
       }
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(dbUserAsPatient as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(dbUserAsPatient as unknown as User)
 
       // JWT afirma OWNER — isso seria um JWT forjado com role elevado
       const jwtWithOwner = generateJWT({ ...BASE_USER, role: 'OWNER' })
@@ -356,7 +359,7 @@ describe('getAuthUser', () => {
 
     it('JWT com role ADMIN mas banco retorna RECEPTIONIST → retorna RECEPTIONIST', async () => {
       const dbUserReceptionist = { ...DB_USER_ACTIVE, role: 'RECEPTIONIST' }
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(dbUserReceptionist as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(dbUserReceptionist as unknown as User)
 
       const jwtWithAdmin = generateJWT({ ...BASE_USER, role: 'ADMIN' })
       const req = makeRequestWithHeader(jwtWithAdmin)
@@ -367,7 +370,7 @@ describe('getAuthUser', () => {
 
     it('JWT com role PATIENT mas banco retorna OWNER → retorna OWNER (banco prevalece sempre)', async () => {
       const dbUserOwner = { ...DB_USER_ACTIVE, role: 'OWNER' }
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(dbUserOwner as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(dbUserOwner as unknown as User)
 
       const jwtWithPatient = generateJWT({ ...BASE_USER, role: 'PATIENT' })
       const req = makeRequestWithCookie(jwtWithPatient)
@@ -382,7 +385,7 @@ describe('getAuthUser', () => {
   // =========================================================================
   describe('cache de 15s', () => {
     it('segunda chamada com mesmo token usa cache (findUnique chamado só 1x)', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
       const token = generateJWT(BASE_USER)
 
       // Primeira chamada — vai ao banco
@@ -394,7 +397,7 @@ describe('getAuthUser', () => {
     })
 
     it('após clearUserCache(token), próxima chamada busca no banco novamente', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
       const token = generateJWT(BASE_USER)
 
       // Primeira chamada — popula cache
@@ -410,7 +413,7 @@ describe('getAuthUser', () => {
     })
 
     it('após clearUserCache() sem argumento, próxima chamada busca no banco', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
       const token = generateJWT(BASE_USER)
 
       // Popula cache
@@ -426,7 +429,7 @@ describe('getAuthUser', () => {
     })
 
     it('tokens diferentes não compartilham cache', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
 
       const userA = { id: 'user-A', email: 'a@a.com', role: 'ADMIN', companyId: 'c-A' }
       const userB = { id: 'user-B', email: 'b@b.com', role: 'PATIENT', companyId: 'c-B' }
@@ -447,7 +450,7 @@ describe('getAuthUser', () => {
 // ===========================================================================
 describe('clearUserCache', () => {
   it('clearUserCache(token) remove apenas o token específico do cache', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
 
     const tokenA = generateJWT(BASE_USER)
     const userB = { id: 'user-B', email: 'b@b.com', role: 'PATIENT', companyId: 'c-B' }
@@ -468,7 +471,7 @@ describe('clearUserCache', () => {
   })
 
   it('clearUserCache() sem argumento limpa todos os tokens', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(DB_USER_ACTIVE as unknown as User)
 
     const tokenA = generateJWT(BASE_USER)
     const tokenB = generateJWT({ id: 'u-B', email: 'b@b.com', role: 'PATIENT', companyId: 'c-B' })

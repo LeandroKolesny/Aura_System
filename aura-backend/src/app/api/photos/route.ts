@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
+
+const createPhotoSchema = z.object({
+  patientId: z.string().cuid(),
+  url: z.string().url().max(2000).refine(
+    (u) => u.startsWith('https://') || u.startsWith('http://'),
+    { message: "URL deve usar scheme http ou https" }
+  ),
+  type: z.enum(["BEFORE", "AFTER"]),
+  procedure: z.string().min(1).max(100),
+  groupId: z.string().max(100).optional(),
+  date: z.string().datetime().optional(),
+});
 
 // GET - Listar fotos
 export async function GET(request: NextRequest) {
@@ -14,9 +28,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const patientId = searchParams.get("patientId");
     const groupId = searchParams.get("groupId");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const rawLimit = parseInt(searchParams.get("limit") || "50");
+    const limit = Math.min(Math.max(rawLimit, 1), 100); // cap 1–100
 
-    const where: any = { companyId: user.companyId };
+    const where: Prisma.PhotoRecordWhereInput = { companyId: user.companyId! };
     if (patientId) where.patientId = patientId;
     if (groupId) where.groupId = groupId;
 
@@ -47,21 +62,23 @@ export async function POST(request: NextRequest) {
     const writeError = await checkWriteAccess(user);
     if (writeError) return writeError;
 
-    const body = await request.json();
-    const { patientId, url, type, procedure, groupId, date } = body;
+    const rawBody = await request.json();
+    const validation = createPhotoSchema.safeParse(rawBody);
 
-    if (!patientId || !url || !type || !procedure) {
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "Campos obrigatórios: patientId, url, type, procedure" },
+        { error: "Dados inválidos", details: validation.error.flatten() },
         { status: 400 }
       );
     }
+
+    const { patientId, url, type, procedure, groupId, date } = validation.data;
 
     const photo = await prisma.photoRecord.create({
       data: {
         patientId,
         url,
-        type: type.toUpperCase(),
+        type,
         procedure,
         groupId: groupId || `group_${Date.now()}`,
         date: date ? new Date(date) : new Date(),
@@ -107,4 +124,3 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
-

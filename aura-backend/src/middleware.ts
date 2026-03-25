@@ -9,7 +9,7 @@ const allowedOrigins = [
   "https://aura-system-mu.vercel.app",
 ];
 
-function isOriginAllowed(origin: string | null): boolean {
+export function isOriginAllowed(origin: string | null): boolean {
   if (!origin) return false;
   return allowedOrigins.some((allowed) => {
     if (typeof allowed === "string") return allowed === origin;
@@ -32,14 +32,17 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // CSRF protection: reject state-mutating requests from disallowed origins
+  // CSRF protection: rejeita requests de mutação de origens não permitidas.
+  // Inclui origin=null (file://, iframes sandboxed, data: URLs) para prevenir
+  // null-origin bypass — um atacante servindo HTML local conseguiria enviar
+  // cookies de sessão sem esta proteção.
   const { pathname } = request.nextUrl;
   const method = request.method;
   if (
     ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
     !pathname.startsWith("/api/webhooks/")
   ) {
-    if (origin && !isOriginAllowed(origin)) {
+    if (!origin || !isOriginAllowed(origin)) {
       return new NextResponse(
         JSON.stringify({ success: false, error: "Forbidden" }),
         { status: 403, headers: { "Content-Type": "application/json" } }

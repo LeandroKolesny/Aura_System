@@ -26,14 +26,16 @@ describe('getClientIP', () => {
       expect(getClientIP(req)).toBe('1.2.3.4');
     });
 
-    it('returns the first IP in a comma-separated chain', () => {
+    it('returns the last IP in a comma-separated chain (trusted proxy, prevents spoofing)', () => {
+      // Security: using the last IP prevents an attacker from injecting a fake IP
+      // as the first entry. The last IP is added by the trusted server-side proxy.
       const req = makeRequest({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8, 9.0.1.2' });
-      expect(getClientIP(req)).toBe('1.2.3.4');
+      expect(getClientIP(req)).toBe('9.0.1.2');
     });
 
-    it('trims leading and trailing whitespace from the first IP', () => {
-      const req = makeRequest({ 'x-forwarded-for': '  1.2.3.4  , 5.6.7.8' });
-      expect(getClientIP(req)).toBe('1.2.3.4');
+    it('trims leading and trailing whitespace from the last IP', () => {
+      const req = makeRequest({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8  ' });
+      expect(getClientIP(req)).toBe('5.6.7.8');
     });
 
     it('returns the IP even when the chain contains only one entry with extra spaces', () => {
@@ -49,9 +51,8 @@ describe('getClientIP', () => {
       expect(getClientIP(req)).toBe('1.1.1.1');
     });
 
-    it('documents that x-forwarded-for is accepted as-is (spoofable by client)', () => {
-      // Security note: x-forwarded-for can be forged by an end user.
-      // The function trusts it unconditionally — callers should be aware.
+    it('returns single entry as-is when chain has only one IP', () => {
+      // With a single entry, first === last, so no spoofing concern.
       const req = makeRequest({ 'x-forwarded-for': 'spoofed-ip' });
       expect(getClientIP(req)).toBe('spoofed-ip');
     });
