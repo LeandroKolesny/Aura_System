@@ -17,7 +17,8 @@ export type SystemModule =
   | "multi_user"
   | "reports"
   | "inventory"
-  | "photos";
+  | "photos"
+  | "whatsapp_notifications";
 
 interface CompanyInfo {
   plan: Plan;
