@@ -6,6 +6,7 @@ import { UserRole } from '../types';
 import { maskCpfCnpj, maskPhone, validateCpfCnpj } from '../utils/maskUtils';
 import { useNavigate } from 'react-router-dom';
 import { calendarApi } from '../services/api';
+import WhatsAppSettings from '../components/WhatsAppSettings';
 
 const Settings: React.FC = () => {
   const { currentCompany, user, updateCompany, setHasUnsavedChanges, triggerSave, setTriggerSave, pendingNavigationPath, setPendingNavigationPath, setIsSubscriptionModalOpen } = useApp();
@@ -283,7 +284,7 @@ const Settings: React.FC = () => {
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-secondary-900">Configurações</h1>
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Configurações</h1>
           <p className="text-slate-500">Gerencie o perfil do negócio e preferências.</p>
         </div>
         {calendarConnected ? (
@@ -540,6 +541,9 @@ const Settings: React.FC = () => {
               <Shield className="w-3 h-3" /> Ambiente seguro. Gerenciado pelo Aura System.
            </p>
         </section>
+
+        {/* WhatsApp — Confirmações (plano Premium) */}
+        <WhatsAppSettings />
 
         {/* Botão de Salvar (FIXED POSITION AT BOTTOM) */}
         <div className="mt-8 border-t border-slate-200 pt-6 flex justify-end">

@@ -90,7 +90,7 @@ export const authApi = {
     return result;
   },
 
-  async register(data: { name: string; email: string; password: string; companyName: string }) {
+  async register(data: { name: string; email: string; password: string; companyName: string; acceptedTerms?: boolean }) {
     return fetchApi<{ user: any; company: any }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -117,6 +117,34 @@ export const authApi = {
     return fetchApi('/api/auth/google/setup-company', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async verifyEmail(token: string) {
+    return fetchApi('/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  async resendVerification(email: string) {
+    return fetchApi('/api/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async forgotPassword(email: string) {
+    return fetchApi('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async resetPassword(token: string, password: string) {
+    return fetchApi('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
     });
   },
 };
@@ -779,6 +807,11 @@ export const billingApi = {
       '/api/billing/checkout',
       { method: 'POST', body: JSON.stringify({ planId }) }
     ),
+
+  getStatus: () =>
+    fetchApi<{ success: boolean; data: { status: string; plan: string; expiresAt: string | null } }>(
+      '/api/billing/status'
+    ),
 };
 
 // ============================================
@@ -804,6 +837,126 @@ export const calendarApi = {
   async sync() {
     return fetchApi<{ success: boolean; synced: number }>('/api/auth/google/calendar/sync', { method: 'POST' });
   },
+};
+
+// ============================================
+// SUBSCRIPTIONS API (Clube de Assinaturas)
+// ============================================
+
+export interface SubscriptionPlanItem {
+  id: string;
+  procedureId: string;
+  sessionsPerCycle: number;
+  procedure: { id: string; name: string; price: number };
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price: number;
+  description: string | null;
+  isActive: boolean;
+  companyId: string;
+  createdAt: string;
+  items: SubscriptionPlanItem[];
+  _count?: { subscribers: number };
+}
+
+export interface PatientSubscription {
+  id: string;
+  status: 'ACTIVE' | 'PAUSED' | 'CANCELED' | 'OVERDUE';
+  startDate: string;
+  nextBillingDate: string;
+  sessionsUsedThisCycle: Record<string, number>;
+  lastCycleReset: string;
+  asaasSubscriptionId: string | null;
+  patientId: string;
+  planId: string;
+  companyId: string;
+  patient: { id: string; name: string; phone: string; email: string };
+  plan: SubscriptionPlan;
+}
+
+export const subscriptionsApi = {
+  // Plans
+  async listPlans(includeInactive = false) {
+    return fetchApi<SubscriptionPlan[]>(`/api/subscriptions/plans${includeInactive ? '?includeInactive=true' : ''}`);
+  },
+  async createPlan(data: { name: string; price: number; description?: string; items: { procedureId: string; sessionsPerCycle: number }[] }) {
+    return fetchApi<SubscriptionPlan>('/api/subscriptions/plans', { method: 'POST', body: JSON.stringify(data) });
+  },
+  async updatePlan(id: string, data: { name?: string; price?: number; description?: string; isActive?: boolean; items?: { procedureId: string; sessionsPerCycle: number }[] }) {
+    return fetchApi<SubscriptionPlan>(`/api/subscriptions/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  async deactivatePlan(id: string) {
+    return fetchApi(`/api/subscriptions/plans/${id}`, { method: 'DELETE' });
+  },
+
+  // Subscribers
+  async listSubscribers(status?: string) {
+    const qs = status ? `?status=${status}` : '';
+    return fetchApi<PatientSubscription[]>(`/api/subscriptions/patients${qs}`);
+  },
+  async subscribe(data: { patientId: string; planId: string; nextBillingDate: string; asaasSubscriptionId?: string; asaasCustomerId?: string }) {
+    return fetchApi<PatientSubscription>('/api/subscriptions/patients', { method: 'POST', body: JSON.stringify(data) });
+  },
+  async cancel(subscriptionId: string) {
+    return fetchApi<PatientSubscription>(`/api/subscriptions/patients/${subscriptionId}/cancel`, { method: 'PUT' });
+  },
+};
+
+// ============================================
+// RETENTION API
+// ============================================
+
+export interface RetentionPatient {
+  id: string;
+  name: string;
+  phone: string;
+  lastProcedure: string;
+  lastVisit: string;
+  expectedReturn: string;
+  daysOverdue: number;
+  risk: 'attention' | 'at_risk' | 'lost';
+  intervalUsed: number;
+  isDefaultInterval: boolean;
+}
+
+export interface RetentionReport {
+  summary: { attention: number; at_risk: number; lost: number; retentionRate: number };
+  patients: RetentionPatient[];
+}
+
+export const retentionApi = {
+  async getReport(params?: { period?: 30 | 60 | 90; professionalId?: string }) {
+    const query = new URLSearchParams();
+    if (params?.period) query.set('period', String(params.period));
+    if (params?.professionalId) query.set('professionalId', params.professionalId);
+    const qs = query.toString();
+    return fetchApi<RetentionReport>(`/api/retention${qs ? `?${qs}` : ''}`);
+  },
+};
+
+// ============================================
+// WHATSAPP API
+// ============================================
+
+export const whatsappApi = {
+  getStatus: () => fetchApi<{
+    status: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING'
+    phoneNumber?: string
+    termsAccepted: boolean
+    qrCode?: string | null
+  }>('/api/whatsapp/instance'),
+
+  connect: (acceptTerms: boolean) =>
+    fetchApi<{ qrCode: string; status: string }>('/api/whatsapp/instance', {
+      method: 'POST',
+      body: JSON.stringify({ acceptTerms }),
+    }),
+
+  disconnect: () =>
+    fetchApi<{ success: boolean }>('/api/whatsapp/instance', { method: 'DELETE' }),
 };
 
 // Export all APIs
@@ -832,6 +985,9 @@ export const api = {
   king: kingApi,
   system: systemApi,
   plans: plansApi,
+  subscriptions: subscriptionsApi,
+  retention: retentionApi,
+  whatsapp: whatsappApi,
 };
 
 export default api;
