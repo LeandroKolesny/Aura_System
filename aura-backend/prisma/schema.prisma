@@ -26,6 +26,22 @@ model User {
   role          UserRole  @default(ESTHETICIAN)
   isActive      Boolean   @default(true)
   emailVerified DateTime?
+
+  // Verificação de email
+  verificationToken       String?   @unique
+  verificationTokenExpiry DateTime?
+
+  // Reset de senha
+  resetPasswordToken      String?   @unique
+  resetPasswordExpiry     DateTime?
+
+  // Invalidação de tokens JWT após troca de senha
+  tokenVersion            Int       @default(0)
+
+  // Aceite de termos (LGPD)
+  acceptedTermsAt         DateTime?
+  acceptedTermsVersion    String?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -147,6 +163,9 @@ model Company {
   notifications        AppNotification[]
   tickets              Ticket[]
   leads                Lead[]
+  subscriptionPlans    SubscriptionPlan[]
+  patientSubscriptions PatientSubscription[]
+  whatsappInstance     WhatsappInstance?
 
   @@map("companies")
 }
@@ -207,6 +226,7 @@ model Patient {
   appointments    Appointment[]
   photos          PhotoRecord[]
   transactions    Transaction[]
+  subscriptions   PatientSubscription[]
 
   // Índices para performance
   @@index([companyId])
@@ -246,8 +266,9 @@ model Procedure {
   // Relacionamentos
   company         Company       @relation(fields: [companyId], references: [id])
   companyId       String
-  supplies        ProcedureSupply[]
-  appointments    Appointment[]
+  supplies             ProcedureSupply[]
+  appointments         Appointment[]
+  subscriptionPlanItems SubscriptionPlanItem[]
 
   // Índices para performance
   @@index([companyId])
@@ -712,4 +733,100 @@ model SystemSettings {
   updatedAt            DateTime  @updatedAt
 
   @@map("system_settings")
+}
+
+// ============================================
+// MÓDULO: CLUBE DE ASSINATURAS
+// ============================================
+
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  name        String
+  price       Decimal  @db.Decimal(10, 2)
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  company     Company               @relation(fields: [companyId], references: [id])
+  companyId   String
+  items       SubscriptionPlanItem[]
+  subscribers PatientSubscription[]
+
+  @@index([companyId])
+  @@index([companyId, isActive])
+  @@map("subscription_plans")
+}
+
+model SubscriptionPlanItem {
+  id               String           @id @default(cuid())
+  sessionsPerCycle Int
+
+  // Relacionamentos
+  plan             SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId           String
+  procedure        Procedure        @relation(fields: [procedureId], references: [id])
+  procedureId      String
+
+  @@index([planId])
+  @@map("subscription_plan_items")
+}
+
+model PatientSubscription {
+  id                  String                   @id @default(cuid())
+  status              PatientSubscriptionStatus @default(ACTIVE)
+  startDate           DateTime                 @default(now())
+  nextBillingDate     DateTime
+  sessionsUsedThisCycle Json                   // { "procedureId": sessionsUsadas }
+  lastCycleReset      DateTime                 @default(now())
+  asaasSubscriptionId String?
+  asaasCustomerId     String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  // Relacionamentos
+  patient             Patient          @relation(fields: [patientId], references: [id])
+  patientId           String
+  plan                SubscriptionPlan @relation(fields: [planId], references: [id])
+  planId              String
+  company             Company          @relation(fields: [companyId], references: [id])
+  companyId           String
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([patientId])
+  @@map("patient_subscriptions")
+}
+
+enum PatientSubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+  OVERDUE
+}
+
+// ============================================
+// MÓDULO: WHATSAPP
+// ============================================
+
+enum WhatsappInstanceStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+}
+
+model WhatsappInstance {
+  id               String                   @id @default(cuid())
+  companyId        String                   @unique
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  instanceName     String                   @unique
+  status           WhatsappInstanceStatus   @default(DISCONNECTED)
+  phoneNumber      String?
+  termsAccepted    Boolean                  @default(false)
+  termsAcceptedAt  DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@index([companyId])
 }
