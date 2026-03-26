@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { updateStatusSchema } from "@/lib/validations/appointment";
 import { deleteCalendarEvent, pushAppointmentToCalendar } from "@/lib/calendarSync";
+import { sendTextMessage } from "@/lib/whatsapp";
+import { buildConfirmationMessage, formatDate, formatTime } from "@/lib/whatsappMessages";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -80,7 +82,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const appointment = await prisma.appointment.findFirst({
       where: { id, companyId: user.companyId },
-      include: { patient: true, procedure: true },
+      include: {
+        patient: true,
+        procedure: true,
+        professional: { select: { id: true, name: true } },
+      },
     });
 
     if (!appointment) {
@@ -181,6 +187,37 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       deleteCalendarEvent(id).catch(console.error);
     } else {
       pushAppointmentToCalendar(id).catch(console.error);
+    }
+
+    // Disparar WhatsApp de confirmação (fire-and-forget)
+    if (status === "CONFIRMED") {
+      ;(async () => {
+        try {
+          const waInstance = await prisma.whatsappInstance.findUnique({
+            where: { companyId: user.companyId! },
+          })
+          if (waInstance?.status !== "CONNECTED") return
+          if (!appointment.patient.phone) return
+
+          const company = await prisma.company.findUnique({
+            where: { id: user.companyId! },
+            select: { name: true },
+          })
+
+          const msg = buildConfirmationMessage({
+            patientName: appointment.patient.name,
+            clinicName: company?.name ?? "a clínica",
+            date: formatDate(appointment.date),
+            time: formatTime(appointment.date),
+            procedure: appointment.procedure.name,
+            professional: appointment.professional?.name ?? "",
+          })
+
+          await sendTextMessage(user.companyId!, appointment.patient.phone, msg)
+        } catch (err) {
+          console.error("[WhatsApp] Falha ao enviar confirmação:", err)
+        }
+      })()
     }
 
     return NextResponse.json({ appointment: updated });
