@@ -3,18 +3,32 @@ import { createAdminClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { randomBytes } from "crypto";
 import { slugify } from "@/lib/utils";
+import { sendVerificationEmail, TERMS_VERSION } from "@/lib/email";
+import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres"),
   companyName: z.string().min(2, "Nome da empresa deve ter pelo menos 2 caracteres").optional(),
   state: z.string().length(2, "Estado deve ter 2 caracteres (ex: SP, RJ)").optional(),
+  acceptedTerms: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting: máx 5 registros por IP a cada 15 minutos
+    const clientIP = getClientIP(request);
+    const rateLimit = await checkRateLimit(clientIP, "register");
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Muitas tentativas de cadastro. Aguarde alguns minutos." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const validation = registerSchema.safeParse(body);
 
@@ -25,7 +39,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, email, password, companyName, state } = validation.data;
+    const { name, email, password, companyName, state, acceptedTerms } = validation.data;
 
     // Verificar se usuário já existe
     const existingUser = await prisma.user.findUnique({
@@ -110,6 +124,11 @@ export async function POST(request: NextRequest) {
       companyId = company.id;
     }
 
+    // Gerar token de verificação de email
+    const verificationToken = randomBytes(32).toString("hex");
+    const verificationTokenExpiry = new Date();
+    verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24);
+
     // Criar usuário no Prisma
     const user = await prisma.user.create({
       data: {
@@ -119,6 +138,10 @@ export async function POST(request: NextRequest) {
         role: companyId ? "ADMIN" : "ESTHETICIAN",
         companyId,
         isActive: true,
+        verificationToken,
+        verificationTokenExpiry,
+        acceptedTermsAt: acceptedTerms ? new Date() : null,
+        acceptedTermsVersion: acceptedTerms ? TERMS_VERSION : null,
       },
       select: {
         id: true,
@@ -129,11 +152,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Enviar email de verificação (fire-and-forget — não bloqueia registro)
+    sendVerificationEmail(email, name, verificationToken).catch((err) =>
+      console.error("Erro ao enviar email de verificação:", err)
+    );
+
     console.log("✅ Usuário criado com sucesso:", user.email);
 
     return NextResponse.json(
       {
-        message: "Conta criada com sucesso!",
+        message: "Conta criada com sucesso! Verifique seu email para ativar o acesso.",
         user,
       },
       { status: 201 }

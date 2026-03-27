@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
         avatar: true,
         role: true,
         isActive: true,
+        tokenVersion: true,
+        emailVerified: true,
         company: {
           select: {
             id: true,
@@ -72,6 +74,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Sempre executar bcrypt.compare para equalizar timing (previne user enumeration via timing attack)
+    // Hash dummy usado quando o usuário não existe — custo idêntico ao hash real
+    const DUMMY_HASH = "$2b$12$invalidhashfortimingequaliza";
+    const isValidPassword = await bcrypt.compare(password, user?.password || DUMMY_HASH);
+
     if (!user) {
       // Log de tentativa falha
       logLoginFailure(email, "Usuário não encontrado", request);
@@ -81,8 +88,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar senha
-    const isValidPassword = await bcrypt.compare(password, user.password || "");
     if (!isValidPassword) {
       // Log de tentativa falha
       logLoginFailure(email, "Senha incorreta", request);
@@ -96,6 +101,19 @@ export async function POST(request: NextRequest) {
       logLoginFailure(email, "Conta desativada", request);
       return NextResponse.json(
         { error: "Conta desativada. Entre em contato com o suporte." },
+        { status: 403 }
+      );
+    }
+
+    // Verificar se email foi confirmado (exceto OWNER que é criado diretamente)
+    if (user.role !== "OWNER" && !user.emailVerified) {
+      logLoginFailure(email, "Email não verificado", request);
+      return NextResponse.json(
+        {
+          error: "Email não verificado",
+          message: "Verifique seu email antes de entrar. Não recebeu? Solicite o reenvio.",
+          code: "EMAIL_NOT_VERIFIED",
+        },
         { status: 403 }
       );
     }
@@ -131,6 +149,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       role: user.role,
       companyId: user.company?.id || null,
+      tokenVersion: user.tokenVersion,
     });
 
     // Remover senha da resposta

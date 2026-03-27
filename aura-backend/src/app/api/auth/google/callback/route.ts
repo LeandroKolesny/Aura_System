@@ -102,17 +102,9 @@ export async function GET(request: NextRequest) {
       }
 
       const token = generateJWT({ id: user.id, email: user.email, role: user.role, companyId: user.company?.id ?? null });
-      // SEC-FIX [SEC-ALTO-2]: redirect without ?token= in URL — JWT is conveyed
-      // exclusively via the httpOnly cookie set below, never via URL parameters.
-      const response = NextResponse.redirect(`${FRONTEND_URL}/login?google=ok`);
-      response.cookies.set('aura_session', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
-        maxAge: 60 * 60 * 24 * 7,
-        path: '/',
-      });
-      return response;
+      // Pass token via URL fragment (#) — never sent to any server, cleaned immediately by frontend.
+      // Cross-domain cookie approach failed because vercel.app subdomains are treated as cross-site.
+      return NextResponse.redirect(`${FRONTEND_URL}/login#google_token=${token}`);
     }
 
     // REGISTER MODE: create new ADMIN user (no company yet — company created in onboarding)
@@ -144,17 +136,8 @@ export async function GET(request: NextRequest) {
       });
 
       const token = generateJWT({ id: newUser.id, email: newUser.email, role: newUser.role, companyId: null });
-      // SEC-FIX [SEC-ALTO-2]: redirect without ?token= in URL — JWT is conveyed
-      // exclusively via the httpOnly cookie set below, never via URL parameters.
-      const response = NextResponse.redirect(`${FRONTEND_URL}/login?google=ok`);
-      response.cookies.set('aura_session', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
-        maxAge: 60 * 60 * 24 * 7,
-        path: '/',
-      });
-      return response;
+      // Pass token via URL fragment (#) — never sent to any server, cleaned immediately by frontend.
+      return NextResponse.redirect(`${FRONTEND_URL}/login#google_token=${token}`);
     }
 
     // Unknown mode fallback

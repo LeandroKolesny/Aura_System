@@ -23,11 +23,18 @@ import Support from './pages/Support';
 import Plans from './pages/Plans';
 import SystemAlerts from './pages/SystemAlerts';
 import Reports from './pages/Reports';
+import Subscriptions from './pages/Subscriptions';
 import Marketing from './pages/Marketing';
 import Inventory from './pages/Inventory';
 import PatientHistory from './pages/PatientHistory';
 import Onboarding from './pages/Onboarding';
 import Billing from './pages/admin/Billing';
+import BillingPending from './pages/admin/BillingPending';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import TermsOfUse from './pages/TermsOfUse';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 // King (Owner) Pages
 import KingLayout from './pages/king/KingLayout';
 import KingDashboard from './pages/king/KingDashboard';
@@ -98,15 +105,20 @@ const PrivateLayout: React.FC = () => {
         <main className="lg:ml-64 flex flex-col min-h-screen overflow-x-clip">
 
         {/* Header Mobile com Hamburger */}
-        <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+        <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between sticky top-0 z-30">
           <button
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
           >
-            <Menu className="w-6 h-6 text-slate-700" />
+            <Menu className="w-5 h-5 text-slate-700" />
           </button>
-          <span className="font-semibold text-slate-800">{currentCompany?.name || 'Aura System'}</span>
-          <div className="w-10" /> {/* Spacer para centralizar o título */}
+          <span className="font-semibold text-sm text-slate-800 truncate max-w-[160px]">{currentCompany?.name || 'Aura System'}</span>
+          {/* Avatar do usuário */}
+          <div className="min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+              {user?.name?.charAt(0).toUpperCase()}
+            </div>
+          </div>
         </div>
 
         {/* Banner de Aviso para Plano Expirado / Básico (Apenas para Staff) */}
@@ -168,6 +180,11 @@ const AppRoutes: React.FC = () => {
       {/* Rotas Públicas */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/verificar-email" element={<VerifyEmail />} />
+      <Route path="/esqueci-senha" element={<ForgotPassword />} />
+      <Route path="/redefinir-senha" element={<ResetPassword />} />
+      <Route path="/termos-de-uso" element={<TermsOfUse />} />
+      <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
       <Route path="/king" element={<KingLogin />} />
 
       {/* Rotas King (Owner) - Layout Exclusivo */}
@@ -197,9 +214,11 @@ const AppRoutes: React.FC = () => {
         <Route path="/procedures" element={<Procedures />} />
         <Route path="/professionals" element={<Professionals />} />
         <Route path="/financial" element={<Financial />} />
+        <Route path="/subscriptions" element={<Subscriptions />} />
         <Route path="/access-link" element={<AccessLink />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/billing" element={<Billing />} />
+        <Route path="/billing/aguardando" element={<BillingPending />} />
         <Route path="/business-hours" element={<BusinessHoursSettings />} />
 
         {/* Rota de Histórico para Pacientes */}
