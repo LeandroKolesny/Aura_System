@@ -20,6 +20,7 @@ const ADMIN_ROUTES = [
   'support',
   'plans',
   'system-alerts',
+  'subscriptions',
   'access-link',
   'business-hours',
   'onboarding',
