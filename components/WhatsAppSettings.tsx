@@ -7,7 +7,7 @@ import { UserRole } from '../types'
 type WaStatus = 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING'
 
 const WhatsAppSettings: React.FC = () => {
-  const { user } = useApp()
+  const { user, currentCompany } = useApp()
   const [isOpen, setIsOpen] = useState(false)
   const [status, setStatus] = useState<WaStatus>('DISCONNECTED')
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null)
@@ -177,15 +177,15 @@ const WhatsAppSettings: React.FC = () => {
                 <p className="text-xs font-semibold text-secondary-600 uppercase tracking-wider">Preview das mensagens automáticas</p>
                 <div className="bg-[#dcf8c6] rounded-xl p-3 text-xs text-secondary-800 space-y-1 border border-green-200">
                   <p className="font-semibold text-secondary-500 text-[10px] uppercase mb-1">Confirmação (imediato)</p>
-                  <p>Olá [Nome]!</p>
-                  <p>Aqui é o sistema de confirmações da <strong>[Clínica]</strong>.</p>
+                  <p>Olá [Nome do Paciente]!</p>
+                  <p>Aqui é o sistema de confirmações da <strong>{currentCompany?.name ?? '[Clínica]'}</strong>.</p>
                   <p>Agendamento <strong>confirmado</strong>: [Data] às [Hora]</p>
                   <p>[Procedimento] · [Profissional]</p>
                   <p>Por favor, <strong>salve este número</strong> nos contatos!</p>
                 </div>
                 <div className="bg-[#dcf8c6] rounded-xl p-3 text-xs text-secondary-800 space-y-1 border border-green-200">
                   <p className="font-semibold text-secondary-500 text-[10px] uppercase mb-1">Lembrete (24h antes)</p>
-                  <p>Olá [Nome]! Lembrete da <strong>[Clínica]</strong>:</p>
+                  <p>Olá [Nome do Paciente]! Lembrete da <strong>{currentCompany?.name ?? '[Clínica]'}</strong>:</p>
                   <p>Agendamento <strong>amanhã</strong> — [Data] às [Hora]</p>
                   <p>[Procedimento] · Te esperamos!</p>
                 </div>
