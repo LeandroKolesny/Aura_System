@@ -25,9 +25,10 @@ interface AuditLogParams {
   title: string;
   description?: string;
   userId: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
+  retainUntil?: Date;
 }
 
 /**
@@ -45,6 +46,7 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
         metadata: params.metadata || {},
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
+        retainUntil: params.retainUntil ?? null,
       },
     });
   } catch (error) {
@@ -79,6 +81,9 @@ export async function logLogin(
   request: Request
 ): Promise<void> {
   const { ipAddress, userAgent } = getRequestInfo(request);
+  // Marco Civil da Internet art. 13: registros de acesso devem ser retidos por 6 meses
+  const retainUntil = new Date();
+  retainUntil.setMonth(retainUntil.getMonth() + 6);
   await logActivity({
     type: "USER_LOGIN",
     title: `Login realizado: ${email}`,
@@ -86,6 +91,7 @@ export async function logLogin(
     ipAddress,
     userAgent,
     metadata: { email },
+    retainUntil,
   });
 }
 
@@ -128,8 +134,8 @@ export async function logFinancialAction(
 export async function logSettingsChange(
   userId: string,
   setting: string,
-  oldValue: any,
-  newValue: any
+  oldValue: unknown,
+  newValue: unknown
 ): Promise<void> {
   await logActivity({
     type: "SETTINGS_CHANGED",

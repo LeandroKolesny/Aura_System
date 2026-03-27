@@ -538,6 +538,7 @@ model Activity {
   metadata    Json?
   ipAddress   String?
   userAgent   String?
+  retainUntil DateTime?    // Marco Civil: manter por 6 meses
   createdAt   DateTime     @default(now())
 
   // Relacionamentos
