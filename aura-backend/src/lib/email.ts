@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { createHash } from 'crypto';
 
 // Lazy initialization — avoids build-time error when RESEND_API_KEY is not set
 function getResend(): Resend {
@@ -11,7 +12,15 @@ const FROM = 'Aura System <noreply@aura-system.com.br>';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://aura-system-mu.vercel.app';
 const TERMS_VERSION = '1.0';
 
-export { TERMS_VERSION };
+// Texto exibido ao usuário no momento do aceite dos Termos de Uso
+// SHA-256 grava a prova de qual conteúdo estava vigente quando a pessoa aceitou
+const TERMS_TEXT =
+  `Termos de Uso e Política de Privacidade do Aura System versão ${TERMS_VERSION}. ` +
+  'Ao se cadastrar, você concorda com o tratamento dos seus dados conforme a LGPD ' +
+  'e com os Termos de Uso disponíveis em /terms-of-use.';
+const TERMS_TEXT_HASH = createHash('sha256').update(TERMS_TEXT).digest('hex');
+
+export { TERMS_VERSION, TERMS_TEXT_HASH };
 
 // ── Layout base dos emails ──────────────────────────────────────────────────
 function baseTemplate(title: string, body: string): string {

@@ -3,9 +3,9 @@ import { createAdminClient } from "@/lib/supabase/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { slugify } from "@/lib/utils";
-import { sendVerificationEmail, TERMS_VERSION } from "@/lib/email";
+import { sendVerificationEmail, TERMS_VERSION, TERMS_TEXT_HASH } from "@/lib/email";
 import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
 
 const registerSchema = z.object({
@@ -142,6 +142,9 @@ export async function POST(request: NextRequest) {
         verificationTokenExpiry,
         acceptedTermsAt: acceptedTerms ? new Date() : null,
         acceptedTermsVersion: acceptedTerms ? TERMS_VERSION : null,
+        acceptedTermsIp: acceptedTerms ? (request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "unknown") : null,
+        acceptedTermsAgent: acceptedTerms ? (request.headers.get("user-agent") ?? "unknown") : null,
+        acceptedTermsHash: acceptedTerms ? TERMS_TEXT_HASH : null,
       },
       select: {
         id: true,

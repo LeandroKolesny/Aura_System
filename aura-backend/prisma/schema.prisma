@@ -38,9 +38,12 @@ model User {
   // Invalidação de tokens JWT após troca de senha
   tokenVersion            Int       @default(0)
 
-  // Aceite de termos (LGPD)
+  // Aceite de termos (LGPD) — dados para comprovação jurídica
   acceptedTermsAt         DateTime?
   acceptedTermsVersion    String?
+  acceptedTermsIp         String?   // IP no momento do aceite
+  acceptedTermsAgent      String?   // User-agent do navegador
+  acceptedTermsHash       String?   // SHA-256 do texto exibido
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
