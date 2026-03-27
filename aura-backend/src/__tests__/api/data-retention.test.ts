@@ -79,5 +79,10 @@ describe('GET /api/cron/data-retention', () => {
     expect(patientCall.data.name).toBe('Paciente Removido')
     expect(patientCall.data.cpf).toBeNull()
     expect(patientCall.data.birthDate).toBeNull()
+
+    // Verifica que o filtro de elegibilidade usa subscriptionStatus e subscriptionExpiresAt
+    const findCall = vi.mocked(prisma.company.findMany).mock.calls[0][0]
+    expect(findCall?.where?.subscriptionStatus).toBe('CANCELED')
+    expect(findCall?.where?.subscriptionExpiresAt).toHaveProperty('lte')
   })
 })
