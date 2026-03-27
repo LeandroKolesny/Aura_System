@@ -15,6 +15,7 @@ const registerSchema = z.object({
   companyName: z.string().min(2, "Nome da empresa deve ter pelo menos 2 caracteres").optional(),
   state: z.string().length(2, "Estado deve ter 2 caracteres (ex: SP, RJ)").optional(),
   acceptedTerms: z.boolean().optional(),
+  marketingConsent: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, email, password, companyName, state, acceptedTerms } = validation.data;
+    const { name, email, password, companyName, state, acceptedTerms, marketingConsent } = validation.data;
 
     // Verificar se usuário já existe
     const existingUser = await prisma.user.findUnique({
@@ -145,6 +146,9 @@ export async function POST(request: NextRequest) {
         acceptedTermsIp: acceptedTerms ? (request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "unknown") : null,
         acceptedTermsAgent: acceptedTerms ? (request.headers.get("user-agent") ?? "unknown") : null,
         acceptedTermsHash: acceptedTerms ? TERMS_TEXT_HASH : null,
+        marketingConsent: marketingConsent ?? false,
+        marketingConsentAt: marketingConsent ? new Date() : null,
+        marketingConsentIp: marketingConsent ? (request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "unknown") : null,
       },
       select: {
         id: true,

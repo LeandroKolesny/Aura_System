@@ -45,6 +45,11 @@ model User {
   acceptedTermsAgent      String?   // User-agent do navegador
   acceptedTermsHash       String?   // SHA-256 do texto exibido
 
+  // Consentimento de marketing (opt-in separado — LGPD)
+  marketingConsent    Boolean   @default(false)
+  marketingConsentAt  DateTime?
+  marketingConsentIp  String?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
