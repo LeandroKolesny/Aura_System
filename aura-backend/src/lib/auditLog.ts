@@ -2,6 +2,7 @@
 // Registra todas as ações críticas do sistema
 
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // Tipos de atividade existentes no schema
 type ActivityType =
@@ -43,7 +44,7 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
         title: params.title,
         description: params.description,
         userId: params.userId,
-        metadata: params.metadata || {},
+        metadata: (params.metadata ?? {}) as Prisma.InputJsonValue,
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
         retainUntil: params.retainUntil ?? null,
@@ -117,7 +118,7 @@ export async function logFinancialAction(
   action: "PAYMENT_RECEIVED" | "EXPENSE_CREATED",
   amount: number,
   description: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   await logActivity({
     type: action,

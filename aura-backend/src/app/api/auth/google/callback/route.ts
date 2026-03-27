@@ -5,6 +5,7 @@ import { generateJWT, getAuthUser } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { encrypt } from '@/lib/crypto';
+import { logLogin } from '@/lib/auditLog';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -102,6 +103,8 @@ export async function GET(request: NextRequest) {
       }
 
       const token = generateJWT({ id: user.id, email: user.email, role: user.role, companyId: user.company?.id ?? null });
+      // Fire-and-forget: never block the OAuth redirect
+      logLogin(user.id, user.email, request).catch(console.error);
       // Pass token via URL fragment (#) — never sent to any server, cleaned immediately by frontend.
       // Cross-domain cookie approach failed because vercel.app subdomains are treated as cross-site.
       return NextResponse.redirect(`${FRONTEND_URL}/login#google_token=${token}`);
@@ -136,6 +139,8 @@ export async function GET(request: NextRequest) {
       });
 
       const token = generateJWT({ id: newUser.id, email: newUser.email, role: newUser.role, companyId: null });
+      // Fire-and-forget: never block the OAuth redirect
+      logLogin(newUser.id, newUser.email, request).catch(console.error);
       // Pass token via URL fragment (#) — never sent to any server, cleaned immediately by frontend.
       return NextResponse.redirect(`${FRONTEND_URL}/login#google_token=${token}`);
     }
