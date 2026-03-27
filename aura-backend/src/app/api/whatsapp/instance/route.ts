@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { createHash } from "crypto"
 import prisma from "@/lib/prisma"
 import { getAuthUser } from "@/lib/auth"
 import { hasModuleAccess } from "@/lib/planPermissions"
@@ -8,6 +9,14 @@ import {
   getInstanceStatus,
   deleteInstance,
 } from "@/lib/whatsapp"
+
+// Texto exibido ao usuário no momento do aceite — hash SHA-256 grava a prova do conteúdo
+const TERMS_TEXT =
+  "Use um número dedicado exclusivo para esta função. " +
+  "Não utilize seu número pessoal ou comercial principal. " +
+  "O Aura System não se responsabiliza por eventual bloqueio do WhatsApp neste número."
+
+const TERMS_HASH = createHash("sha256").update(TERMS_TEXT).digest("hex")
 
 async function getCompanyAndCheckModule(companyId: string) {
   const company = await prisma.company.findUnique({
@@ -84,19 +93,34 @@ export async function POST(request: NextRequest) {
 
   const { instanceName } = await createInstance(user.companyId)
 
+  const acceptedAt = new Date()
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    request.headers.get("x-real-ip") ??
+    "unknown"
+  const userAgent = request.headers.get("user-agent") ?? "unknown"
+
+  const termsData = {
+    termsAccepted: true,
+    termsAcceptedAt: acceptedAt,
+    termsAcceptedByUserId: user.id,
+    termsAcceptedByEmail: user.email,
+    termsAcceptedIp: ip,
+    termsAcceptedAgent: userAgent,
+    termsTextHash: TERMS_HASH,
+  }
+
   await prisma.whatsappInstance.upsert({
     where: { companyId: user.companyId },
     create: {
       companyId: user.companyId,
       instanceName,
       status: "CONNECTING",
-      termsAccepted: true,
-      termsAcceptedAt: new Date(),
+      ...termsData,
     },
     update: {
       status: "CONNECTING",
-      termsAccepted: true,
-      termsAcceptedAt: new Date(),
+      ...termsData,
     },
   })
 

@@ -113,12 +113,36 @@ describe('POST /api/whatsapp/instance', () => {
     const req = new NextRequest('http://localhost/api/whatsapp/instance', {
       method: 'POST',
       body: JSON.stringify({ acceptTerms: true }),
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': '177.10.20.30',
+        'user-agent': 'Mozilla/5.0 TestBrowser',
+      },
     })
     const res = await POST(req)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.qrCode).toBe('data:image/png;base64,qr')
+  })
+
+  it('grava IP, email do usuário e hash dos termos no upsert', async () => {
+    vi.mocked(prisma.whatsappInstance.upsert).mockResolvedValue({} as WhatsappInstance)
+    const req = new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'POST',
+      body: JSON.stringify({ acceptTerms: true }),
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': '200.1.2.3',
+        'user-agent': 'TestAgent/1.0',
+      },
+    })
+    await POST(req)
+    const upsertCall = vi.mocked(prisma.whatsappInstance.upsert).mock.calls[0][0]
+    expect(upsertCall.create.termsAcceptedByEmail).toBe('a@b.com')
+    expect(upsertCall.create.termsAcceptedIp).toBe('200.1.2.3')
+    expect(upsertCall.create.termsAcceptedAgent).toBe('TestAgent/1.0')
+    expect(upsertCall.create.termsTextHash).toMatch(/^[a-f0-9]{64}$/) // SHA-256
+    expect(upsertCall.create.termsAcceptedAt).toBeInstanceOf(Date)
   })
 })
 
