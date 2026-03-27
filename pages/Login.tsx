@@ -12,7 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const Login: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [isRegistering, setIsRegistering] = useState(searchParams.get('tab') === 'register');
-  const { login, registerCompany, user, loginWithToken } = useApp() as any;
+  const { login, registerCompany, user, loginWithToken } = useApp();
   const navigate = useNavigate();
 
   // Maintenance Mode State
@@ -44,14 +44,15 @@ const Login: React.FC = () => {
 
   // Register State
   const [regData, setRegData] = useState({
-    name: '', // Novo campo
+    name: '',
     companyName: '',
-    state: '', // Estado (UF)
+    state: '',
     email: '',
     phone: '',
     professionalsCount: '1',
     password: '',
-    confirmPassword: '' // Novo campo de confirmação
+    confirmPassword: '',
+    acceptedTerms: false,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -60,26 +61,24 @@ const Login: React.FC = () => {
   // OAuth error handling from URL params
   const oauthError = searchParams.get('error');
 
-  // Google OAuth callback — SEC-FIX [SEC-ALTO-2]: token is no longer passed in
-  // the URL. Instead we detect ?google=ok, then fetch the token from the backend
-  // via GET /api/auth/me (which reads the httpOnly aura_session cookie).
+  // Google OAuth callback — token is passed via URL fragment (#google_token=xxx)
+  // Fragment is never sent to any server and is cleaned immediately after reading.
   useEffect(() => {
-    const googleOk = searchParams.get('google');
-    if (googleOk !== 'ok') return;
+    const hash = window.location.hash;
+    if (!hash.startsWith('#google_token=')) return;
 
-    setIsProcessingToken(true);
-    // Clean the indicator param from the URL immediately so it doesn't linger
+    const token = hash.substring('#google_token='.length);
+    // Clean the fragment from the URL immediately so it doesn't linger
     window.history.replaceState({}, '', '/login');
 
-    authApi.me()
-      .then(async (result: any) => {
-        const token = result?.data?.token;
-        if (!token) {
-          setLoginError('Não foi possível autenticar com Google. Tente novamente.');
-          setIsProcessingToken(false);
-          return;
-        }
-        const ok = await loginWithToken(token);
+    if (!token) {
+      setLoginError('Não foi possível autenticar com Google. Tente novamente.');
+      return;
+    }
+
+    setIsProcessingToken(true);
+    loginWithToken(token)
+      .then((ok: boolean) => {
         if (!ok) {
           setLoginError('Não foi possível autenticar com Google. Tente novamente.');
           setIsProcessingToken(false);
@@ -125,7 +124,17 @@ const Login: React.FC = () => {
   // UseEffect para redirecionar corretamente após o login ser processado
   React.useEffect(() => {
       if (user) {
-          if (user.role === UserRole.PATIENT || user.role === UserRole.RECEPTIONIST || user.role === UserRole.ESTHETICIAN) {
+          const pendingPlanRaw = localStorage.getItem('pendingPlan');
+          if (pendingPlanRaw && (user.role === UserRole.ADMIN || user.role === UserRole.OWNER)) {
+              try {
+                  const { planId } = JSON.parse(pendingPlanRaw);
+                  // autoCheckout=true faz a Billing page disparar o checkout automaticamente
+                  // sem o usuário ter que clicar em "Assinar" de novo
+                  navigate(`/billing?plan=${planId}&autoCheckout=true`);
+              } catch {
+                  navigate('/dashboard');
+              }
+          } else if (user.role === UserRole.PATIENT || user.role === UserRole.RECEPTIONIST || user.role === UserRole.ESTHETICIAN) {
               navigate('/schedule');
           } else {
               navigate('/dashboard');
@@ -149,6 +158,11 @@ const Login: React.FC = () => {
         return;
     }
 
+    if (!regData.acceptedTerms) {
+        setLoginError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para continuar.');
+        return;
+    }
+
     if (regData.email && regData.password && regData.companyName && regData.name) {
       setIsRegistering2(true);
       try {
@@ -158,7 +172,8 @@ const Login: React.FC = () => {
             email: regData.email,
             password: regData.password,
             phone: regData.phone,
-            state: regData.state || undefined
+            state: regData.state || undefined,
+            acceptedTerms: regData.acceptedTerms,
         });
 
         if (!result.success) {
@@ -193,17 +208,17 @@ const Login: React.FC = () => {
     }
   };
 
-  const fillDemo = (role: 'admin' | 'reception' | 'basic') => {
-    if (role === 'admin') {
-        // Credenciais do backend
+  const fillDemo = (role: 'owner' | 'admin' | 'reception' | 'basic') => {
+    if (role === 'owner') {
+        setEmail('king@aura.system');
+        setPassword('admin');
+    } else if (role === 'admin') {
         setEmail('admin@aura.com');
         setPassword('admin123');
     } else if (role === 'reception') {
-        // Fallback para dados mock
         setEmail('recepcao@aura.system');
         setPassword('123456');
     } else {
-        // Fallback para dados mock
         setEmail('basico@aura.system');
         setPassword('123456');
     }
@@ -215,14 +230,16 @@ const Login: React.FC = () => {
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary-200/30 rounded-full blur-[80px] translate-x-1/3 -translate-y-1/4"></div>
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary-200/30 rounded-full blur-[80px] -translate-x-1/3 translate-y-1/4"></div>
 
-      <Link to="/" className="absolute top-8 left-8 flex items-center gap-2 text-secondary-500 hover:text-primary-600 transition-colors font-medium z-10">
-        <ArrowLeft className="w-4 h-4" /> Voltar para o site
-      </Link>
-
       <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-white/50 relative z-10 overflow-hidden animate-fade-in">
-        
+
         {/* Header da Card */}
-        <div className="pt-8 pb-4 text-center px-8">
+        <div className="pt-6 pb-4 text-center px-8">
+           {/* Botão Voltar dentro do card */}
+           <div className="flex justify-start mb-4">
+             <Link to="/" className="flex items-center gap-1.5 text-secondary-400 hover:text-primary-600 transition-colors text-sm font-medium">
+               <ArrowLeft className="w-4 h-4" /> Voltar ao site
+             </Link>
+           </div>
            <div className="flex justify-center mb-4">
               <AuraLogo className="w-12 h-12" />
            </div>
@@ -432,6 +449,36 @@ const Login: React.FC = () => {
                 </div>
               </div>
 
+              {/* LGPD - Aceite de Termos */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="relative mt-0.5 shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={regData.acceptedTerms}
+                    onChange={e => setRegData({ ...regData, acceptedTerms: e.target.checked })}
+                  />
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${regData.acceptedTerms ? 'bg-primary-500 border-primary-500' : 'border-secondary-300 group-hover:border-primary-400'}`}>
+                    {regData.acceptedTerms && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <span className="text-xs text-secondary-600 leading-relaxed">
+                  Li e aceito os{' '}
+                  <Link to="/termos-de-uso" target="_blank" className="text-primary-600 hover:underline font-medium">
+                    Termos de Uso
+                  </Link>
+                  {' '}e a{' '}
+                  <Link to="/politica-de-privacidade" target="_blank" className="text-primary-600 hover:underline font-medium">
+                    Política de Privacidade
+                  </Link>
+                  , incluindo o tratamento dos meus dados pessoais conforme a LGPD.
+                </span>
+              </label>
+
               {loginError && (
                 <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 text-sm animate-fade-in">
                    <AlertTriangle className="w-4 h-4" />
@@ -441,7 +488,7 @@ const Login: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={maintenanceMode || isRegistering2}
+                disabled={maintenanceMode || isRegistering2 || !regData.acceptedTerms}
                 className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all mt-2 ${
                   maintenanceMode || isRegistering2
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -524,11 +571,16 @@ const Login: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Senha</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider">Senha</label>
+                  <Link to="/esqueci-senha" className="text-xs text-primary-600 hover:text-primary-700 hover:underline">
+                    Esqueci minha senha
+                  </Link>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     required
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50"
                     placeholder="••••••••"
@@ -585,25 +637,33 @@ const Login: React.FC = () => {
                {/* Acesso Rápido Demo */}
                <div className="pt-4 border-t border-secondary-100">
                 <p className="text-xs text-center text-secondary-400 mb-3 uppercase tracking-wider">Acesso Rápido (Demo)</p>
-                <div className="grid grid-cols-3 gap-3">
-                    <button 
-                        type="button" 
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => fillDemo('owner')}
+                        className="py-2 px-3 border border-amber-200 bg-amber-50 rounded-lg text-[10px] text-amber-700 hover:bg-amber-100 transition-colors flex items-center justify-center gap-1 font-bold"
+                    >
+                        <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></div>
+                        Owner
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => fillDemo('admin')}
                         className="py-2 px-3 border border-secondary-200 rounded-lg text-[10px] text-secondary-600 hover:bg-secondary-50 hover:border-secondary-300 transition-colors flex items-center justify-center gap-1 font-bold"
                     >
                         <div className="w-2 h-2 rounded-full bg-primary-500 shrink-0"></div>
                         Admin
                     </button>
-                    <button 
-                        type="button" 
+                    <button
+                        type="button"
                         onClick={() => fillDemo('reception')}
                         className="py-2 px-3 border border-secondary-200 rounded-lg text-[10px] text-secondary-600 hover:bg-secondary-50 hover:border-secondary-300 transition-colors flex items-center justify-center gap-1 font-bold"
                     >
                         <div className="w-2 h-2 rounded-full bg-secondary-500 shrink-0"></div>
                         Recepção
                     </button>
-                    <button 
-                        type="button" 
+                    <button
+                        type="button"
                         onClick={() => fillDemo('basic')}
                         className="py-2 px-3 border border-red-200 bg-red-50 rounded-lg text-[10px] text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center gap-1 font-bold"
                     >

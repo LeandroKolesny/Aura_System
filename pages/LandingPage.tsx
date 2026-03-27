@@ -102,6 +102,198 @@ const LP_STYLES = `
   }
 `;
 
+// ─── MOCKUPS ───────────────────────────────────────────────────────────────
+
+const MockupShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div style={{
+    background: '#ffffff', borderRadius: '12px',
+    boxShadow: '0 32px 64px rgba(26,21,18,0.14), 0 8px 24px rgba(26,21,18,0.08)',
+    overflow: 'hidden', border: '1px solid #ede8e3',
+    fontFamily: "'DM Sans', sans-serif",
+  }}>
+    {/* Browser bar */}
+    <div style={{ background: '#f4f0ec', borderBottom: '1px solid #ede8e3', padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.35rem' }}>
+        {['#ff6b6b','#ffd93d','#6bcb77'].map(c => <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />)}
+      </div>
+      <div style={{ flex: 1, background: '#fff', borderRadius: '6px', padding: '0.2rem 0.75rem', marginLeft: '0.5rem', fontSize: '0.65rem', color: '#a89890', border: '1px solid #ede8e3' }}>
+        aura-system-mu.vercel.app
+      </div>
+    </div>
+    <div style={{ display: 'flex', height: '340px' }}>
+      {/* Mini sidebar */}
+      <div style={{ width: '48px', background: '#1a1512', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '0.75rem', gap: '0.5rem', flexShrink: 0 }}>
+        {['#bd7b65','#4a3d35','#4a3d35','#4a3d35','#4a3d35'].map((c, i) => (
+          <div key={i} style={{ width: '32px', height: '32px', borderRadius: '8px', background: c === '#bd7b65' ? 'rgba(189,123,101,0.2)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '14px', height: '14px', borderRadius: '3px', background: c, opacity: c === '#bd7b65' ? 1 : 0.35 }} />
+          </div>
+        ))}
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const AgendaMockup: React.FC = () => {
+  const S = { rose: '#bd7b65', ink: '#1a1512', faint: '#a89890', border: '#ede8e3', cream: '#fdfaf7' };
+  const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'];
+  const slots = [
+    { day: 0, time: '09:00', name: 'Ana Paula M.', proc: 'Limpeza de Pele', color: '#bd7b65', span: 2 },
+    { day: 1, time: '10:00', name: 'Mariana Costa', proc: 'Botox', color: '#7c5cbf', span: 1 },
+    { day: 2, time: '11:00', name: 'Roberta F.', proc: 'Drenagem', color: '#3d7ea6', span: 2 },
+    { day: 3, time: '09:00', name: 'Camila S.', proc: 'Peeling', color: '#2b9e5e', span: 1 },
+    { day: 4, time: '14:00', name: 'Fernanda L.', proc: 'Limpeza', color: '#bd7b65', span: 1 },
+    { day: 1, time: '14:00', name: 'Juliana R.', proc: 'Fio de PDO', color: '#c07840', span: 2 },
+  ];
+  return (
+    <MockupShell>
+      <div style={{ flex: 1, padding: '0.75rem', overflow: 'hidden', background: S.cream }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1rem', fontWeight: 500, color: S.ink }}>Agenda — Janeiro 2025</span>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {['Semana','Mês'].map((v, i) => <div key={v} style={{ padding: '2px 8px', borderRadius: '4px', background: i === 0 ? S.rose : 'transparent', color: i === 0 ? '#fff' : S.faint, fontSize: '0.6rem', fontWeight: 600, border: `1px solid ${i === 0 ? S.rose : S.border}` }}>{v}</div>)}
+          </div>
+        </div>
+        {/* Calendar grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '36px repeat(5, 1fr)', gap: '3px' }}>
+          <div />
+          {days.map(d => <div key={d} style={{ textAlign: 'center', fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.1em', color: S.faint, paddingBottom: '4px', borderBottom: `1px solid ${S.border}` }}>{d}</div>)}
+          {['09:00','10:00','11:00','12:00','13:00','14:00','15:00'].map((t, ti) => (
+            <React.Fragment key={t}>
+              <div style={{ fontSize: '0.52rem', color: S.faint, paddingTop: '2px' }}>{t}</div>
+              {days.map((_, di) => {
+                const slot = slots.find(s => s.day === di && s.time === t);
+                return (
+                  <div key={di} style={{ height: '36px', borderRadius: '4px', background: slot ? `${slot.color}20` : `${S.border}40`, border: slot ? `1px solid ${slot.color}60` : 'none', padding: slot ? '2px 4px' : 0, overflow: 'hidden' }}>
+                    {slot && (
+                      <>
+                        <div style={{ fontSize: '0.52rem', fontWeight: 600, color: slot.color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot.name}</div>
+                        <div style={{ fontSize: '0.48rem', color: S.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot.proc}</div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </MockupShell>
+  );
+};
+
+const FinanceiroMockup: React.FC = () => {
+  const S = { rose: '#bd7b65', ink: '#1a1512', faint: '#a89890', border: '#ede8e3', cream: '#fdfaf7', green: '#2b9e5e' };
+  const bars = [55, 72, 48, 88, 65, 92, 78, 84, 70, 95, 82, 89];
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return (
+    <MockupShell>
+      <div style={{ flex: 1, padding: '0.75rem', overflow: 'hidden', background: S.cream }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px', marginBottom: '0.75rem' }}>
+          {[
+            { label: 'Faturamento', value: 'R$ 24.8k', sub: '+18% vs mês ant.', color: S.green },
+            { label: 'Ticket Médio', value: 'R$ 312', sub: '+5% vs mês ant.', color: '#3d7ea6' },
+            { label: 'Comissões', value: 'R$ 4.2k', sub: '3 profissionais', color: S.rose },
+          ].map(k => (
+            <div key={k.label} style={{ background: '#fff', border: `1px solid ${S.border}`, borderRadius: '8px', padding: '0.55rem', boxShadow: '0 2px 6px rgba(26,21,18,0.04)' }}>
+              <div style={{ fontSize: '0.5rem', color: S.faint, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.2rem' }}>{k.label}</div>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', fontWeight: 600, color: k.color, lineHeight: 1 }}>{k.value}</div>
+              <div style={{ fontSize: '0.48rem', color: S.green, marginTop: '0.2rem' }}>{k.sub}</div>
+            </div>
+          ))}
+        </div>
+        {/* Bar chart */}
+        <div style={{ background: '#fff', border: `1px solid ${S.border}`, borderRadius: '8px', padding: '0.6rem', marginBottom: '0.6rem' }}>
+          <div style={{ fontSize: '0.5rem', color: S.faint, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem' }}>Faturamento — 12 meses</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '60px' }}>
+            {bars.map((h, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                <div style={{ width: '100%', background: i === 11 ? S.rose : `rgba(189,123,101,${0.15 + i * 0.06})`, borderRadius: '2px 2px 0 0', height: `${h}%` }} />
+                <div style={{ fontSize: '0.38rem', color: S.faint }}>{months[i]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Transactions */}
+        <div style={{ background: '#fff', border: `1px solid ${S.border}`, borderRadius: '8px', padding: '0.55rem' }}>
+          <div style={{ fontSize: '0.5rem', color: S.faint, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.4rem' }}>Últimas Transações</div>
+          {[
+            { name: 'Ana Paula M.', proc: 'Botox', val: 'R$ 450', type: 'entrada' },
+            { name: 'Mariana C.', proc: 'Limpeza de Pele', val: 'R$ 180', type: 'entrada' },
+            { name: 'Comissão — Dra. Lima', proc: 'Profissional', val: 'R$ 135', type: 'saída' },
+          ].map((tx, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', borderBottom: i < 2 ? `1px solid ${S.border}` : 'none' }}>
+              <div>
+                <div style={{ fontSize: '0.55rem', fontWeight: 500, color: S.ink }}>{tx.name}</div>
+                <div style={{ fontSize: '0.48rem', color: S.faint }}>{tx.proc}</div>
+              </div>
+              <div style={{ fontSize: '0.6rem', fontWeight: 600, color: tx.type === 'entrada' ? S.green : '#c0392b' }}>{tx.type === 'saída' ? '-' : '+'}{tx.val}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </MockupShell>
+  );
+};
+
+const RetornoMockup: React.FC = () => {
+  const S = { rose: '#bd7b65', ink: '#1a1512', faint: '#a89890', border: '#ede8e3', cream: '#fdfaf7', green: '#2b9e5e', purple: '#7c5cbf' };
+  return (
+    <MockupShell>
+      <div style={{ flex: 1, padding: '0.75rem', overflow: 'hidden', background: S.cream }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1rem', fontWeight: 500, color: S.ink }}>CRM — Resgate de Clientes</span>
+          <div style={{ background: S.purple, color: '#fff', fontSize: '0.5rem', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', letterSpacing: '0.08em' }}>✦ IA Ativa</div>
+        </div>
+        {/* Stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px', marginBottom: '0.6rem' }}>
+          {[
+            { label: 'Inativos +45d', val: '23', color: '#c0392b' },
+            { label: 'Msg Enviadas', val: '18', color: S.rose },
+            { label: 'Retornaram', val: '9', color: S.green },
+          ].map(s => (
+            <div key={s.label} style={{ background: '#fff', border: `1px solid ${S.border}`, borderRadius: '8px', padding: '0.5rem', textAlign: 'center' }}>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.4rem', fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.val}</div>
+              <div style={{ fontSize: '0.48rem', color: S.faint, marginTop: '2px' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {/* Client list */}
+        <div style={{ background: '#fff', border: `1px solid ${S.border}`, borderRadius: '8px', padding: '0.55rem', marginBottom: '0.55rem' }}>
+          <div style={{ fontSize: '0.5rem', color: S.faint, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Clientes para Resgatar</div>
+          {[
+            { name: 'Claudia Mendes', days: '67 dias', proc: 'Última: Botox', status: 'urgente' },
+            { name: 'Patricia Lima', days: '52 dias', proc: 'Última: Peeling', status: 'atenção' },
+            { name: 'Renata Souza', days: '48 dias', proc: 'Última: Drenagem', status: 'atenção' },
+          ].map((c, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 0', borderBottom: i < 2 ? `1px solid ${S.border}` : 'none' }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: c.status === 'urgente' ? '#fee2df' : '#fff8e8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: c.status === 'urgente' ? '#c0392b' : '#c07840', flexShrink: 0 }}>
+                {c.name.charAt(0)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.55rem', fontWeight: 500, color: S.ink }}>{c.name}</div>
+                <div style={{ fontSize: '0.48rem', color: S.faint }}>{c.proc}</div>
+              </div>
+              <div style={{ fontSize: '0.48rem', background: c.status === 'urgente' ? '#fee2df' : '#fff8e8', color: c.status === 'urgente' ? '#c0392b' : '#c07840', padding: '1px 5px', borderRadius: '4px', fontWeight: 600, flexShrink: 0 }}>{c.days}</div>
+            </div>
+          ))}
+        </div>
+        {/* AI message suggestion */}
+        <div style={{ background: `${S.purple}12`, border: `1px solid ${S.purple}30`, borderRadius: '8px', padding: '0.5rem' }}>
+          <div style={{ fontSize: '0.48rem', color: S.purple, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>✦ Sugestão IA para Claudia</div>
+          <p style={{ fontSize: '0.52rem', color: S.ink, lineHeight: 1.5, margin: 0 }}>
+            "Oi Claudia! Sentimos sua falta 💕 Que tal agendar sua manutenção de Botox? Reservamos um horário especial para você esta semana."
+          </p>
+          <div style={{ display: 'flex', gap: '4px', marginTop: '0.4rem' }}>
+            <div style={{ flex: 1, background: S.purple, color: '#fff', fontSize: '0.48rem', fontWeight: 600, textAlign: 'center', padding: '3px', borderRadius: '4px' }}>Enviar via WhatsApp</div>
+            <div style={{ background: '#fff', color: S.faint, fontSize: '0.48rem', fontWeight: 600, textAlign: 'center', padding: '3px 6px', borderRadius: '4px', border: `1px solid ${S.border}` }}>Editar</div>
+          </div>
+        </div>
+      </div>
+    </MockupShell>
+  );
+};
+
 const DashboardMockup: React.FC = () => {
   const S2 = { bg: '#ffffff', border: '#ede8e3', rose: '#bd7b65', ink: '#1a1512', muted: '#6b5e54', faint: '#a89890', green: '#2b9e5e', cream: '#fdfaf7' };
   const bars = [42, 68, 55, 80, 63, 90, 74];
@@ -181,7 +373,7 @@ const DashboardMockup: React.FC = () => {
 const LandingPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { saasPlans } = useApp();
+  const { saasPlans, loadPlans } = useApp();
   const navigate = useNavigate();
 
   const [activeDemoTab, setActiveDemoTab] = useState<'dashboard' | 'agenda' | 'financeiro' | 'retorno'>('dashboard');
@@ -193,6 +385,10 @@ const LandingPage: React.FC = () => {
   };
 
   const toggleFaq = (i: number) => setOpenFaqIndex(openFaqIndex === i ? null : i);
+
+  useEffect(() => {
+    loadPlans();
+  }, [loadPlans]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -207,13 +403,19 @@ const LandingPage: React.FC = () => {
     );
     document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
     return () => obs.disconnect();
-  }, []);
+  }, [saasPlans]);
 
   const sortedPlans = [...saasPlans]
     .filter(p => p.active)
     .sort((a, b) => {
-      const order = { starter: 1, pro: 2, clinic: 3 };
-      return (order[a.id as keyof typeof order] || a.price || 9999) - (order[b.id as keyof typeof order] || b.price || 9999);
+      const isFreeA = a.price === 0 || a.name.toLowerCase().includes('free') || a.name.toLowerCase().includes('gratu');
+      const isFreeB = b.price === 0 || b.name.toLowerCase().includes('free') || b.name.toLowerCase().includes('gratu');
+      if (isFreeA && !isFreeB) return -1;
+      if (!isFreeA && isFreeB) return 1;
+      const order: Record<string, number> = { starter: 2, pro: 3, clinic: 4 };
+      const posA = order[a.id] ?? (a.price || 9999);
+      const posB = order[b.id] ?? (b.price || 9999);
+      return posA - posB;
     });
 
   const S = {
@@ -304,7 +506,7 @@ const LandingPage: React.FC = () => {
 
         {/* ═══════════════ HERO ═══════════════ */}
         <section
-          className="relative min-h-screen flex items-center pt-16 overflow-hidden"
+          className="relative flex items-center pt-16 overflow-hidden"
           style={{ background: 'linear-gradient(135deg, rgba(189,123,101,0.09) 0%, #fdfaf7 55%)' }}
         >
           {/* Decorative radial glow */}
@@ -329,13 +531,13 @@ const LandingPage: React.FC = () => {
 
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12 w-full relative z-10">
             <div
-              className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center"
-              style={{ minHeight: '88vh', paddingTop: '5rem', paddingBottom: '4rem' }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center"
+              style={{ paddingTop: '4rem', paddingBottom: '3rem' }}
             >
               {/* Left: Text */}
               <div className="lg:col-span-5 reveal">
                 <div
-                  className="inline-flex items-center gap-3 mb-10"
+                  className="inline-flex items-center gap-3 mb-6"
                   style={{ borderBottom: `1px solid ${S.border}`, paddingBottom: '1rem' }}
                 >
                   <Sparkles className="w-3 h-3" style={{ color: S.rose }} />
@@ -361,7 +563,7 @@ const LandingPage: React.FC = () => {
                   Do agendamento à construção da sua marca: a única plataforma que une gestão, design e inteligência artificial em um só lugar.
                 </p>
 
-                <div className="flex flex-wrap gap-4 mb-10 reveal rd3">
+                <div className="flex flex-wrap gap-4 mb-6 reveal rd3">
                   <Link to="/login" className="lp-btn-solid">
                     Testar 7 Dias Grátis <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
@@ -379,7 +581,7 @@ const LandingPage: React.FC = () => {
               </div>
 
               {/* Right: Dashboard Mockup */}
-              <div className="lg:col-span-7 relative reveal rd2 hidden lg:block">
+              <div className="lg:col-span-7 relative reveal rd2 hidden lg:block" style={{ overflow: 'hidden', paddingRight: '0.5rem' }}>
                 <DashboardMockup />
               </div>
             </div>
@@ -387,9 +589,9 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* ═══════════════ DORES / SOLUÇÕES ═══════════════ */}
-        <section className="py-28" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
+        <section className="py-12 md:py-28" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-            <div className="text-center max-w-2xl mx-auto mb-20 reveal">
+            <div className="text-center max-w-2xl mx-auto mb-10 md:mb-20 reveal">
               <span className="sec-label">Atenção ao seu negócio</span>
               <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(2rem,4vw,3.4rem)', fontWeight: 400, color: S.ink, lineHeight: 1.2 }}>
                 Enquanto você trabalha,{' '}
@@ -451,10 +653,10 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* ═══════════════ 4 PILARES — Editorial numbered list ═══════════════ */}
-        <section id="pillars" className="py-28" style={{ background: S.cream, borderTop: `1px solid ${S.borderLight}` }}>
+        {/* ═══════════════ 4 PILARES — 2x2 Cards ═══════════════ */}
+        <section id="pillars" className="py-20" style={{ background: S.cream, borderTop: `1px solid ${S.borderLight}` }}>
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-20">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-14">
               <div className="lg:col-span-5 reveal">
                 <span className="sec-label">Os fundamentos</span>
                 <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(2rem,4vw,3.4rem)', fontWeight: 400, color: S.ink, lineHeight: 1.15 }}>
@@ -470,48 +672,99 @@ const LandingPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ borderTop: `1px solid ${S.border}` }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {[
-                { num: '01', label: 'Gestão & Operação', color: S.ink, desc: 'O básico bem feito. Agendamento, confirmações e financeiro rodando no piloto automático para você focar no atendimento.', items: ['Agenda Inteligente', 'Financeiro Automático', 'Controle de Estoque'], Icon: Smartphone },
-                { num: '02', label: 'Growth & Vendas', color: S.rose, desc: 'O motor de dinheiro. Ferramentas ativas que trazem clientes de volta, aumentam o ticket médio e enchem sua agenda.', items: ['CRM de Vendas', 'Resgate de Inativos', 'Dashboard em Tempo Real'], Icon: TrendingUp },
-                { num: '03', label: 'Branding & IA', color: '#7c5cbf', desc: 'Diferenciação pura. Inteligência artificial para encantar clientes e design que valoriza sua marca.', items: ['Resumos com IA', 'Pós-venda Personalizado', 'Galeria Antes & Depois'], Icon: Sparkles },
-                { num: '04', label: 'Segurança & Suporte', color: '#3d7ea6', desc: 'Tranquilidade total. Seus dados protegidos, contratos digitais e um suporte que realmente resolve.', items: ['Termos Digitais', 'Prontuário Seguro', 'Backup Diário'], Icon: Shield },
+                { num: '01', label: 'Gestão & Operação', color: S.ink, bg: 'rgba(26,21,18,0.04)', desc: 'O básico bem feito. Agendamento, confirmações e financeiro rodando no piloto automático para você focar no atendimento.', items: ['Agenda Inteligente', 'Financeiro Automático', 'Controle de Estoque'], Icon: Smartphone },
+                { num: '02', label: 'Growth & Vendas', color: S.rose, bg: 'rgba(189,123,101,0.07)', desc: 'O motor de dinheiro. Ferramentas ativas que trazem clientes de volta, aumentam o ticket médio e enchem sua agenda.', items: ['CRM de Vendas', 'Resgate de Inativos', 'Dashboard em Tempo Real'], Icon: TrendingUp },
+                { num: '03', label: 'Branding & IA', color: '#7c5cbf', bg: 'rgba(124,92,191,0.06)', desc: 'Diferenciação pura. Inteligência artificial para encantar clientes e design que valoriza sua marca.', items: ['Resumos com IA', 'Pós-venda Personalizado', 'Galeria Antes & Depois'], Icon: Sparkles },
+                { num: '04', label: 'Segurança & Suporte', color: '#3d7ea6', bg: 'rgba(61,126,166,0.06)', desc: 'Tranquilidade total. Seus dados protegidos, contratos digitais e um suporte que realmente resolve.', items: ['Termos Digitais', 'Prontuário Seguro', 'Backup Diário'], Icon: Shield },
               ].map((p, i) => (
                 <div
                   key={p.num}
-                  className="lp-pilar grid grid-cols-12 items-start gap-4 py-9 reveal"
-                  style={{ borderBottom: `1px solid ${S.border}`, transitionDelay: `${i * 70}ms`, padding: '2.25rem 0.75rem' }}
+                  className={`reveal ${i > 0 ? `rd${Math.min(i, 4)}` : ''}`}
+                  style={{
+                    background: p.bg,
+                    border: `1px solid ${S.border}`,
+                    borderRadius: '14px',
+                    padding: '2.25rem',
+                    transitionDelay: `${i * 70}ms`,
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
                 >
-                  <div className="col-span-2 md:col-span-1">
-                    <span className="pilar-num">{p.num}</span>
+                  {/* Large decorative number */}
+                  <span style={{
+                    position: 'absolute', top: '1.25rem', right: '1.75rem',
+                    fontFamily: "'Cormorant Garamond',serif", fontSize: '5rem',
+                    fontWeight: 300, lineHeight: 1, color: `${p.color}40`,
+                    userSelect: 'none', pointerEvents: 'none',
+                  }}>{p.num}</span>
+
+                  {/* Icon */}
+                  <div style={{ background: `${p.color}18`, padding: '0.75rem', borderRadius: '10px', width: 'fit-content', marginBottom: '1.25rem' }}>
+                    <p.Icon style={{ color: p.color, width: '1.25rem', height: '1.25rem' }} />
                   </div>
-                  <div className="col-span-10 md:col-span-3 flex items-start gap-4 pt-1">
-                    <div style={{ background: `${p.color}18`, padding: '0.6rem', borderRadius: '8px', flexShrink: 0 }}>
-                      <p.Icon className="w-4.5 h-4.5" style={{ color: p.color, width: '1.1rem', height: '1.1rem' }} />
-                    </div>
-                    <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.55rem', fontWeight: 500, color: S.ink, lineHeight: 1.2 }}>{p.label}</h3>
-                  </div>
-                  <div className="col-span-12 md:col-span-5 pt-1 md:col-start-5">
-                    <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.88rem', fontWeight: 300, color: S.muted, lineHeight: 1.75 }}>{p.desc}</p>
-                  </div>
-                  <div className="col-span-12 md:col-span-3 pt-1">
-                    <ul className="space-y-2.5">
-                      {p.items.map(item => (
-                        <li key={item} className="flex items-center gap-2.5" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.8rem', color: S.muted }}>
-                          <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+
+                  <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.65rem', fontWeight: 500, color: S.ink, lineHeight: 1.2, marginBottom: '0.75rem' }}>{p.label}</h3>
+                  <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.88rem', fontWeight: 300, color: S.muted, lineHeight: 1.75, marginBottom: '1.5rem' }}>{p.desc}</p>
+
+                  <ul className="space-y-2">
+                    {p.items.map(item => (
+                      <li key={item} className="flex items-center gap-2.5" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.8rem', color: S.muted }}>
+                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
+        {/* ═══════════════ CTA CENTRAL ═══════════════ */}
+        <section style={{ background: '#1a1512', padding: '5rem 1.5rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(189,123,101,0.12) 0%, transparent 65%)', pointerEvents: 'none' }} />
+          <div style={{ maxWidth: '820px', margin: '0 auto', textAlign: 'center', position: 'relative' }}>
+            <span className="sec-label" style={{ color: 'rgba(189,123,101,0.8)' }}>Comece hoje</span>
+            <h2
+              className="reveal"
+              style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(2.2rem,5vw,4rem)', fontWeight: 400, color: '#fdfaf7', lineHeight: 1.1, marginBottom: '1.25rem' }}
+            >
+              Pare de perder dinheiro.<br />
+              <em style={{ color: '#bd7b65', fontStyle: 'italic' }}>Comece agora, em 3 minutos.</em>
+            </h2>
+            <p
+              className="reveal rd1"
+              style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.95rem', fontWeight: 300, color: '#a89890', lineHeight: 1.8, maxWidth: '48ch', margin: '0 auto 2rem' }}
+            >
+              7 dias grátis, sem cartão de crédito. Configure sua clínica em minutos e veja a agenda cheia ainda essa semana.
+            </p>
+            <div className="reveal rd1" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.25rem', marginBottom: '2rem' }}>
+              {['✓ Sem fidelidade', '✓ Cancele quando quiser', '✓ Dados sempre seus', '✓ Suporte humanizado'].map(s => (
+                <span key={s} style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.72rem', color: '#6b5e54', letterSpacing: '0.08em' }}>{s}</span>
+              ))}
+            </div>
+            <div className="reveal rd2" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center' }}>
+              <Link to="/login" className="lp-btn-solid" style={{ borderRadius: '8px', fontSize: '0.78rem', padding: '1rem 2.5rem', background: '#bd7b65' }}>
+                Testar 7 Dias Grátis <ArrowRight className="w-4 h-4" />
+              </Link>
+              <button
+                onClick={() => scrollToSection('plans')}
+                className="lp-btn-outline"
+                style={{ borderRadius: '8px', borderColor: 'rgba(255,255,255,0.15)', color: '#a89890', fontSize: '0.78rem', padding: '1rem 2.5rem' }}
+              >
+                Ver Planos & Preços
+              </button>
+            </div>
+            <p className="reveal rd3" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.65rem', color: '#4a3d35', marginTop: '1.25rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              847 clínicas já transformaram sua gestão
+            </p>
+          </div>
+        </section>
+
         {/* ═══════════════ DEMO INTERATIVA ═══════════════ */}
-        <section id="features" className="py-28" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
+        <section id="features" className="py-20" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
             <div className="text-center mb-16 reveal">
               <span className="sec-label">Visão 360°</span>
@@ -529,7 +782,7 @@ const LandingPage: React.FC = () => {
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveDemoTab(tab.id as any)}
+                  onClick={() => setActiveDemoTab(tab.id as 'dashboard' | 'agenda' | 'financeiro' | 'retorno')}
                   className={`lp-tab ${activeDemoTab === tab.id ? 'active' : ''}`}
                 >
                   <tab.icon className="w-3.5 h-3.5" />
@@ -609,24 +862,20 @@ const LandingPage: React.FC = () => {
               </div>
 
               <div className="lg:col-span-7 order-1 lg:order-2 relative">
-                <div style={{ position: 'absolute', inset: 0, background: S.roseLight, borderRadius: '12px', transform: 'rotate(1.5deg) scale(0.97)', zIndex: 0 }} />
-                <img
-                  src={
-                    activeDemoTab === 'dashboard' ? 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426' :
-                    activeDemoTab === 'agenda' ? 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?auto=format&fit=crop&q=80&w=2539' :
-                    activeDemoTab === 'financeiro' ? 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=2666' :
-                    'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2426'
-                  }
-                  alt={`Tela ${activeDemoTab}`}
-                  style={{ position: 'relative', zIndex: 10, width: '100%', borderRadius: '12px', minHeight: '300px', maxHeight: '460px', objectFit: 'cover', border: `1px solid ${S.border}`, boxShadow: '0 24px 60px rgba(26,21,18,0.08)' }}
-                />
+                <div style={{ position: 'absolute', inset: 0, background: S.roseLight, borderRadius: '16px', transform: 'rotate(1.5deg) scale(0.97)', zIndex: 0 }} />
+                <div style={{ position: 'relative', zIndex: 10 }}>
+                  {activeDemoTab === 'dashboard' && <DashboardMockup />}
+                  {activeDemoTab === 'agenda' && <AgendaMockup />}
+                  {activeDemoTab === 'financeiro' && <FinanceiroMockup />}
+                  {activeDemoTab === 'retorno' && <RetornoMockup />}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ═══════════════ ANTES vs DEPOIS ═══════════════ */}
-        <section className="py-28" style={{ background: 'rgba(189,123,101,0.055)', borderTop: `1px solid rgba(189,123,101,0.12)` }}>
+        {/* ═══════════════ ANTES vs DEPOIS — hidden on mobile ═══════════════ */}
+        <section className="hidden md:block py-28" style={{ background: 'rgba(189,123,101,0.055)', borderTop: `1px solid rgba(189,123,101,0.12)` }}>
           <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
             <div className="text-center mb-16 reveal">
               <span className="sec-label">Realidade vs Transformação</span>
@@ -651,7 +900,7 @@ const LandingPage: React.FC = () => {
                       { t: 'Financeiro Cego', d: 'Não sabe o lucro real, mistura contas pessoais e da clínica.' },
                       { t: 'Clientes Sumidos', d: 'Você esquece de chamar quem não volta há meses.' },
                     ].map(item => (
-                      <li key={item.t} className="flex gap-4" style={{ opacity: 0.6 }}>
+                      <li key={item.t} className="flex gap-4">
                         <div className="w-5 h-5 rounded-full shrink-0 mt-0.5 flex items-center justify-center" style={{ background: '#fee2df' }}>
                           <X className="w-2.5 h-2.5" style={{ color: '#c0392b' }} />
                         </div>
@@ -695,8 +944,113 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* ═══════════════ SOCIAL PROOF BAR ═══════════════ */}
+        <section style={{ background: S.ink, padding: '2.5rem 1.5rem', borderTop: '1px solid #2a2018' }}>
+          <div className="max-w-[1200px] mx-auto px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              {[
+                { num: '847+', label: 'Clínicas ativas' },
+                { num: '98%', label: 'Taxa de satisfação' },
+                { num: 'R$ 12M+', label: 'Gerenciados/mês' },
+                { num: '3 min', label: 'Setup inicial' },
+              ].map(s => (
+                <div key={s.label}>
+                  <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(1.8rem,3vw,2.4rem)', fontWeight: 500, color: S.rose, lineHeight: 1 }}>{s.num}</div>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.72rem', color: '#a89890', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, marginTop: '0.4rem' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════ DEPOIMENTOS ═══════════════ */}
+        <section className="py-12 md:py-28" style={{ background: S.cream, borderTop: `1px solid ${S.borderLight}` }}>
+          <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
+            <div className="text-center mb-10 md:mb-16 reveal">
+              <span className="sec-label">Quem já transformou</span>
+              <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(2rem,4vw,3.2rem)', fontWeight: 400, color: S.ink }}>
+                Clínicas que <em style={{ color: S.rose }}>cresceram</em> com o Aura
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                {
+                  quote: 'Antes eu perdia em média 8 consultas por mês por faltas. Hoje, com a confirmação automática, praticamente zerou. Em 3 meses recuperei o investimento do plano.',
+                  name: 'Dra. Carolina Menezes',
+                  mobileOnly: false,
+                  role: 'Clínica de Estética · São Paulo, SP',
+                  result: '−92% em faltas',
+                  stars: 5,
+                  initials: 'CM',
+                },
+                {
+                  quote: 'O módulo de Resgate com IA foi surreal. Mandei mensagem para 15 pacientes inativas e 9 voltaram na mesma semana. É como ter uma recepcionista trabalhando 24h.',
+                  name: 'Renata Oliveira',
+                  role: 'Studio de Beleza · Curitiba, PR',
+                  result: '60% de retorno',
+                  stars: 5,
+                  initials: 'RO',
+                  mobileOnly: false,
+                },
+                {
+                  quote: 'Finalmente sei exatamente quanto lucrei, quanto gastei e quanto cada profissional produziu. O financeiro automático mudou completamente a gestão do meu negócio.',
+                  name: 'Juliana Ferreira',
+                  role: 'Espaço de Dermato Estética · Belo Horizonte, MG',
+                  result: '+35% de receita',
+                  stars: 5,
+                  initials: 'JF',
+                  mobileOnly: false,
+                },
+              ].map((t, i) => (
+                <div key={i} className={i > 0 ? 'hidden md:block' : ''}>
+                <div
+                  className={`reveal ${i > 0 ? `rd${i}` : ''}`}
+                  style={{ background: S.white, border: `1px solid ${S.border}`, borderRadius: '12px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 8px 24px rgba(26,21,18,0.05)' }}
+                >
+                  {/* Stars */}
+                  <div style={{ display: 'flex', gap: '3px' }}>
+                    {Array.from({ length: t.stars }).map((_, si) => (
+                      <Star key={si} className="w-3.5 h-3.5" style={{ color: '#f4b942', fill: '#f4b942' }} />
+                    ))}
+                  </div>
+
+                  {/* Result badge */}
+                  <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: `${S.rose}15`, border: `1px solid ${S.rose}30`, borderRadius: '20px', padding: '0.25rem 0.75rem' }}>
+                    <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.62rem', fontWeight: 700, color: S.rose, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.result}</span>
+                  </div>
+
+                  {/* Quote */}
+                  <blockquote style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.88rem', fontWeight: 300, color: S.muted, lineHeight: 1.8, margin: 0, flex: 1 }}>
+                    "{t.quote}"
+                  </blockquote>
+
+                  {/* Author */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingTop: '1rem', borderTop: `1px solid ${S.borderLight}` }}>
+                    <div style={{
+                      width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+                      background: `radial-gradient(135deg, rgba(189,123,101,${0.25 + i * 0.08}) 0%, rgba(189,123,101,${0.08 + i * 0.04}) 100%)`,
+                      border: `1.5px solid rgba(189,123,101,${0.35 + i * 0.1})`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: "'Cormorant Garamond',serif", fontSize: '1rem', fontWeight: 600, color: S.rose,
+                      boxShadow: `0 2px 12px rgba(189,123,101,${0.15 + i * 0.05})`,
+                    }}>
+                      {t.initials}
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.85rem', fontWeight: 500, color: S.ink }}>{t.name}</div>
+                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.72rem', fontWeight: 300, color: S.faint }}>{t.role}</div>
+                    </div>
+                  </div>
+                </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ═══════════════ PLANOS ═══════════════ */}
-        <section id="plans" className="py-28" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
+        <section id="plans" className="py-12 md:py-28" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
             <div className="text-center max-w-2xl mx-auto mb-16 reveal">
               <span className="sec-label">Investimento</span>
@@ -704,72 +1058,188 @@ const LandingPage: React.FC = () => {
                 Planos para cada fase do seu negócio
               </h2>
               <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.92rem', fontWeight: 300, color: S.muted, marginTop: '0.9rem' }}>
-                Planos transparentes para cada fase do seu negócio.
+                Comece grátis. Cresça no seu ritmo. Sem surpresas na fatura.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {sortedPlans.length > 0 ? sortedPlans.map((plan, idx) => {
-                const isStarter = plan.id === 'starter' || plan.name.toLowerCase().includes('starter');
-                return (
-                  <div
-                    key={plan.id}
-                    className="flex flex-col reveal"
-                    style={{
-                      background: isStarter ? S.dark : S.white,
-                      border: `1px solid ${isStarter ? S.dark : S.border}`,
-                      padding: '2.5rem',
-                      borderRadius: '12px',
-                      transform: isStarter ? 'translateY(-10px)' : undefined,
-                      transitionDelay: `${idx * 80}ms`,
-                    }}
-                  >
-                    {isStarter && (
-                      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.55rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.rose, marginBottom: '1rem' }}>
-                        ★ Recomendado
+            {/* Grid: todos os planos vêm do banco */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
+
+              {sortedPlans.map((plan, idx) => {
+                const isFree = plan.price === 0 || plan.name.toLowerCase().includes('free') || plan.name.toLowerCase().includes('gratu');
+                const isPro = !isFree && (plan.id === 'pro' || plan.name.toLowerCase().includes('pro'));
+                const isClinic = !isFree && (plan.id === 'clinic' || plan.name.toLowerCase().includes('clinic'));
+
+                if (isFree) {
+                  // FREE — entrada sem compromisso
+                  return (
+                    <div key={plan.id} className="flex flex-col reveal" style={{ border: `1px solid ${S.border}`, borderRadius: '14px', padding: '2rem', background: S.cream, transitionDelay: `${idx * 80}ms` }}>
+                      <div style={{ marginBottom: '0.6rem' }}>
+                        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: S.muted }}>
+                          Para começar
+                        </span>
+                      </div>
+                      <h4 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.7rem', fontWeight: 600, color: S.ink, marginBottom: '0.2rem' }}>
+                        {plan.name}
+                      </h4>
+                      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 300, color: S.muted, marginBottom: '1.4rem' }}>
+                        Experimente sem compromisso
                       </p>
-                    )}
-                    <h4 style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: isStarter ? S.faint : S.muted, marginBottom: '0.85rem' }}>
+                      <div className="flex items-baseline mb-6">
+                        <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '2.6rem', fontWeight: 400, color: S.ink, lineHeight: 1 }}>R$ 0</span>
+                        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.75rem', color: S.faint, marginLeft: '0.4rem' }}>/sempre</span>
+                      </div>
+                      <ul className="space-y-2.5 mb-8 flex-1">
+                        {plan.features.map((f, i) => (
+                          <li key={i} className="flex items-start gap-2" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.8rem', fontWeight: 300, color: S.muted }}>
+                            <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: '#c0b4ae' }} />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => navigate('/login?tab=register')}
+                        style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', padding: '0.7rem 1.2rem', borderRadius: '8px', border: `1px solid ${S.border}`, background: 'transparent', color: S.ink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', transition: 'all 0.2s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = S.roseLight; (e.currentTarget as HTMLButtonElement).style.borderColor = S.rose; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.borderColor = S.border; }}
+                      >
+                        Começar a testar <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                }
+
+                if (isPro) {
+                  // PRO — destaque máximo (mais popular)
+                  return (
+                    <div key={plan.id} className="flex flex-col reveal" style={{ background: S.dark, border: `2px solid ${S.rose}`, borderRadius: '14px', padding: '2rem', transform: 'translateY(-14px)', transitionDelay: `${(idx + 1) * 80}ms`, position: 'relative', overflow: 'hidden' }}>
+                      {/* Badge mais popular */}
+                      <div style={{ position: 'absolute', top: 0, right: 0, background: S.rose, color: S.white, fontFamily: "'DM Sans',sans-serif", fontSize: '0.55rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '0.35rem 0.9rem', borderBottomLeftRadius: '10px' }}>
+                        ★ Mais Popular
+                      </div>
+                      <div style={{ marginBottom: '0.6rem' }}>
+                        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#6b5c54' }}>
+                          Para clínicas em crescimento
+                        </span>
+                      </div>
+                      <h4 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.7rem', fontWeight: 600, color: S.white, marginBottom: '0.2rem' }}>
+                        {plan.name}
+                      </h4>
+                      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 300, color: '#8a7a72', marginBottom: '1.4rem' }}>
+                        CRM + IA + relatórios completos
+                      </p>
+                      <div className="flex items-baseline mb-6">
+                        <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '2.6rem', fontWeight: 400, color: S.white, lineHeight: 1 }}>R$ {plan.price}</span>
+                        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.75rem', color: '#6b5c54', marginLeft: '0.4rem' }}>/mês</span>
+                      </div>
+                      <ul className="space-y-2.5 mb-8 flex-1">
+                        {plan.features.map((f, i) => (
+                          <li key={i} className="flex items-start gap-2" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.8rem', fontWeight: 300, color: '#b0a49e' }}>
+                            <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: S.rose }} />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => { localStorage.setItem('pendingPlan', JSON.stringify({ planId: plan.id, planName: plan.name, price: plan.price })); navigate('/login?redirect=checkout'); }}
+                        style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', padding: '0.7rem 1.2rem', borderRadius: '8px', border: 'none', background: S.rose, color: S.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                      >
+                        Assinar Agora <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                }
+
+                if (isClinic) {
+                  // CLINIC — premium escuro
+                  return (
+                    <div key={plan.id} className="flex flex-col reveal" style={{ background: '#0f0d0b', border: '1px solid #3a2e28', borderRadius: '14px', padding: '2rem', transitionDelay: `${(idx + 1) * 80}ms` }}>
+                      <div style={{ marginBottom: '0.6rem' }}>
+                        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#c9a87c' }}>
+                          Para redes & franquias
+                        </span>
+                      </div>
+                      <h4 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.7rem', fontWeight: 600, color: '#f5ede4', marginBottom: '0.2rem' }}>
+                        {plan.name}
+                      </h4>
+                      <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 300, color: '#6b5c54', marginBottom: '1.4rem' }}>
+                        Multi-unidades com gerente dedicado
+                      </p>
+                      <div className="flex items-baseline mb-6">
+                        <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '2.6rem', fontWeight: 400, color: '#c9a87c', lineHeight: 1 }}>R$ {plan.price}</span>
+                        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.75rem', color: '#4a3d35', marginLeft: '0.4rem' }}>/mês</span>
+                      </div>
+                      <ul className="space-y-2.5 mb-8 flex-1">
+                        {plan.features.map((f, i) => (
+                          <li key={i} className="flex items-start gap-2" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.8rem', fontWeight: 300, color: '#7a6b62' }}>
+                            <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: '#c9a87c' }} />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => { localStorage.setItem('pendingPlan', JSON.stringify({ planId: plan.id, planName: plan.name, price: plan.price })); navigate('/login?redirect=checkout'); }}
+                        style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', padding: '0.7rem 1.2rem', borderRadius: '8px', border: '1px solid #3a2e28', background: 'transparent', color: '#c9a87c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                      >
+                        Assinar Agora <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                }
+
+                // STARTER (e outros planos pagos) — rosé quente
+                const isHighTier = plan.price >= 300;
+                return (
+                  <div key={plan.id} className="flex flex-col reveal" style={{ background: S.roseLight, border: `1.5px solid ${S.rose}`, borderRadius: '14px', padding: '2rem', transitionDelay: `${idx * 80}ms` }}>
+                    <div style={{ marginBottom: '0.6rem' }}>
+                      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: S.rose }}>
+                        {isHighTier ? 'Para clínicas consolidadas' : 'Para autônomos'}
+                      </span>
+                    </div>
+                    <h4 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.7rem', fontWeight: 600, color: S.ink, marginBottom: '0.2rem' }}>
                       {plan.name}
                     </h4>
-                    <div className="flex items-baseline mb-8">
-                      <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '3rem', fontWeight: 400, color: isStarter ? S.white : S.ink, lineHeight: 1 }}>R$ {plan.price}</span>
-                      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', color: isStarter ? '#4a3d35' : S.faint, marginLeft: '0.4rem' }}>/mês</span>
+                    <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 300, color: S.muted, marginBottom: '1.4rem' }}>
+                      Agenda profissional completa
+                    </p>
+                    <div className="flex items-baseline mb-6">
+                      <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '2.6rem', fontWeight: 400, color: S.ink, lineHeight: 1 }}>R$ {plan.price}</span>
+                      <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.75rem', color: S.muted, marginLeft: '0.4rem' }}>/mês</span>
                     </div>
-                    <ul className="space-y-3 mb-10 flex-1">
-                      {plan.features.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2.5" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.82rem', fontWeight: 300, color: isStarter ? '#b0a49e' : S.muted }}>
-                          <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: isStarter ? S.rose : '#c0b4ae' }} />
-                          {item}
+                    <ul className="space-y-2.5 mb-8 flex-1">
+                      {plan.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.8rem', fontWeight: 300, color: S.muted }}>
+                          <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: S.rose }} />
+                          {f}
                         </li>
                       ))}
                     </ul>
-                    <Link
-                      to="/login"
-                      className="lp-btn-solid"
-                      style={{
-                        background: isStarter ? S.rose : 'transparent',
-                        color: isStarter ? S.white : S.ink,
-                        border: isStarter ? 'none' : `1px solid ${S.border}`,
-                        justifyContent: 'center',
-                        borderRadius: '8px',
-                      }}
+                    <button
+                      onClick={() => { localStorage.setItem('pendingPlan', JSON.stringify({ planId: plan.id, planName: plan.name, price: plan.price })); navigate('/login?redirect=checkout'); }}
+                      style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', padding: '0.7rem 1.2rem', borderRadius: '8px', border: 'none', background: S.rose, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                     >
-                      {isStarter ? 'Assinar Agora' : 'Começar Teste'}
-                    </Link>
+                      Assinar Agora <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 );
-              }) : (
-                <div className="col-span-3 text-center py-12" style={{ fontFamily: "'DM Sans',sans-serif", color: S.faint }}>
+              })}
+
+              {sortedPlans.length === 0 && (
+                <div className="col-span-4 text-center py-12" style={{ fontFamily: "'DM Sans',sans-serif", color: S.faint }}>
                   Nenhum plano disponível no momento.
                 </div>
               )}
             </div>
+
+            {/* Nota de rodapé */}
+            <p className="text-center mt-10 reveal" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: '0.78rem', fontWeight: 300, color: S.faint }}>
+              Todos os planos incluem 7 dias grátis para teste. Cancele a qualquer momento, sem multas.
+            </p>
           </div>
         </section>
 
         {/* ═══════════════ TECNOLOGIA ═══════════════ */}
-        <section className="py-24" style={{ background: S.cream, borderTop: `1px solid ${S.borderLight}` }}>
+        <section className="py-12 md:py-24" style={{ background: S.cream, borderTop: `1px solid ${S.borderLight}` }}>
           <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
             <div className="text-center mb-16 reveal">
               <span className="sec-label">Infraestrutura</span>
@@ -814,7 +1284,7 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* ═══════════════ FAQ ═══════════════ */}
-        <section id="faq" className="py-28" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
+        <section id="faq" className="py-12 md:py-28" style={{ background: S.white, borderTop: `1px solid ${S.borderLight}` }}>
           <div className="max-w-[760px] mx-auto px-6 lg:px-12">
             <div className="text-center mb-16 reveal">
               <span className="sec-label">Tire suas dúvidas</span>
@@ -854,40 +1324,23 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* ═══════════════ CTA FINAL ═══════════════ */}
-        <section style={{ background: '#1a1512', padding: '5rem 1.5rem' }}>
-          <div style={{ maxWidth: '760px', margin: '0 auto', textAlign: 'center' }}>
-            <span className="sec-label" style={{ color: 'rgba(189,123,101,0.8)' }}>Comece hoje</span>
-            <h2
-              className="reveal"
-              style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(2.2rem,5vw,3.8rem)', fontWeight: 400, color: '#fdfaf7', lineHeight: 1.15, marginBottom: '1.25rem' }}
-            >
-              Sua clínica merece uma{' '}
-              <em style={{ color: '#bd7b65', fontStyle: 'italic' }}>gestão à altura.</em>
+        {/* ═══════════════ CTA FINAL (simplificado) ═══════════════ */}
+        <section style={{ background: S.cream, borderTop: `1px solid ${S.borderLight}`, padding: '4rem 1.5rem', textAlign: 'center' }}>
+          <div style={{ maxWidth: '560px', margin: '0 auto' }}>
+            <h2 className="reveal" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(1.8rem,3vw,2.8rem)', fontWeight: 400, color: S.ink, lineHeight: 1.2, marginBottom: '1.25rem' }}>
+              Sua clínica merece a melhor gestão.<br />
+              <em style={{ color: S.rose }}>Comece grátis hoje.</em>
             </h2>
-            <p
-              className="reveal rd1"
-              style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.95rem', fontWeight: 300, color: '#6b5e54', lineHeight: 1.8, maxWidth: '44ch', margin: '0 auto 2.5rem' }}
-            >
-              7 dias grátis, sem cartão. Configure em minutos e veja a diferença no primeiro dia.
-            </p>
-            <div className="reveal rd2" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center' }}>
-              <Link to="/login" className="lp-btn-solid" style={{ borderRadius: '8px', fontSize: '0.75rem', padding: '0.95rem 2.25rem' }}>
-                Testar 7 Dias Grátis <ArrowRight className="w-3.5 h-3.5" />
+            <div className="reveal rd1" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center' }}>
+              <Link to="/login" className="lp-btn-solid" style={{ borderRadius: '8px', fontSize: '0.78rem', padding: '1rem 2.5rem' }}>
+                Testar 7 Dias Grátis <ArrowRight className="w-4 h-4" />
               </Link>
-              <button
-                onClick={() => scrollToSection('plans')}
-                className="lp-btn-outline"
-                style={{ borderRadius: '8px', borderColor: 'rgba(255,255,255,0.12)', color: '#a89890', fontSize: '0.75rem', padding: '0.95rem 2.25rem' }}
-              >
-                Ver Planos
-              </button>
             </div>
           </div>
         </section>
 
         {/* ═══════════════ FOOTER ═══════════════ */}
-        <footer style={{ background: S.dark, borderTop: `1px solid ${S.darkBorder}` }}>
+        <footer className="pb-24 md:pb-0" style={{ background: S.dark, borderTop: `1px solid ${S.darkBorder}` }}>
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12 py-16">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-12">
               <div className="col-span-2 md:col-span-1">
@@ -934,8 +1387,8 @@ const LandingPage: React.FC = () => {
                     key={i}
                     className="w-4 h-4 cursor-pointer"
                     style={{ color: S.darkFaint, transition: 'color 0.2s' }}
-                    onMouseEnter={(e: any) => (e.currentTarget.style.color = S.rose)}
-                    onMouseLeave={(e: any) => (e.currentTarget.style.color = S.darkFaint)}
+                    onMouseEnter={(e: React.MouseEvent<SVGSVGElement>) => ((e.currentTarget as SVGSVGElement & { style: CSSStyleDeclaration }).style.color = S.rose)}
+                    onMouseLeave={(e: React.MouseEvent<SVGSVGElement>) => ((e.currentTarget as SVGSVGElement & { style: CSSStyleDeclaration }).style.color = S.darkFaint)}
                   />
                 ))}
               </div>
@@ -943,6 +1396,28 @@ const LandingPage: React.FC = () => {
           </div>
         </footer>
 
+      </div>
+
+      {/* ═══════════════ MOBILE STICKY CTA ═══════════════ */}
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-4"
+        style={{
+          background: 'rgba(253,250,247,0.96)',
+          backdropFilter: 'blur(16px)',
+          borderTop: `1px solid ${S.borderLight}`,
+          boxShadow: '0 -8px 32px rgba(26,21,18,0.10)',
+        }}
+      >
+        <Link
+          to="/login"
+          className="lp-btn-solid"
+          style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '0.9rem' }}
+        >
+          Testar 7 Dias Grátis — Sem Cartão <ArrowRight className="w-4 h-4" />
+        </Link>
+        <p style={{ textAlign: 'center', fontFamily: "'DM Sans',sans-serif", fontSize: '0.6rem', color: S.faint, marginTop: '0.4rem', letterSpacing: '0.06em' }}>
+          Cancele quando quiser · Sem fidelidade
+        </p>
       </div>
     </>
   );
