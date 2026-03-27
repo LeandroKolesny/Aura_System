@@ -1,3 +1,7 @@
+// Aura System - Schema do Banco de Dados
+// Sistema de Gestão para Clínicas de Estética
+// Usando Prisma com PostgreSQL (Supabase)
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,487 +12,478 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model activities {
-  id          String       @id
-  type        ActivityType
-  title       String
-  description String?
-  metadata    Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime     @default(now())
-  userId      String
-  users       users        @relation(fields: [userId], references: [id])
-}
+// ============================================
+// MÓDULO: AUTENTICAÇÃO E USUÁRIOS
+// ============================================
 
-model app_notifications {
-  id          String           @id
-  message     String
-  type        NotificationType @default(INFO)
-  recipientId String?
-  isRead      Boolean          @default(false)
-  createdAt   DateTime         @default(now())
-  companyId   String
-  companies   companies        @relation(fields: [companyId], references: [id])
-}
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String    // Hash bcrypt - OBRIGATÓRIO
+  avatar        String?
+  phone         String?
+  role          UserRole  @default(ESTHETICIAN)
+  isActive      Boolean   @default(true)
+  emailVerified DateTime?
 
-model appointments {
-  id                String            @id
-  date              DateTime
-  durationMinutes   Int
-  price             Decimal           @db.Decimal(10, 2)
-  status            AppointmentStatus @default(SCHEDULED)
-  notes             String?
-  paid              Boolean           @default(false)
-  roomId            Int?
-  stockDeducted     Boolean           @default(false)
-  signatureUrl      String?
-  signatureMetadata Json?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime
-  companyId         String
-  patientId         String
-  professionalId    String
-  procedureId       String
-  googleEventId     String?
-  companies         companies         @relation(fields: [companyId], references: [id])
-  patients          patients          @relation(fields: [patientId], references: [id])
-  procedures        procedures        @relation(fields: [procedureId], references: [id])
-  users             users             @relation(fields: [professionalId], references: [id])
-  transactions      transactions[]
+  // Verificação de email
+  verificationToken       String?   @unique
+  verificationTokenExpiry DateTime?
 
-  @@index([companyId, date])
-  @@index([companyId])
-  @@index([companyId, professionalId, date])
-  @@index([companyId, status])
-  @@index([patientId])
-}
+  // Reset de senha
+  resetPasswordToken      String?   @unique
+  resetPasswordExpiry     DateTime?
 
-model companies {
-  id                    String                  @id
-  name                  String
-  slug                  String                  @unique
-  logo                  String?
-  address               String?
-  cnpj                  String?
-  presentation          String?
-  phones                String[]                @default([])
-  plan                  Plan                    @default(FREE)
-  subscriptionStatus    SubscriptionStatus      @default(TRIAL)
-  subscriptionExpiresAt DateTime?
-  lastPlan              Plan?
-  businessHours         Json?
-  onlineBookingConfig   Json?
-  layoutConfig          Json?
-  paymentMethods        String[]                @default([])
-  targetFemale          Boolean                 @default(true)
-  targetMale            Boolean                 @default(true)
-  targetKids            Boolean                 @default(false)
-  website               String?
-  facebook              String?
-  instagram             String?
-  onboardingCompleted   Boolean                 @default(false)
-  isActive              Boolean                 @default(true)
-  lastMarketingSentAt   DateTime?
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime
-  city                  String?
-  state                 String?
-  salesStatus           SalesStatus             @default(NEW)
-  customPrice           Decimal?                @db.Decimal(10, 2)
-  asaasCustomerId       String?
-  asaasSubscriptionId   String?
-  app_notifications     app_notifications[]
-  appointments          appointments[]
-  inventory_items       inventory_items[]
-  leads                 leads[]
-  patient_subscriptions patient_subscriptions[]
-  patients              patients[]
-  photo_records         photo_records[]
-  procedures            procedures[]
-  subscription_plans    subscription_plans[]
-  tickets               tickets[]
-  transactions          transactions[]
-  unavailability_rules  unavailability_rules[]
-  users                 users[]
-}
+  // Invalidação de tokens JWT após troca de senha
+  tokenVersion            Int       @default(0)
 
-model google_calendar_watches {
-  id         String   @id
-  channelId  String   @unique
-  resourceId String?
-  expiration DateTime
-  userId     String   @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime
-  users      users    @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model inventory_items {
-  id                 String               @id
-  name               String
-  unit               String
-  currentStock       Decimal              @db.Decimal(10, 2)
-  minStock           Decimal              @default(5) @db.Decimal(10, 2)
-  costPerUnit        Decimal              @db.Decimal(10, 2)
-  lastRestockDate    DateTime?
-  isActive           Boolean              @default(true)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime
-  companyId          String
-  companies          companies            @relation(fields: [companyId], references: [id])
-  procedure_supplies procedure_supplies[]
-  stock_movements    stock_movements[]
-
-  @@index([companyId])
-  @@index([companyId, isActive])
-}
-
-model leads {
-  id           String     @id
-  name         String
-  email        String?
-  phone        String?
-  source       String?
-  status       LeadStatus @default(NEW)
-  notes        String?
-  lastContact  DateTime?
-  nextFollowUp DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime
-  companyId    String
-  assignedToId String?
-  users        users?     @relation(fields: [assignedToId], references: [id])
-  companies    companies  @relation(fields: [companyId], references: [id])
-}
-
-model notifications {
-  id        String           @id
-  title     String
-  message   String
-  type      NotificationType @default(INFO)
-  isRead    Boolean          @default(false)
-  link      String?
-  createdAt DateTime         @default(now())
-  userId    String
-  users     users            @relation(fields: [userId], references: [id])
-}
-
-model patient_subscriptions {
-  id                    String                    @id
-  status                PatientSubscriptionStatus @default(ACTIVE)
-  startDate             DateTime                  @default(now())
-  nextBillingDate       DateTime
-  sessionsUsedThisCycle Json
-  lastCycleReset        DateTime                  @default(now())
-  asaasSubscriptionId   String?
-  asaasCustomerId       String?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime
-  patientId             String
-  planId                String
-  companyId             String
-  companies             companies                 @relation(fields: [companyId], references: [id])
-  patients              patients                  @relation(fields: [patientId], references: [id])
-  subscription_plans    subscription_plans        @relation(fields: [planId], references: [id])
-
-  @@index([companyId])
-  @@index([companyId, status])
-  @@index([patientId])
-}
-
-model patients {
-  id                         String                  @id
-  name                       String
-  email                      String
-  phone                      String
-  birthDate                  DateTime?
-  cpf                        String?
-  status                     PatientStatus           @default(ACTIVE)
-  anamnesisSummary           String?
-  consentSignedAt            DateTime?
-  consentSignatureUrl        String?
-  consentMetadata            Json?
-  anamnesisLinkSent          Boolean                 @default(false)
-  lastMarketingMessageSentAt DateTime?
-  lastVisit                  DateTime?
-  createdAt                  DateTime                @default(now())
-  updatedAt                  DateTime
-  companyId                  String
-  appointments               appointments[]
-  patient_subscriptions      patient_subscriptions[]
-  companies                  companies               @relation(fields: [companyId], references: [id])
-  photo_records              photo_records[]
-  transactions               transactions[]
-
-  @@unique([email, companyId])
-  @@index([companyId, email])
-  @@index([companyId])
-  @@index([companyId, status])
-}
-
-model photo_records {
-  id        String    @id
-  date      DateTime
-  url       String
-  type      PhotoType
-  procedure String
-  groupId   String
-  createdAt DateTime  @default(now())
-  companyId String
-  patientId String
-  companies companies @relation(fields: [companyId], references: [id])
-  patients  patients  @relation(fields: [patientId], references: [id])
-}
-
-model procedure_supplies {
-  id              String          @id
-  quantityUsed    Decimal         @db.Decimal(10, 2)
-  procedureId     String
-  inventoryItemId String
-  inventory_items inventory_items @relation(fields: [inventoryItemId], references: [id])
-  procedures      procedures      @relation(fields: [procedureId], references: [id], onDelete: Cascade)
-}
-
-model procedures {
-  id                      String                    @id
-  name                    String
-  description             String?
-  imageUrl                String?
-  price                   Decimal                   @db.Decimal(10, 2)
-  cost                    Decimal                   @default(0) @db.Decimal(10, 2)
-  durationMinutes         Int                       @default(60)
-  isActive                Boolean                   @default(true)
-  maintenanceRequired     Boolean                   @default(false)
-  maintenanceIntervalDays Int?
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime
-  companyId               String
-  appointments            appointments[]
-  procedure_supplies      procedure_supplies[]
-  companies               companies                 @relation(fields: [companyId], references: [id])
-  subscription_plan_items subscription_plan_items[]
-
-  @@index([companyId])
-  @@index([companyId, isActive])
-}
-
-model saas_plans {
-  id               String   @id
-  name             String   @unique
-  price            Decimal  @db.Decimal(10, 2)
-  features         String[] @default([])
-  isActive         Boolean  @default(true)
-  stripeProductId  String?
-  stripePriceId    String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime
-  displayName      String?
-  maxPatients      Int      @default(50)
-  maxProfessionals Int      @default(1)
-  modules          String[] @default([])
-}
-
-model stock_movements {
-  id              String            @id
-  quantity        Decimal           @db.Decimal(10, 2)
-  type            StockMovementType
-  reason          String?
-  createdAt       DateTime          @default(now())
-  inventoryItemId String
-  inventory_items inventory_items   @relation(fields: [inventoryItemId], references: [id])
-}
-
-model subscription_plan_items {
-  id                 String             @id
-  sessionsPerCycle   Int
-  planId             String
-  procedureId        String
-  subscription_plans subscription_plans @relation(fields: [planId], references: [id], onDelete: Cascade)
-  procedures         procedures         @relation(fields: [procedureId], references: [id])
-
-  @@index([planId])
-}
-
-model subscription_plans {
-  id                      String                    @id
-  name                    String
-  price                   Decimal                   @db.Decimal(10, 2)
-  description             String?
-  isActive                Boolean                   @default(true)
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime
-  companyId               String
-  patient_subscriptions   patient_subscriptions[]
-  subscription_plan_items subscription_plan_items[]
-  companies               companies                 @relation(fields: [companyId], references: [id])
-
-  @@index([companyId])
-  @@index([companyId, isActive])
-}
-
-model system_alerts {
-  id        String           @id
-  title     String
-  message   String
-  type      NotificationType @default(INFO)
-  target    String
-  status    AlertStatus      @default(ACTIVE)
-  createdAt DateTime         @default(now())
-}
-
-model system_settings {
-  id                   String    @id @default("global")
-  maintenanceMode      Boolean   @default(false)
-  maintenanceMessage   String?
-  maintenanceStartedAt DateTime?
-  maintenanceStartedBy String?
-  updatedAt            DateTime
-}
-
-model ticket_messages {
-  id         String   @id
-  content    String
-  senderId   String
-  senderName String
-  isAdmin    Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  ticketId   String
-  tickets    tickets  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-}
-
-model tickets {
-  id              String            @id
-  subject         String
-  status          TicketStatus      @default(OPEN)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime
-  companyId       String
-  ticket_messages ticket_messages[]
-  companies       companies         @relation(fields: [companyId], references: [id])
-}
-
-model transactions {
-  id             String            @id
-  date           DateTime
-  description    String
-  amount         Decimal           @db.Decimal(10, 2)
-  type           TransactionType
-  category       String
-  status         TransactionStatus @default(PENDING)
-  paymentMethod  String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime
-  companyId      String
-  patientId      String?
-  appointmentId  String?
-  professionalId String?
-  appointments   appointments?     @relation(fields: [appointmentId], references: [id])
-  companies      companies         @relation(fields: [companyId], references: [id])
-  patients       patients?         @relation(fields: [patientId], references: [id])
-  users          users?            @relation(fields: [professionalId], references: [id])
-
-  @@index([companyId, date])
-  @@index([companyId])
-  @@index([companyId, type, status, date])
-  @@index([companyId, type, status])
-}
-
-model unavailability_rules {
-  id              String    @id
-  description     String?
-  startTime       String
-  endTime         String
-  dates           String[]
-  professionalIds String[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime
-  companyId       String
-  companies       companies @relation(fields: [companyId], references: [id])
-}
-
-model users {
-  id                      String                   @id
-  email                   String                   @unique
-  name                    String
-  password                String
-  avatar                  String?
-  phone                   String?
-  role                    UserRole                 @default(ESTHETICIAN)
-  isActive                Boolean                  @default(true)
-  emailVerified           DateTime?
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime
-  title                   String?
-  contractType            ContractType             @default(PJ)
-  remunerationType        RemunerationType         @default(COMMISSION)
-  commissionRate          Decimal?                 @db.Decimal(5, 2)
-  fixedSalary             Decimal?                 @db.Decimal(10, 2)
-  businessHours           Json?
-  companyId               String?
-  googleId                String?                  @unique
-  googleAccessToken       String?
-  googleRefreshToken      String?
-  googleCalendarId        String?
-  googleCalendarConnected Boolean                  @default(false)
-  googleTokenExpiresAt    DateTime?
+  // Aceite de termos (LGPD)
   acceptedTermsAt         DateTime?
   acceptedTermsVersion    String?
-  resetPasswordExpiry     DateTime?
-  resetPasswordToken      String?                  @unique
-  verificationToken       String?                  @unique
-  verificationTokenExpiry DateTime?
-  tokenVersion            Int                      @default(0)
-  activities              activities[]
-  appointments            appointments[]
-  google_calendar_watches google_calendar_watches?
-  leads                   leads[]
-  notifications           notifications[]
-  transactions            transactions[]
-  companies               companies?               @relation(fields: [companyId], references: [id])
 
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Dados profissionais
+  title             String?   // Cargo/Especialidade
+  contractType      ContractType @default(PJ)
+  remunerationType  RemunerationType @default(COMMISSION)
+  commissionRate    Decimal?  @db.Decimal(5, 2) // Porcentagem
+  fixedSalary       Decimal?  @db.Decimal(10, 2)
+  businessHours     Json?     // Horário específico do profissional
+
+  // Google OAuth
+  googleId              String?   @unique
+  googleAccessToken     String?
+  googleRefreshToken    String?
+  googleCalendarId      String?
+  googleCalendarConnected Boolean @default(false)
+  googleTokenExpiresAt  DateTime?
+
+  // Relacionamentos
+  company       Company?  @relation(fields: [companyId], references: [id])
+  companyId     String?
+
+  // Relacionamentos de trabalho
+  appointments      Appointment[] @relation("ProfessionalAppointments")
+  transactions      Transaction[] @relation("ProfessionalTransactions")
+  activities        Activity[]
+  notifications     Notification[]
+  assignedLeads     Lead[]
+  watches           GoogleCalendarWatch?
+
+  // Índices para performance
   @@index([companyId])
-  @@index([companyId, isActive])
   @@index([companyId, role])
+  @@index([companyId, isActive])
+  @@map("users")
 }
 
-enum ActivityType {
-  PATIENT_CREATED
-  PATIENT_UPDATED
-  CONSENT_SIGNED
-  APPOINTMENT_CREATED
-  APPOINTMENT_CONFIRMED
-  APPOINTMENT_COMPLETED
-  APPOINTMENT_CANCELED
-  PAYMENT_RECEIVED
-  EXPENSE_CREATED
-  STOCK_ADJUSTED
-  STOCK_LOW_ALERT
-  USER_LOGIN
-  USER_LOGOUT
-  SETTINGS_CHANGED
-  LEAD_CREATED
-  LEAD_STATUS_CHANGED
-  LEAD_ASSIGNED
-}
-
-enum AlertStatus {
-  ACTIVE
-  INACTIVE
-}
-
-enum AppointmentStatus {
-  SCHEDULED
-  CONFIRMED
-  COMPLETED
-  CANCELED
-  PENDING_APPROVAL
+enum UserRole {
+  OWNER         // Dono do SaaS
+  ADMIN         // Administrador da clínica
+  RECEPTIONIST  // Recepcionista
+  ESTHETICIAN   // Esteticista/Profissional
+  PATIENT       // Paciente (acesso limitado)
 }
 
 enum ContractType {
   CLT
   PJ
   FREELANCER
+}
+
+enum RemunerationType {
+  FIXED       // Apenas salário fixo
+  COMMISSION  // Apenas comissão
+  MIXED       // Fixo + Comissão
+}
+
+// ============================================
+// MÓDULO: EMPRESAS (Multi-tenant)
+// ============================================
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  address     String?
+  city        String?   // Cidade da clínica
+  state       String?   // Estado (sigla: SP, RJ, RS...)
+  cnpj        String?
+  presentation String?
+  phones      String[] @default([])
+
+  // Configuração de plano/assinatura
+  plan                    Plan     @default(FREE)
+  subscriptionStatus      SubscriptionStatus @default(TRIAL)
+  subscriptionExpiresAt   DateTime?
+  lastPlan                Plan?
+  customPrice             Decimal? @db.Decimal(10, 2) // Preço negociado (ENTERPRISE)
+  asaasCustomerId         String?
+  asaasSubscriptionId     String?
+
+  // Status de vendas (CRM do OWNER)
+  salesStatus             SalesStatus @default(NEW)
+
+  // Configurações de negócio
+  businessHours           Json?    // BusinessHours object
+  onlineBookingConfig     Json?    // OnlineBookingConfig object
+  layoutConfig            Json?    // PublicLayoutConfig object
+  paymentMethods          String[] @default([])
+
+  // Público alvo
+  targetFemale            Boolean  @default(true)
+  targetMale              Boolean  @default(true)
+  targetKids              Boolean  @default(false)
+
+  // Redes sociais
+  website                 String?
+  facebook                String?
+  instagram               String?
+
+  // Controle
+  onboardingCompleted     Boolean  @default(false)
+  isActive                Boolean  @default(true)
+  lastMarketingSentAt     DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  // Relacionamentos
+  users                User[]
+  patients             Patient[]
+  appointments         Appointment[]
+  procedures           Procedure[]
+  transactions         Transaction[]
+  inventoryItems       InventoryItem[]
+  photos               PhotoRecord[]
+  unavailabilityRules  UnavailabilityRule[]
+  notifications        AppNotification[]
+  tickets              Ticket[]
+  leads                Lead[]
+  subscriptionPlans    SubscriptionPlan[]
+  patientSubscriptions PatientSubscription[]
+  whatsappInstance     WhatsappInstance?
+
+  @@map("companies")
+}
+
+enum Plan {
+  FREE        // Trial grátis
+  BASIC       // Plano bloqueado (sem acesso) após trial expirar
+  STARTER     // Primeiro plano pago
+  PROFESSIONAL
+  PREMIUM
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  OVERDUE
+  CANCELED
+}
+
+enum SalesStatus {
+  NEW           // Novo contato
+  CONTACTED     // Em contato
+  DEMO          // Demo agendada
+  NEGOTIATION   // Em negociação
+  WON           // Fechado (ganho)
+  LOST          // Perdido
+}
+
+// ============================================
+// MÓDULO: PACIENTES
+// ============================================
+
+model Patient {
+  id              String   @id @default(cuid())
+  name            String
+  email           String
+  phone           String
+  birthDate       DateTime?
+  cpf             String?
+  status          PatientStatus @default(ACTIVE)
+
+  // Anamnese e Consentimento
+  anamnesisSummary        String?
+  consentSignedAt         DateTime?
+  consentSignatureUrl     String?   // Base64 ou URL
+  consentMetadata         Json?     // SignatureMetadata
+  anamnesisLinkSent       Boolean   @default(false)
+  lastMarketingMessageSentAt DateTime?
+
+  lastVisit       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  company         Company       @relation(fields: [companyId], references: [id])
+  companyId       String
+  appointments    Appointment[]
+  photos          PhotoRecord[]
+  transactions    Transaction[]
+  subscriptions   PatientSubscription[]
+
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, email])
+  @@unique([email, companyId])
+  @@map("patients")
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  LEAD
+}
+
+// ============================================
+// MÓDULO: PROCEDIMENTOS
+// ============================================
+
+model Procedure {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  imageUrl        String?
+  price           Decimal  @db.Decimal(10, 2)
+  cost            Decimal  @db.Decimal(10, 2) @default(0)
+  durationMinutes Int      @default(60)
+  isActive        Boolean  @default(true)
+
+  // Marketing automático
+  maintenanceRequired     Boolean @default(false)
+  maintenanceIntervalDays Int?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  company         Company       @relation(fields: [companyId], references: [id])
+  companyId       String
+  supplies             ProcedureSupply[]
+  appointments         Appointment[]
+  subscriptionPlanItems SubscriptionPlanItem[]
+
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, isActive])
+  @@map("procedures")
+}
+
+model ProcedureSupply {
+  id              String   @id @default(cuid())
+  quantityUsed    Decimal  @db.Decimal(10, 2) // Quantidade consumida
+
+  // Relacionamentos
+  procedure       Procedure     @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  procedureId     String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  inventoryItemId String
+
+  @@map("procedure_supplies")
+}
+
+// ============================================
+// MÓDULO: AGENDAMENTOS
+// ============================================
+
+model Appointment {
+  id              String   @id @default(cuid())
+  date            DateTime
+  durationMinutes Int
+  price           Decimal  @db.Decimal(10, 2)
+  status          AppointmentStatus @default(SCHEDULED)
+  notes           String?
+  paid            Boolean  @default(false)
+  roomId          Int?
+  stockDeducted   Boolean  @default(false)
+
+  // Assinatura de procedimento
+  signatureUrl    String?
+  signatureMetadata Json?
+  googleEventId   String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  company         Company   @relation(fields: [companyId], references: [id])
+  companyId       String
+  patient         Patient   @relation(fields: [patientId], references: [id])
+  patientId       String
+  professional    User      @relation("ProfessionalAppointments", fields: [professionalId], references: [id])
+  professionalId  String
+  procedure       Procedure @relation(fields: [procedureId], references: [id])
+  procedureId     String
+  transactions    Transaction[]  // Múltiplas transações: INCOME (receita) + EXPENSE (custo insumos)
+
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, status])
+  @@index([companyId, professionalId, date])
+  @@index([patientId])
+  @@map("appointments")
+}
+
+enum AppointmentStatus {
+  SCHEDULED         // Agendado
+  CONFIRMED         // Confirmado
+  COMPLETED         // Concluído
+  CANCELED          // Cancelado
+  PENDING_APPROVAL  // Aguardando aprovação (booking online)
+}
+
+// ============================================
+// MÓDULO: FINANCEIRO - TRANSAÇÕES
+// ============================================
+
+model Transaction {
+  id          String   @id @default(cuid())
+  date        DateTime
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  type        TransactionType
+  category    String
+  status      TransactionStatus @default(PENDING)
+  paymentMethod String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  company     Company     @relation(fields: [companyId], references: [id])
+  companyId   String
+  patient     Patient?    @relation(fields: [patientId], references: [id])
+  patientId   String?
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  appointmentId String?   // Removido @unique para permitir múltiplas transações por agendamento (INCOME + EXPENSE)
+  professional User?      @relation("ProfessionalTransactions", fields: [professionalId], references: [id])
+  professionalId String?
+
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, type, status])
+  @@index([companyId, type, status, date])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  INCOME    // Receita
+  EXPENSE   // Despesa
+}
+
+enum TransactionStatus {
+  PAID      // Pago
+  PENDING   // Pendente
+  OVERDUE   // Vencido
+  REFUNDED  // Estornado
+}
+
+// ============================================
+// MÓDULO: ESTOQUE / INSUMOS
+// ============================================
+
+model InventoryItem {
+  id              String   @id @default(cuid())
+  name            String
+  unit            String   // ml, un, cx, g
+  currentStock    Decimal  @db.Decimal(10, 2)
+  minStock        Decimal  @db.Decimal(10, 2) @default(5)
+  costPerUnit     Decimal  @db.Decimal(10, 2)
+  lastRestockDate DateTime?
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  company         Company   @relation(fields: [companyId], references: [id])
+  companyId       String
+  procedureSupplies ProcedureSupply[]
+  stockMovements  StockMovement[]
+
+  // Índices para performance
+  @@index([companyId])
+  @@index([companyId, isActive])
+  @@map("inventory_items")
+}
+
+model StockMovement {
+  id              String   @id @default(cuid())
+  quantity        Decimal  @db.Decimal(10, 2)
+  type            StockMovementType
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  // Relacionamentos
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  inventoryItemId String
+
+  @@map("stock_movements")
+}
+
+enum StockMovementType {
+  IN        // Entrada (reposição)
+  OUT       // Saída (uso em procedimento)
+  ADJUSTMENT // Ajuste manual
+  LOSS      // Perda/Descarte
+}
+
+// ============================================
+// MÓDULO: REGRAS DE INDISPONIBILIDADE
+// ============================================
+
+model UnavailabilityRule {
+  id              String   @id @default(cuid())
+  description     String?
+  startTime       String   // HH:mm
+  endTime         String   // HH:mm
+  dates           String[] // Array de datas ISO
+  professionalIds String[] // IDs dos profissionais afetados
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  company         Company  @relation(fields: [companyId], references: [id])
+  companyId       String
+
+  @@map("unavailability_rules")
+}
+
+// ============================================
+// MÓDULO: LEADS (CRM)
+// ============================================
+
+model Lead {
+  id          String     @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  source      String?    // instagram, google, indicação, etc
+  status      LeadStatus @default(NEW)
+  notes       String?
+  lastContact DateTime?
+  nextFollowUp DateTime?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relacionamentos
+  company     Company    @relation(fields: [companyId], references: [id])
+  companyId   String
+  assignedTo  User?      @relation(fields: [assignedToId], references: [id])
+  assignedToId String?
+
+  @@map("leads")
 }
 
 enum LeadStatus {
@@ -500,6 +495,106 @@ enum LeadStatus {
   LOST
 }
 
+// ============================================
+// MÓDULO: FOTOS (EVOLUÇÃO)
+// ============================================
+
+model PhotoRecord {
+  id          String   @id @default(cuid())
+  date        DateTime
+  url         String   // URL ou Base64
+  type        PhotoType
+  procedure   String
+  groupId     String   // Para vincular antes/depois
+
+  createdAt   DateTime @default(now())
+
+  // Relacionamentos
+  company     Company  @relation(fields: [companyId], references: [id])
+  companyId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  patientId   String
+
+  @@map("photo_records")
+}
+
+enum PhotoType {
+  BEFORE
+  AFTER
+}
+
+// ============================================
+// MÓDULO: ATIVIDADES E LOGS
+// ============================================
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  title       String
+  description String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime     @default(now())
+
+  // Relacionamentos
+  user        User         @relation(fields: [userId], references: [id])
+  userId      String
+
+  @@map("activities")
+}
+
+enum ActivityType {
+  // Pacientes
+  PATIENT_CREATED
+  PATIENT_UPDATED
+  CONSENT_SIGNED
+
+  // Agendamentos
+  APPOINTMENT_CREATED
+  APPOINTMENT_CONFIRMED
+  APPOINTMENT_COMPLETED
+  APPOINTMENT_CANCELED
+
+  // Financeiro
+  PAYMENT_RECEIVED
+  EXPENSE_CREATED
+
+  // Estoque
+  STOCK_ADJUSTED
+  STOCK_LOW_ALERT
+
+  // Leads
+  LEAD_CREATED
+  LEAD_STATUS_CHANGED
+  LEAD_ASSIGNED
+
+  // Sistema
+  USER_LOGIN
+  USER_LOGOUT
+  SETTINGS_CHANGED
+}
+
+// ============================================
+// MÓDULO: NOTIFICAÇÕES
+// ============================================
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  type        NotificationType @default(INFO)
+  isRead      Boolean  @default(false)
+  link        String?
+  createdAt   DateTime @default(now())
+
+  // Relacionamentos
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+
+  @@map("notifications")
+}
+
 enum NotificationType {
   SUCCESS
   ERROR
@@ -507,10 +602,201 @@ enum NotificationType {
   WARNING
 }
 
-enum PatientStatus {
+// Notificações da empresa (para todos os usuários)
+model AppNotification {
+  id          String   @id @default(cuid())
+  message     String
+  type        NotificationType @default(INFO)
+  recipientId String?  // null = todos da empresa
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relacionamentos
+  company     Company  @relation(fields: [companyId], references: [id])
+  companyId   String
+
+  @@map("app_notifications")
+}
+
+// ============================================
+// MÓDULO: SUPORTE / TICKETS
+// ============================================
+
+model Ticket {
+  id          String       @id @default(cuid())
+  subject     String
+  status      TicketStatus @default(OPEN)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relacionamentos
+  company     Company         @relation(fields: [companyId], references: [id])
+  companyId   String
+  messages    TicketMessage[]
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id          String   @id @default(cuid())
+  content     String
+  senderId    String
+  senderName  String
+  isAdmin     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relacionamentos
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId    String
+
+  @@map("ticket_messages")
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+// ============================================
+// MÓDULO: PLANOS SAAS
+// ============================================
+
+model SaasPlan {
+  id               String   @id @default(cuid())
+  name             String   @unique              // "FREE", "STARTER", "PROFESSIONAL", etc.
+  displayName      String?                       // Nome amigável para UI
+  price            Decimal  @db.Decimal(10, 2)
+  maxProfessionals Int      @default(1)          // -1 = ilimitado
+  maxPatients      Int      @default(50)         // -1 = ilimitado
+  modules          String[] @default([])         // ["online_booking", "financial", ...]
+  features         String[] @default([])         // Lista de features para marketing
+  isActive         Boolean  @default(true)
+  stripeProductId  String?
+  stripePriceId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("saas_plans")
+}
+
+// ============================================
+// MÓDULO: ALERTAS DO SISTEMA
+// ============================================
+
+model SystemAlert {
+  id          String          @id @default(cuid())
+  title       String
+  message     String
+  type        NotificationType @default(INFO)
+  target      String          // 'all' ou companyId específico
+  status      AlertStatus     @default(ACTIVE)
+  createdAt   DateTime        @default(now())
+
+  @@map("system_alerts")
+}
+
+enum AlertStatus {
   ACTIVE
   INACTIVE
-  LEAD
+}
+
+// ============================================
+// MÓDULO: GOOGLE CALENDAR WEBHOOKS
+// ============================================
+
+model GoogleCalendarWatch {
+  id              String   @id @default(cuid())
+  channelId       String   @unique
+  resourceId      String?
+  expiration      DateTime
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String   @unique
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("google_calendar_watches")
+}
+
+// ============================================
+// MÓDULO: CONFIGURAÇÕES GLOBAIS DO SISTEMA
+// ============================================
+
+model SystemSettings {
+  id                   String    @id @default("global")
+  maintenanceMode      Boolean   @default(false)
+  maintenanceMessage   String?   // Mensagem customizada opcional
+  maintenanceStartedAt DateTime?
+  maintenanceStartedBy String?   // userId do Owner que ativou
+  updatedAt            DateTime  @updatedAt
+
+  @@map("system_settings")
+}
+
+// ============================================
+// MÓDULO: CLUBE DE ASSINATURAS
+// ============================================
+
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  name        String
+  price       Decimal  @db.Decimal(10, 2)
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  company     Company               @relation(fields: [companyId], references: [id])
+  companyId   String
+  items       SubscriptionPlanItem[]
+  subscribers PatientSubscription[]
+
+  @@index([companyId])
+  @@index([companyId, isActive])
+  @@map("subscription_plans")
+}
+
+model SubscriptionPlanItem {
+  id               String           @id @default(cuid())
+  sessionsPerCycle Int
+
+  // Relacionamentos
+  plan             SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId           String
+  procedure        Procedure        @relation(fields: [procedureId], references: [id])
+  procedureId      String
+
+  @@index([planId])
+  @@map("subscription_plan_items")
+}
+
+model PatientSubscription {
+  id                  String                   @id @default(cuid())
+  status              PatientSubscriptionStatus @default(ACTIVE)
+  startDate           DateTime                 @default(now())
+  nextBillingDate     DateTime
+  sessionsUsedThisCycle Json                   // { "procedureId": sessionsUsadas }
+  lastCycleReset      DateTime                 @default(now())
+  asaasSubscriptionId String?
+  asaasCustomerId     String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  // Relacionamentos
+  patient             Patient          @relation(fields: [patientId], references: [id])
+  patientId           String
+  plan                SubscriptionPlan @relation(fields: [planId], references: [id])
+  planId              String
+  company             Company          @relation(fields: [companyId], references: [id])
+  companyId           String
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([patientId])
+  @@map("patient_subscriptions")
 }
 
 enum PatientSubscriptionStatus {
@@ -520,71 +806,27 @@ enum PatientSubscriptionStatus {
   OVERDUE
 }
 
-enum PhotoType {
-  BEFORE
-  AFTER
+// ============================================
+// MÓDULO: WHATSAPP
+// ============================================
+
+enum WhatsappInstanceStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
 }
 
-enum Plan {
-  FREE
-  BASIC
-  PROFESSIONAL
-  PREMIUM
-  ENTERPRISE
-  STARTER
-}
+model WhatsappInstance {
+  id               String                   @id @default(cuid())
+  companyId        String                   @unique
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  instanceName     String                   @unique
+  status           WhatsappInstanceStatus   @default(DISCONNECTED)
+  phoneNumber      String?
+  termsAccepted    Boolean                  @default(false)
+  termsAcceptedAt  DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
 
-enum RemunerationType {
-  FIXED
-  COMMISSION
-  MIXED
-}
-
-enum SalesStatus {
-  NEW
-  CONTACTED
-  DEMO
-  NEGOTIATION
-  WON
-  LOST
-}
-
-enum StockMovementType {
-  IN
-  OUT
-  ADJUSTMENT
-  LOSS
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  TRIAL
-  OVERDUE
-  CANCELED
-}
-
-enum TicketStatus {
-  OPEN
-  PENDING
-  CLOSED
-}
-
-enum TransactionStatus {
-  PAID
-  PENDING
-  OVERDUE
-  REFUNDED
-}
-
-enum TransactionType {
-  INCOME
-  EXPENSE
-}
-
-enum UserRole {
-  OWNER
-  ADMIN
-  RECEPTIONIST
-  ESTHETICIAN
-  PATIENT
+  @@index([companyId])
 }
