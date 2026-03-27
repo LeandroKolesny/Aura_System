@@ -226,6 +226,10 @@ export interface Transaction {
   category: string;
   status: 'paid' | 'pending';
   appointmentId?: string;
+  installments?: number;
+  installmentIndex?: number;
+  installmentGroupId?: string;
+  dueDate?: string;
 }
 
 export interface PhotoRecord {
