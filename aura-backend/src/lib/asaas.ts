@@ -1,11 +1,16 @@
 // aura-backend/src/lib/asaas.ts
 // Cliente para a API REST do Asaas (PIX + boleto + recorrência)
 
-const ASAAS_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://api.asaas.com/api/v3'
-  : 'https://sandbox.asaas.com/api/v3';
-
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+
+function getAsaasBaseUrl(): string {
+  if (process.env.ASAAS_BASE_URL) return process.env.ASAAS_BASE_URL;
+  const isSandbox = process.env.ASAAS_SANDBOX?.trim() === 'true';
+  if (isSandbox || process.env.NODE_ENV !== 'production') {
+    return 'https://sandbox.asaas.com/api/v3';
+  }
+  return 'https://api.asaas.com/api/v3';
+}
 
 async function asaasRequest<T>(
   method: string,
@@ -16,7 +21,11 @@ async function asaasRequest<T>(
     throw new Error('ASAAS_API_KEY not configured');
   }
 
-  const res = await fetch(`${ASAAS_BASE_URL}${path}`, {
+  const ASAAS_BASE_URL = getAsaasBaseUrl();
+  const url = `${ASAAS_BASE_URL}${path}`;
+  console.log(`[Asaas] SANDBOX=${process.env.ASAAS_SANDBOX} BASE=${ASAAS_BASE_URL} → ${method} ${url}`);
+
+  const res = await fetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -27,6 +36,7 @@ async function asaasRequest<T>(
 
   if (!res.ok) {
     const text = await res.text();
+    console.error(`[Asaas] Erro ${res.status} em ${method} ${url}: ${text}`);
     throw new Error(`Asaas API error ${res.status}: ${text}`);
   }
 
@@ -88,10 +98,11 @@ export async function createCustomer(data: {
 /** Cria assinatura mensal no Asaas */
 export async function createSubscription(data: {
   customer: string;
-  billingType: 'BOLETO' | 'PIX';
+  billingType: 'BOLETO' | 'PIX' | 'UNDEFINED';
   value: number;
   nextDueDate: string; // 'YYYY-MM-DD'
   description: string;
+  externalReference?: string; // planEnum salvo para resolução no webhook
 }): Promise<AsaasSubscription> {
   return asaasRequest<AsaasSubscription>('POST', '/subscriptions', {
     ...data,

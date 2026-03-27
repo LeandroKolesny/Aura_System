@@ -1,5 +1,6 @@
 // pages/admin/Billing.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, Zap, Star, Building2, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
 import { api, BillingPlan, BillingPlansResponse } from '../../services/api';
 
@@ -11,21 +12,21 @@ const PLAN_ICONS: Record<string, React.ElementType> = {
 
 const PLAN_COLORS: Record<string, { bg: string; text: string; border: string; button: string }> = {
   Starter: {
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
-    border: 'border-blue-200',
-    button: 'bg-blue-600 hover:bg-blue-700',
+    bg: 'bg-rose-50',
+    text: 'text-rose-700',
+    border: 'border-rose-300',
+    button: 'bg-primary-500 hover:bg-primary-600',
   },
   Pro: {
-    bg: 'bg-purple-50',
-    text: 'text-purple-700',
-    border: 'border-purple-200',
-    button: 'bg-purple-600 hover:bg-purple-700',
+    bg: 'bg-primary-50',
+    text: 'text-primary-700',
+    border: 'border-primary-400',
+    button: 'bg-primary-600 hover:bg-primary-700',
   },
   Clinic: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    border: 'border-amber-200',
+    bg: 'bg-slate-800',
+    text: 'text-amber-400',
+    border: 'border-amber-500',
     button: 'bg-amber-600 hover:bg-amber-700',
   },
 };
@@ -38,16 +39,29 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 const Billing: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<BillingPlansResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [blockedPaymentUrl, setBlockedPaymentUrl] = useState<string | null>(null);
+  const highlightedPlanId = searchParams.get('plan');
+  const autoCheckout = searchParams.get('autoCheckout') === 'true';
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const autoCheckoutFired = useRef(false);
 
   useEffect(() => {
     api.billing.getPlans().then((res) => {
       if (res.success && res.data) {
-        setData(res.data as any);
+        // fetchApi wraps the server JSON in { success, data: <serverJson> }
+        // server returns { success, data: BillingPlansResponse }, so inner data is at res.data.data
+        const wrapper = res.data as { data?: BillingPlansResponse } | BillingPlansResponse;
+        const inner = (wrapper as { data?: BillingPlansResponse }).data ?? (wrapper as BillingPlansResponse);
+        setData(inner);
+      } else if (!res.success) {
+        setError('Sessão expirada. Faça login novamente.');
       }
       setLoading(false);
     }).catch(() => {
@@ -56,28 +70,64 @@ const Billing: React.FC = () => {
     });
   }, []);
 
+  // Auto-checkout: quando vindo da LandingPage, dispara o pagamento automaticamente
+  useEffect(() => {
+    if (!autoCheckout || !highlightedPlanId || loading || autoCheckoutFired.current) return;
+    if (!data?.plans) return;
+
+    const targetPlan = data.plans.find((p) => p.id === highlightedPlanId);
+    if (!targetPlan) return;
+
+    autoCheckoutFired.current = true;
+    localStorage.removeItem('pendingPlan');
+    handleSubscribe(targetPlan);
+  }, [autoCheckout, highlightedPlanId, loading, data]);
+
+  // Scroll até o plano pré-selecionado (apenas quando não for auto-checkout)
+  useEffect(() => {
+    if (highlightedPlanId && !autoCheckout && !loading) {
+      localStorage.removeItem('pendingPlan');
+      if (highlightRef.current) {
+        highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [highlightedPlanId, autoCheckout, loading]);
+
   const handleSubscribe = async (plan: BillingPlan) => {
     setCheckingOut(plan.id);
     setError(null);
     setSuccessMsg(null);
+    setBlockedPaymentUrl(null);
 
     try {
       const res = await api.billing.checkout(plan.id);
 
       if (res.success && res.data) {
-        const { paymentUrl } = res.data as any;
+        type CheckoutPayload = { paymentUrl?: string };
+        const wrapper = res.data as { data?: CheckoutPayload } | CheckoutPayload;
+        const inner: CheckoutPayload = (wrapper as { data?: CheckoutPayload }).data ?? (wrapper as CheckoutPayload);
+        const { paymentUrl } = inner;
 
         if (paymentUrl) {
-          window.open(paymentUrl, '_blank');
-          setSuccessMsg('Link de pagamento aberto. Após confirmar o pagamento, seu plano será ativado automaticamente.');
+          const popup = window.open(paymentUrl, '_blank');
+          if (popup) {
+            navigate('/billing/aguardando');
+          } else {
+            // Popup bloqueado — mantém na página e mostra link para abrir manualmente
+            setBlockedPaymentUrl(paymentUrl);
+          }
         } else {
           setSuccessMsg('Assinatura criada! Você receberá o link de pagamento por email.');
         }
       } else {
-        setError('Erro ao iniciar assinatura. Tente novamente.');
+        type ErrorPayload = { error?: string; data?: { error?: string } };
+        const errData = res.data as ErrorPayload | undefined;
+        const errMsg = res.error ?? errData?.error ?? errData?.data?.error ?? 'Erro ao iniciar assinatura.';
+        setError(errMsg);
       }
-    } catch {
-      setError('Erro de conexão. Tente novamente.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`Erro de conexão: ${msg}`);
     } finally {
       setCheckingOut(null);
     }
@@ -140,48 +190,80 @@ const Billing: React.FC = () => {
           <span className="text-emerald-700 text-sm">{successMsg}</span>
         </div>
       )}
+      {blockedPaymentUrl && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-amber-800 text-sm font-medium mb-2">
+              Pop-up bloqueado pelo navegador. Clique no botão abaixo para ir à página de pagamento:
+            </p>
+            <a
+              href={blockedPaymentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => navigate('/billing/aguardando')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Ir para o pagamento <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Cards de planos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {data?.plans.map((plan) => {
+        {(data?.plans ?? []).map((plan) => {
           const Icon = PLAN_ICONS[plan.name] ?? Zap;
           const colors = PLAN_COLORS[plan.name] ?? PLAN_COLORS.Starter;
           const isCurrentPlan = data.currentPlan?.toUpperCase() === plan.name.toUpperCase();
+          const isHighlighted = highlightedPlanId === plan.id;
           const isLoading = checkingOut === plan.id;
 
           return (
             <div
               key={plan.id}
-              className={`bg-white rounded-2xl border-2 p-6 flex flex-col ${
-                isCurrentPlan ? `${colors.border} shadow-md` : 'border-slate-100 shadow-sm'
+              ref={isHighlighted ? highlightRef : null}
+              className={`relative rounded-2xl border-2 p-6 flex flex-col transition-shadow ${
+                plan.name === 'Clinic' ? 'bg-slate-900 text-white' : 'bg-white'
+              } ${
+                isCurrentPlan
+                  ? `${colors.border} shadow-lg ring-2 ring-offset-2 ${colors.border.replace('border-', 'ring-')}`
+                  : isHighlighted
+                  ? `${colors.border} shadow-xl`
+                  : 'border-slate-100 shadow-sm'
               }`}
             >
+              {isCurrentPlan && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="px-3 py-1 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow">
+                    Seu Plano
+                  </span>
+                </div>
+              )}
+
               {/* Header do plano */}
               <div className="flex items-center gap-3 mb-4">
                 <div className={`w-10 h-10 ${colors.bg} rounded-xl flex items-center justify-center`}>
                   <Icon className={`w-5 h-5 ${colors.text}`} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900">{plan.displayName ?? plan.name}</h3>
-                  {isCurrentPlan && (
-                    <span className="text-xs text-emerald-600 font-medium">Plano atual</span>
-                  )}
+                  <h3 className={`font-bold ${plan.name === 'Clinic' ? 'text-white' : 'text-slate-900'}`}>{plan.displayName ?? plan.name}</h3>
                 </div>
               </div>
 
               {/* Preço */}
               <div className="mb-4">
-                <span className="text-3xl font-bold text-slate-900">
+                <span className={`text-3xl font-bold ${plan.name === 'Clinic' ? 'text-white' : 'text-slate-900'}`}>
                   R$ {Number(plan.price).toFixed(0)}
                 </span>
-                <span className="text-slate-500 text-sm">/mês</span>
+                <span className={`text-sm ${plan.name === 'Clinic' ? 'text-slate-400' : 'text-slate-500'}`}>/mês</span>
               </div>
 
               {/* Features */}
               <ul className="space-y-2 mb-6 flex-1">
                 {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <li key={i} className={`flex items-start gap-2 text-sm ${plan.name === 'Clinic' ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <CheckCircle className={`w-4 h-4 shrink-0 mt-0.5 ${plan.name === 'Clinic' ? 'text-amber-400' : 'text-emerald-500'}`} />
                     {feature}
                   </li>
                 ))}
@@ -210,7 +292,7 @@ const Billing: React.FC = () => {
 
       {/* Nota sobre pagamento */}
       <p className="text-xs text-slate-400 text-center">
-        Pagamento via PIX. Após a confirmação, seu plano é ativado automaticamente.
+        Pagamento via PIX, cartão de crédito ou boleto. Após a confirmação, seu plano é ativado automaticamente.
         <br />
         Dúvidas? Fale com o suporte.
       </p>

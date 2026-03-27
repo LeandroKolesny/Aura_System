@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Plan } from '@prisma/client';
 import prisma from '@/lib/prisma';
-
-// Mapa: valor do pagamento → plan enum
-const VALUE_TO_PLAN: Record<number, string> = {
-  97: 'STARTER',
-  197: 'PROFESSIONAL',
-  397: 'PREMIUM',
-};
+import { resolvePlanFromPayment } from '@/lib/billingUtils';
 
 interface AsaasWebhookPayload {
   event: string;
@@ -17,6 +12,7 @@ interface AsaasWebhookPayload {
     status: string;
     value: number;
     dueDate: string;
+    externalReference?: string | null;
   };
   subscription?: {
     id: string;
@@ -30,7 +26,7 @@ export async function POST(request: NextRequest) {
   const webhookToken = request.headers.get('asaas-access-token');
   const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN;
 
-  if (expectedToken && webhookToken !== expectedToken) {
+  if (!expectedToken || webhookToken !== expectedToken) {
     console.warn('[Asaas Webhook] Token inválido — requisição rejeitada');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -61,8 +57,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (event === 'PAYMENT_CONFIRMED' && payment) {
-    // Descobrir qual plano pelo valor do pagamento
-    const plan = VALUE_TO_PLAN[payment.value] ?? 'STARTER';
+    // Preferir externalReference (planEnum salvo no checkout) — fallback para valor
+    const plan = resolvePlanFromPayment(payment);
 
     // Calcular nova data de expiração (+1 mês)
     const expiresAt = new Date();
@@ -71,7 +67,7 @@ export async function POST(request: NextRequest) {
     await prisma.company.update({
       where: { id: company.id },
       data: {
-        plan: plan as any,
+        plan: plan as Plan,
         subscriptionStatus: 'ACTIVE',
         subscriptionExpiresAt: expiresAt,
       },
@@ -101,5 +97,45 @@ export async function POST(request: NextRequest) {
     console.log(`[Asaas Webhook] Assinatura cancelada — empresa ${company.id}`);
   }
 
+  // Pagamento de assinatura de clube — reinicia sessões do ciclo
+  if (event === 'SUBSCRIPTION_PAYMENT_RECEIVED' && payment?.subscription) {
+    await handleSubscriptionClubPayment(payment.subscription);
+  }
+
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Ao receber pagamento de assinatura de clube, zera sessões utilizadas no ciclo
+ * e atualiza a próxima data de cobrança.
+ */
+async function handleSubscriptionClubPayment(asaasSubscriptionId: string) {
+  const subscription = await prisma.patientSubscription.findFirst({
+    where: { asaasSubscriptionId, status: 'ACTIVE' },
+    include: {
+      plan: { include: { items: true } },
+    },
+  });
+
+  if (!subscription) return;
+
+  // Recalcula sessões zeradas com base nos items do plano atual
+  const resetSessions: Record<string, number> = {};
+  subscription.plan.items.forEach((item) => {
+    resetSessions[item.procedureId] = 0;
+  });
+
+  const nextBilling = new Date();
+  nextBilling.setMonth(nextBilling.getMonth() + 1);
+
+  await prisma.patientSubscription.update({
+    where: { id: subscription.id },
+    data: {
+      sessionsUsedThisCycle: resetSessions,
+      lastCycleReset: new Date(),
+      nextBillingDate: nextBilling,
+    },
+  });
+
+  console.log(`[Asaas Webhook] Sessões reiniciadas — assinatura ${subscription.id}`);
 }
