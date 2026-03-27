@@ -53,6 +53,7 @@ const Login: React.FC = () => {
     password: '',
     confirmPassword: '',
     acceptedTerms: false,
+    marketingConsent: false,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -174,6 +175,7 @@ const Login: React.FC = () => {
             phone: regData.phone,
             state: regData.state || undefined,
             acceptedTerms: regData.acceptedTerms,
+            marketingConsent: regData.marketingConsent,
         });
 
         if (!result.success) {
@@ -197,7 +199,9 @@ const Login: React.FC = () => {
             phone: '',
             professionalsCount: '1',
             password: '',
-            confirmPassword: ''
+            confirmPassword: '',
+            acceptedTerms: false,
+            marketingConsent: false,
         });
 
       } catch (err) {
@@ -476,6 +480,28 @@ const Login: React.FC = () => {
                     Política de Privacidade
                   </Link>
                   , incluindo o tratamento dos meus dados pessoais conforme a LGPD.
+                </span>
+              </label>
+
+              {/* Marketing opt-in — separado dos Termos (LGPD) */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="relative mt-0.5 shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={regData.marketingConsent}
+                    onChange={e => setRegData({ ...regData, marketingConsent: e.target.checked })}
+                  />
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${regData.marketingConsent ? 'bg-primary-500 border-primary-500' : 'border-secondary-300 group-hover:border-primary-400'}`}>
+                    {regData.marketingConsent && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <span className="text-xs text-secondary-600 leading-relaxed">
+                  Quero receber novidades, dicas e atualizações do Aura System por email. <span className="text-secondary-400">(opcional)</span>
                 </span>
               </label>
 
