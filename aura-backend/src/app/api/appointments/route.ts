@@ -1,9 +1,10 @@
 // Aura System - API de Agendamentos
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
-import { validateAppointmentTime } from "@/lib/businessHours";
+import { validateAppointmentTime, type BusinessHours, type UnavailabilityRule } from "@/lib/businessHours";
 import {
   createAppointmentSchema,
   listAppointmentsQuerySchema,
@@ -11,7 +12,7 @@ import {
 import { pushAppointmentToCalendar } from "@/lib/calendarSync";
 
 // Cache headers helper para GET requests
-function createCachedResponse(data: any, cacheSeconds: number = 15) {
+function createCachedResponse(data: unknown, cacheSeconds: number = 15) {
   const response = NextResponse.json(data);
   response.headers.set(
     "Cache-Control",
@@ -30,7 +31,7 @@ async function checkScheduleConflict(
   date: Date,
   durationMinutes: number,
   excludeAppointmentId?: string
-): Promise<{ hasConflict: boolean; conflictingAppointment?: any }> {
+): Promise<{ hasConflict: boolean; conflictingAppointment?: { id: string; date: Date; durationMinutes: number; patient: { name: string } } }> {
   const startTime = date.getTime();
   const endTime = startTime + durationMinutes * 60000;
 
@@ -105,10 +106,14 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Construir filtros
-    const where: any = { companyId: user.companyId };
+    const dateFilter: Prisma.DateTimeFilter = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
 
-    if (startDate) where.date = { ...where.date, gte: new Date(startDate) };
-    if (endDate) where.date = { ...where.date, lte: new Date(endDate) };
+    const where: Prisma.AppointmentWhereInput = {
+      companyId: user.companyId,
+      ...(startDate || endDate ? { date: dateFilter } : {}),
+    };
     if (professionalId) where.professionalId = professionalId;
     if (patientId) where.patientId = patientId;
     if (status && status !== "all") where.status = status;
@@ -260,8 +265,8 @@ export async function POST(request: NextRequest) {
     const timeValidation = validateAppointmentTime(
       appointmentDate,
       professionalId,
-      company?.businessHours as any,
-      unavailabilityRules as any
+      company?.businessHours as BusinessHours | null,
+      unavailabilityRules as UnavailabilityRule[]
     );
 
     if (!timeValidation.valid) {
@@ -310,6 +315,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Procedimento não encontrado" }, { status: 404 });
     }
 
+    // ── Clube de Assinaturas: verificar cobertura ──
+    let subscriptionCoverage: {
+      covered: boolean;
+      subscriptionId: string | null;
+      sessionsRemaining: number;
+      warning?: string;
+    } = { covered: false, subscriptionId: null, sessionsRemaining: 0 };
+
+    if (!isPatient) {
+      // Só staff inicia cobertura de assinatura (paciente usa agendamento normal)
+      const activeSubscription = await prisma.patientSubscription.findFirst({
+        where: { patientId, companyId: user.companyId!, status: "ACTIVE" },
+        include: { plan: { include: { items: true } } },
+      });
+
+      if (activeSubscription) {
+        const planItem = activeSubscription.plan.items.find(
+          (item) => item.procedureId === procedureId
+        );
+
+        if (planItem) {
+          const sessionsUsed =
+            (activeSubscription.sessionsUsedThisCycle as Record<string, number>)[procedureId] ?? 0;
+          const sessionsRemaining = planItem.sessionsPerCycle - sessionsUsed;
+
+          if (sessionsRemaining > 0) {
+            // Coberto: desconta sessão e zera o preço
+            subscriptionCoverage = {
+              covered: true,
+              subscriptionId: activeSubscription.id,
+              sessionsRemaining: sessionsRemaining - 1,
+            };
+            price = 0;
+          } else {
+            // Limite atingido: avisa mas agenda normalmente com preço cheio
+            subscriptionCoverage = {
+              covered: false,
+              subscriptionId: activeSubscription.id,
+              sessionsRemaining: 0,
+              warning: `Sessões do plano esgotadas para ${procedure.name} neste ciclo. Agendamento cobrado normalmente.`,
+            };
+          }
+        }
+      }
+    }
+    // ── fim verificação de assinatura ──
+
     // Criar agendamento
     // Pacientes criam com status PENDING_APPROVAL, staff cria com SCHEDULED
     const appointmentStatus = isPatient ? "PENDING_APPROVAL" : "SCHEDULED";
@@ -334,6 +386,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Decrementar sessão da assinatura se coberta
+    if (subscriptionCoverage.covered && subscriptionCoverage.subscriptionId) {
+      const sub = await prisma.patientSubscription.findUnique({
+        where: { id: subscriptionCoverage.subscriptionId },
+        select: { sessionsUsedThisCycle: true },
+      });
+      if (sub) {
+        const current = sub.sessionsUsedThisCycle as Record<string, number>;
+        await prisma.patientSubscription.update({
+          where: { id: subscriptionCoverage.subscriptionId },
+          data: {
+            sessionsUsedThisCycle: {
+              ...current,
+              [procedureId]: (current[procedureId] ?? 0) + 1,
+            },
+          },
+        });
+      }
+    }
+
     // Log de atividade
     const activityTitle = isPatient
       ? `Agendamento solicitado por ${patient.name} (aguardando aprovação)`
@@ -351,7 +423,7 @@ export async function POST(request: NextRequest) {
     // Sync to Google Calendar (fire-and-forget — never block the API response)
     pushAppointmentToCalendar(appointment.id).catch(console.error);
 
-    return NextResponse.json({ appointment }, { status: 201 });
+    return NextResponse.json({ appointment, subscriptionCoverage }, { status: 201 });
   } catch (error) {
     console.error("Erro ao criar agendamento:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

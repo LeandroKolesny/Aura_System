@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Configurações de segurança (CORS é tratado no middleware.ts)
-  // Nota: HSTS é gerenciado automaticamente pelo Vercel; CSP não se aplica a APIs JSON
   async headers() {
     return [
       {
@@ -13,6 +12,11 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          // HSTS: força HTTPS por 1 ano (Vercel já gerencia, mas explicitamos para defesa em profundidade)
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          // Impede que a API seja carregada como script cross-origin
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
         ],
       },
     ];

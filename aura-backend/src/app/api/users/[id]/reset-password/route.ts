@@ -23,9 +23,9 @@ export async function POST(
     const body = await request.json();
     const { newPassword } = body;
 
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || newPassword.length < 8) {
       return NextResponse.json(
-        { error: "Senha deve ter no mínimo 6 caracteres" },
+        { error: "Senha deve ter no mínimo 8 caracteres" },
         { status: 400 }
       );
     }
@@ -54,10 +54,13 @@ export async function POST(
     // Hash da nova senha
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    // Atualizar senha
+    // Atualizar senha e invalidar todos os tokens JWT ativos
     await prisma.user.update({
       where: { id },
-      data: { password: hashedPassword },
+      data: {
+        password: hashedPassword,
+        tokenVersion: { increment: 1 },
+      },
     });
 
     return NextResponse.json({

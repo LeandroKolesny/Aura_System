@@ -1,35 +1,48 @@
 // Aura System - API Pública de Booking (sem autenticação)
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
+
+const bookingSchema = z.object({
+  companyId: z.string().cuid("companyId inválido"),
+  procedureId: z.string().cuid("procedureId inválido"),
+  professionalId: z.string().cuid("professionalId inválido"),
+  date: z.string().datetime("Data inválida"),
+  patientInfo: z.object({
+    name: z.string().min(2).max(100),
+    email: z.string().email("Email inválido"),
+    phone: z.string().min(8).max(20),
+    password: z.string().min(8).max(100).optional(),
+  }),
+});
 
 // POST - Criar agendamento público
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting: 10 bookings por IP a cada 15 minutos
+    const clientIP = getClientIP(request);
+    const rateLimit = await checkRateLimit(clientIP, "public_booking");
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Muitas solicitações. Tente novamente em alguns minutos." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
-    const { 
-      companyId, 
-      procedureId, 
-      professionalId, 
-      date, 
-      patientInfo 
-    } = body;
+    const validation = bookingSchema.safeParse(body);
 
-    // Validações básicas
-    if (!companyId || !procedureId || !professionalId || !date || !patientInfo) {
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "Dados obrigatórios faltando" },
+        { error: "Dados inválidos", details: validation.error.flatten() },
         { status: 400 }
       );
     }
 
+    const { companyId, procedureId, professionalId, date, patientInfo } = validation.data;
     const { name, email, phone, password } = patientInfo;
-    if (!name || !email || !phone) {
-      return NextResponse.json(
-        { error: "Dados do paciente incompletos" },
-        { status: 400 }
-      );
-    }
 
     // Verificar se empresa existe e tem booking online ativo
     const company = await prisma.company.findUnique({
@@ -97,16 +110,11 @@ export async function POST(request: NextRequest) {
 
     if (!patient) {
       patient = await prisma.patient.create({
-        data: {
-          name,
-          email,
-          phone,
-          companyId,
-        },
+        data: { name, email, phone, companyId },
       });
     }
 
-    // Criar user para o paciente se password fornecido
+    // Criar user PATIENT apenas se senha fornecida e não existe conta para este email+empresa
     if (password) {
       const existingUser = await prisma.user.findFirst({
         where: { email, companyId },
@@ -121,6 +129,7 @@ export async function POST(request: NextRequest) {
             password: hashedPassword,
             role: "PATIENT",
             companyId,
+            isActive: false, // Conta inativa até verificar email
           },
         });
       }
@@ -147,11 +156,11 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { 
-        success: true, 
+      {
+        success: true,
         appointment,
         patient,
-        message: "Agendamento solicitado com sucesso!" 
+        message: "Agendamento solicitado com sucesso!",
       },
       { status: 201 }
     );
@@ -160,4 +169,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
-

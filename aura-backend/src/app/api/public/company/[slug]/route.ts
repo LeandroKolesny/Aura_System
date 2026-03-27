@@ -2,6 +2,7 @@
 // Endpoint sem autenticação para página de booking
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
 
 interface RouteParams {
   params: Promise<{ slug: string }>;
@@ -16,6 +17,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json(
         { error: "Slug não informado" },
         { status: 400 }
+      );
+    }
+
+    // Rate limiting: 60 req/IP a cada 15 minutos (anti-enumeração de slugs)
+    const clientIP = getClientIP(request);
+    const rateLimit = await checkRateLimit(clientIP, "public_company");
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Muitas requisições. Tente novamente em alguns minutos." },
+        { status: 429 }
       );
     }
 

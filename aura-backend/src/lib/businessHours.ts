@@ -7,7 +7,7 @@ interface DayHours {
   end: string;   // HH:mm
 }
 
-interface BusinessHours {
+export interface BusinessHours {
   monday: DayHours;
   tuesday: DayHours;
   wednesday: DayHours;
@@ -17,7 +17,7 @@ interface BusinessHours {
   sunday: DayHours;
 }
 
-interface UnavailabilityRule {
+export interface UnavailabilityRule {
   id: string;
   description?: string | null;
   startTime: string;

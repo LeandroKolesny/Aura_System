@@ -19,10 +19,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
+    // Restringir campos do paciente por role — evita vazamento de CPF, histórico médico, etc.
+    const isPrivileged = ["OWNER", "ADMIN", "RECEPTIONIST"].includes(user.role);
+    const patientSelect = isPrivileged
+      ? { id: true, name: true, email: true, phone: true, birthDate: true, cpf: true }
+      : { id: true, name: true, phone: true };
+
     const appointment = await prisma.appointment.findFirst({
       where: { id, companyId: user.companyId! },
       include: {
-        patient: true,
+        patient: { select: patientSelect },
         professional: { select: { id: true, name: true, email: true, phone: true } },
         procedure: true,
         transactions: true,

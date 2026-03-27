@@ -1,7 +1,56 @@
 // Aura System - API de Update de Empresa
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
+
+const dayHoursSchema = z.object({
+  isOpen: z.boolean(),
+  start: z.string().regex(/^\d{2}:\d{2}$/),
+  end: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+const updateCompanySchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  logo: z.string().url().max(500).nullable().optional(),
+  address: z.string().max(200).nullable().optional(),
+  city: z.string().max(100).nullable().optional(),
+  state: z.string().length(2).nullable().optional(),
+  cnpj: z.string().max(20).nullable().optional(),
+  presentation: z.string().max(1000).nullable().optional(),
+  phones: z.array(z.string().max(20)).max(5).optional(),
+  website: z.string().url().max(200).nullable().optional(),
+  facebook: z.string().url().max(200).nullable().optional(),
+  instagram: z.string().url().max(200).nullable().optional(),
+  targetFemale: z.boolean().optional(),
+  targetMale: z.boolean().optional(),
+  targetKids: z.boolean().optional(),
+  onboardingCompleted: z.boolean().optional(),
+  paymentMethods: z.array(z.string().max(30)).max(10).optional(),
+  businessHours: z.object({
+    monday: dayHoursSchema,
+    tuesday: dayHoursSchema,
+    wednesday: dayHoursSchema,
+    thursday: dayHoursSchema,
+    friday: dayHoursSchema,
+    saturday: dayHoursSchema,
+    sunday: dayHoursSchema,
+  }).optional(),
+  onlineBookingConfig: z.record(z.unknown()).optional(),
+  layoutConfig: z.record(z.unknown()).optional(),
+  // Alias para socialMedia enviado pelo frontend
+  socialMedia: z.object({
+    website: z.string().url().max(200).nullable().optional(),
+    facebook: z.string().url().max(200).nullable().optional(),
+    instagram: z.string().url().max(200).nullable().optional(),
+  }).optional(),
+  targetAudience: z.object({
+    female: z.boolean().optional(),
+    male: z.boolean().optional(),
+    kids: z.boolean().optional(),
+  }).optional(),
+}).strict();
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -112,65 +161,53 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Empresa não encontrada" }, { status: 404 });
     }
 
-    const body = await request.json();
+    const rawBody = await request.json();
+    const validation = updateCompanySchema.safeParse(rawBody);
 
-    // Campos permitidos para atualização
-    const allowedFields = [
-      "name",
-      "logo",
-      "address",
-      "city",
-      "state",
-      "cnpj",
-      "presentation",
-      "phones",
-      "businessHours",
-      "onlineBookingConfig",
-      "layoutConfig",
-      "paymentMethods",
-      "targetFemale",
-      "targetMale",
-      "targetKids",
-      "website",
-      "facebook",
-      "instagram",
-      "onboardingCompleted",
-    ];
-
-    // Filtrar apenas campos permitidos
-    const updateData: any = {};
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        // Tratar campos de targetAudience
-        if (field === "targetFemale" || field === "targetMale" || field === "targetKids") {
-          updateData[field] = Boolean(body[field]);
-        }
-        // Tratar campos de socialMedia (mapear para campos do banco)
-        else if (body.socialMedia && (field === "website" || field === "facebook" || field === "instagram")) {
-          // Será tratado abaixo
-        }
-        // Deduplicar paymentMethods se for um array
-        else if (field === "paymentMethods" && Array.isArray(body[field])) {
-          updateData[field] = [...new Set(body[field])];
-        }
-        else {
-          updateData[field] = body[field];
-        }
-      }
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: "Dados inválidos", details: validation.error.flatten() },
+        { status: 400 }
+      );
     }
 
-    // Mapear targetAudience para campos do banco
-    if (body.targetAudience) {
-      updateData.targetFemale = Boolean(body.targetAudience.female);
-      updateData.targetMale = Boolean(body.targetAudience.male);
-      updateData.targetKids = Boolean(body.targetAudience.kids);
+    const data = validation.data;
+
+    // Construir updateData tipado a partir dos campos validados pelo Zod
+    const updateData: Prisma.CompanyUpdateInput = {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.logo !== undefined && { logo: data.logo }),
+      ...(data.address !== undefined && { address: data.address }),
+      ...(data.city !== undefined && { city: data.city }),
+      ...(data.state !== undefined && { state: data.state }),
+      ...(data.cnpj !== undefined && { cnpj: data.cnpj }),
+      ...(data.presentation !== undefined && { presentation: data.presentation }),
+      ...(data.phones !== undefined && { phones: data.phones }),
+      ...(data.businessHours !== undefined && { businessHours: data.businessHours }),
+      ...(data.onlineBookingConfig !== undefined && { onlineBookingConfig: data.onlineBookingConfig as Prisma.InputJsonValue }),
+      ...(data.layoutConfig !== undefined && { layoutConfig: data.layoutConfig as Prisma.InputJsonValue }),
+      ...(data.paymentMethods !== undefined && { paymentMethods: [...new Set(data.paymentMethods)] }),
+      ...(data.targetFemale !== undefined && { targetFemale: data.targetFemale }),
+      ...(data.targetMale !== undefined && { targetMale: data.targetMale }),
+      ...(data.targetKids !== undefined && { targetKids: data.targetKids }),
+      ...(data.website !== undefined && { website: data.website }),
+      ...(data.facebook !== undefined && { facebook: data.facebook }),
+      ...(data.instagram !== undefined && { instagram: data.instagram }),
+      ...(data.onboardingCompleted !== undefined && { onboardingCompleted: data.onboardingCompleted }),
+    };
+
+    // Mapear targetAudience (alias do frontend)
+    if (data.targetAudience) {
+      if (data.targetAudience.female !== undefined) updateData.targetFemale = data.targetAudience.female;
+      if (data.targetAudience.male !== undefined) updateData.targetMale = data.targetAudience.male;
+      if (data.targetAudience.kids !== undefined) updateData.targetKids = data.targetAudience.kids;
     }
 
-    // Mapear socialMedia para campos do banco
-    if (body.socialMedia) {
-      if (body.socialMedia.website !== undefined) updateData.website = body.socialMedia.website;
-      if (body.socialMedia.facebook !== undefined) updateData.facebook = body.socialMedia.facebook;
-      if (body.socialMedia.instagram !== undefined) updateData.instagram = body.socialMedia.instagram;
+    // Mapear socialMedia (alias do frontend)
+    if (data.socialMedia) {
+      if (data.socialMedia.website !== undefined) updateData.website = data.socialMedia.website;
+      if (data.socialMedia.facebook !== undefined) updateData.facebook = data.socialMedia.facebook;
+      if (data.socialMedia.instagram !== undefined) updateData.instagram = data.socialMedia.instagram;
     }
 
     // Atualizar empresa

@@ -20,6 +20,18 @@ const getAI = (): GoogleGenAI | null => {
   return ai;
 };
 
+// Sanitiza inputs para evitar prompt injection
+const sanitizeInput = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/[<>]/g, '')          // Remove HTML tags
+    .replace(/\n|\r/g, ' ')        // Remove quebras de linha que podem escapar o prompt
+    .replace(/```/g, '')           // Remove code blocks
+    .replace(/---/g, '')           // Remove separadores
+    .slice(0, 200)                 // Limita tamanho para evitar prompt overflow
+    .trim();
+};
+
 // Limpar texto de formatação markdown
 const cleanText = (text: string): string => {
   return text
@@ -56,7 +68,10 @@ export async function POST(request: NextRequest) {
     switch (type) {
       case 'return': {
         // Mensagem de retorno para cliente inativo
-        const { patientName, lastProcedure, daysAgo, clinicName } = data;
+        const patientName = sanitizeInput(data.patientName);
+        const lastProcedure = sanitizeInput(data.lastProcedure);
+        const daysAgo = Number(data.daysAgo) || 0;
+        const clinicName = sanitizeInput(data.clinicName);
 
         if (!aiInstance) {
           message = `Olá ${patientName}, já faz ${daysAgo} dias desde o seu ${lastProcedure}. Que tal agendar uma manutenção? - ${clinicName}`;
@@ -89,7 +104,10 @@ export async function POST(request: NextRequest) {
 
       case 'birthday': {
         // Mensagem de aniversário
-        const { patientName, age, clinicName, isToday } = data;
+        const patientName = sanitizeInput(data.patientName);
+        const age = Number(data.age) || 0;
+        const clinicName = sanitizeInput(data.clinicName);
+        const isToday = Boolean(data.isToday);
 
         if (!aiInstance) {
           message = isToday
@@ -122,7 +140,9 @@ export async function POST(request: NextRequest) {
 
       case 'followup': {
         // Mensagem de follow-up pós procedimento
-        const { patientName, procedure, clinicName } = data;
+        const patientName = sanitizeInput(data.patientName);
+        const procedure = sanitizeInput(data.procedure);
+        const clinicName = sanitizeInput(data.clinicName);
 
         if (!aiInstance) {
           message = `Olá ${patientName}, como está sua recuperação após o ${procedure}? Qualquer dúvida estamos à disposição! - ${clinicName}`;
@@ -151,7 +171,10 @@ export async function POST(request: NextRequest) {
 
       case 'retention': {
         // Mensagem de retenção B2B (SaaS)
-        const { clinicName, daysCount, planName, scenario } = data;
+        const clinicName = sanitizeInput(data.clinicName);
+        const daysCount = Number(data.daysCount) || 0;
+        const planName = sanitizeInput(data.planName);
+        const scenario = sanitizeInput(data.scenario);
 
         if (!aiInstance) {
           message = `Olá equipe ${clinicName}, entre em contato conosco sobre o plano ${planName}. - Aura System`;
@@ -195,7 +218,7 @@ export async function POST(request: NextRequest) {
 
       case 'anamnesis': {
         // Resumo de anamnese
-        const { notes } = data;
+        const notes = sanitizeInput(data.notes);
 
         if (!aiInstance) {
           message = "Funcionalidade de IA não disponível. Configure a API Key do Gemini.";

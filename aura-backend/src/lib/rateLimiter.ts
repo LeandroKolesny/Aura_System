@@ -49,13 +49,16 @@ export { rateLimiter };
  * Extrai o IP real do request (considera proxy reverso / Vercel).
  */
 export function getClientIP(request: Request): string {
+  // Vercel injeta o IP real como último valor de x-forwarded-for.
+  // Usar o ÚLTIMO valor impede que atacantes falsifiquem IPs via header.
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
-    return forwarded.split(',')[0].trim();
+    const parts = forwarded.split(',');
+    return parts[parts.length - 1].trim();
   }
   const realIp = request.headers.get('x-real-ip');
   if (realIp) {
-    return realIp;
+    return realIp.trim();
   }
   return 'unknown';
 }

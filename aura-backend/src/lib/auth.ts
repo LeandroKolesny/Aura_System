@@ -26,6 +26,7 @@ export interface JWTPayload {
   email: string;
   role: string;
   companyId: string | null;
+  tokenVersion?: number;
   iat?: number;
   exp?: number;
 }
@@ -37,12 +38,13 @@ const CACHE_TTL = 15000; // 15 segundos
 /**
  * Gera um token JWT assinado para o usuário
  */
-export function generateJWT(user: { id: string; email: string; role: string; companyId: string | null }): string {
+export function generateJWT(user: { id: string; email: string; role: string; companyId: string | null; tokenVersion?: number }): string {
   const payload: JWTPayload = {
     userId: user.id,
     email: user.email,
     role: user.role,
     companyId: user.companyId,
+    tokenVersion: user.tokenVersion ?? 0,
   };
 
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -53,7 +55,8 @@ export function generateJWT(user: { id: string; email: string; role: string; com
  */
 export function verifyJWT(token: string): JWTPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    // algorithms explícito previne algorithm confusion attacks (alg:none, RS256→HS256)
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as JWTPayload;
     return decoded;
   } catch (error) {
     // Token inválido ou expirado
@@ -106,10 +109,17 @@ export async function getAuthUser(request: NextRequest): Promise<AuthUser | null
         role: true,
         companyId: true,
         isActive: true,
+        tokenVersion: true,
       },
     });
 
     if (!user || !user.isActive) {
+      userCache.delete(token);
+      return null;
+    }
+
+    // Invalidar token se tokenVersion não corresponde (ex: senha trocada)
+    if ((payload.tokenVersion ?? 0) !== user.tokenVersion) {
       userCache.delete(token);
       return null;
     }
@@ -169,12 +179,11 @@ export function requirePermission(
 }
 
 /**
- * Gera um token de sessão para o usuário (usa JWT internamente)
- * @deprecated Use generateJWT diretamente
+ * @deprecated Removido — gerava JWT com role vazio, vulnerabilidade de segurança.
+ * Use generateJWT diretamente passando todos os campos obrigatórios.
  */
-export function generateSessionToken(userId: string): string {
-  // Mantido para compatibilidade - usa JWT agora
-  return generateJWT({ id: userId, email: "", role: "", companyId: null });
+export function generateSessionToken(_userId: string): never {
+  throw new Error("generateSessionToken foi removido por razões de segurança. Use generateJWT.");
 }
 
 /**
