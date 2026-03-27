@@ -9,7 +9,7 @@ import { calendarApi } from '../services/api';
 import WhatsAppSettings from '../components/WhatsAppSettings';
 
 const Settings: React.FC = () => {
-  const { currentCompany, user, updateCompany, setHasUnsavedChanges, triggerSave, setTriggerSave, pendingNavigationPath, setPendingNavigationPath, setIsSubscriptionModalOpen } = useApp();
+  const { currentCompany, user, updateCompany, setHasUnsavedChanges, triggerSave, setTriggerSave, pendingNavigationPath, setPendingNavigationPath, setIsSubscriptionModalOpen, checkModuleAccess } = useApp();
   const navigate = useNavigate();
   
   // States for Accordions
@@ -162,8 +162,8 @@ const Settings: React.FC = () => {
         
         setHasUnsavedChanges(false); // Clear dirty state
         return true;
-    } catch (err: any) {
-        setErrorMsg(err.message || 'Erro ao salvar configurações.');
+    } catch (err: unknown) {
+        setErrorMsg(err instanceof Error ? err.message : 'Erro ao salvar configurações.');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return false;
     }
@@ -543,7 +543,7 @@ const Settings: React.FC = () => {
         </section>
 
         {/* WhatsApp — Confirmações (plano Premium) */}
-        <WhatsAppSettings />
+        {checkModuleAccess('whatsapp_notifications') && <WhatsAppSettings />}
 
         {/* Botão de Salvar (FIXED POSITION AT BOTTOM) */}
         <div className="mt-8 border-t border-slate-200 pt-6 flex justify-end">

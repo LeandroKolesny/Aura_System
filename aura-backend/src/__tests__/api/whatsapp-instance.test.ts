@@ -84,6 +84,19 @@ describe('GET /api/whatsapp/instance', () => {
 })
 
 describe('POST /api/whatsapp/instance', () => {
+  it('retorna 403 se plano não tem módulo whatsapp_notifications', async () => {
+    vi.mocked(hasModuleAccess).mockResolvedValue(false)
+    const req = new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'POST',
+      body: JSON.stringify({ acceptTerms: true }),
+      headers: { 'content-type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('MODULE_NOT_AVAILABLE')
+  })
+
   it('retorna 403 se termos não foram aceitos no body', async () => {
     vi.mocked(prisma.whatsappInstance.findUnique).mockResolvedValue(null)
     const req = new NextRequest('http://localhost/api/whatsapp/instance', {
@@ -110,6 +123,14 @@ describe('POST /api/whatsapp/instance', () => {
 })
 
 describe('DELETE /api/whatsapp/instance', () => {
+  it('retorna 403 se plano não tem módulo whatsapp_notifications', async () => {
+    vi.mocked(hasModuleAccess).mockResolvedValue(false)
+    const res = await DELETE(makeReq('DELETE'))
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('MODULE_NOT_AVAILABLE')
+  })
+
   it('desconecta e deleta instância', async () => {
     vi.mocked(prisma.whatsappInstance.delete).mockResolvedValue({} as WhatsappInstance)
     const res = await DELETE(makeReq('DELETE'))

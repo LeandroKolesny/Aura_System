@@ -109,6 +109,14 @@ export async function DELETE(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
   if (!user.companyId) return NextResponse.json({ error: "Sem empresa" }, { status: 403 })
 
+  const { allowed } = await getCompanyAndCheckModule(user.companyId)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Módulo não disponível no seu plano", code: "MODULE_NOT_AVAILABLE" },
+      { status: 403 }
+    )
+  }
+
   await deleteInstance(user.companyId).catch(console.error)
   await prisma.whatsappInstance.delete({
     where: { companyId: user.companyId },
