@@ -932,6 +932,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           email: adminData.email,
           password: adminData.password,
           companyName: companyName,
+          acceptedTerms: adminData.acceptedTerms ?? false,
         });
 
         if (!response.success) {

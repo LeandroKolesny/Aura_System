@@ -284,7 +284,7 @@ const Schedule: React.FC = () => {
         
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-serif font-bold text-secondary-900">Agenda</h1>
+              <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Agenda</h1>
               <p className="text-slate-500">{isPatient ? 'Visualize e solicite seus agendamentos.' : 'Gerencie os atendimentos da clínica.'}</p>
             </div>
             {!isPatient && !isReadOnly && (

@@ -81,7 +81,7 @@ export const RevenueAreaChart: React.FC<RevenueAreaChartProps> = ({
     <div className="w-full relative">
       <svg
         viewBox={`0 0 ${chartWidth} ${chartHeight + paddingTop + paddingBottom}`}
-        className="w-full h-auto"
+        style={{ width: '100%', height: height }}
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>

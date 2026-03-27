@@ -150,7 +150,7 @@ const AccessLink: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleApplyPreset = (presetConfig: any) => {
+  const handleApplyPreset = (presetConfig: typeof STYLE_PRESETS[0]['config']) => {
       setLayoutConfig(prev => ({
           ...prev,
           ...presetConfig
@@ -188,7 +188,7 @@ const AccessLink: React.FC = () => {
   return (
     <div className="space-y-8 pb-10">
       <div>
-        <h1 className="text-3xl font-serif font-bold text-secondary-900">Agenda Online</h1>
+        <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Agenda Online</h1>
         <p className="text-slate-500">
           Configure como seus pacientes visualizam e agendam horários pelo link público.
         </p>
@@ -237,14 +237,28 @@ const AccessLink: React.FC = () => {
 
         <div className="bg-gradient-to-br from-primary-600 to-secondary-900 rounded-xl shadow-2xl p-8 text-white relative overflow-hidden flex flex-col items-center justify-center text-center">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-            <QrCode className="w-32 h-32 text-white mb-6 opacity-90" />
-            <h3 className="text-xl font-serif font-bold mb-2">Seu Portal de Pacientes</h3>
-            <p className="text-white/70 text-sm max-w-xs mx-auto mb-6">
-                Seus pacientes verão uma página exclusiva com sua marca para escolher serviços e horários.
+            <h3 className="text-xl font-serif font-bold mb-2 relative z-10">Seu Portal de Pacientes</h3>
+            <p className="text-white/70 text-sm max-w-xs mx-auto mb-5 relative z-10">
+                Compartilhe o QR Code com seus pacientes para acesso direto ao agendamento online.
             </p>
-            <div className="px-4 py-1.5 bg-white/20 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
-                Aura Booking
+            <div className="bg-white p-3 rounded-xl shadow-lg mb-5 relative z-10">
+                <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(publicLink)}&bgcolor=ffffff&color=000000&margin=2`}
+                    alt={`QR Code para ${publicLink}`}
+                    width={180}
+                    height={180}
+                    className="block rounded-lg"
+                />
             </div>
+            <a
+                href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(publicLink)}&bgcolor=ffffff&color=000000&margin=4`}
+                download="qrcode-portal.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative z-10 flex items-center gap-1.5 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full text-xs font-semibold uppercase tracking-wider backdrop-blur-sm transition-colors"
+            >
+                <QrCode className="w-3.5 h-3.5" /> Baixar QR Code
+            </a>
         </div>
       </div>
 
@@ -415,7 +429,7 @@ const AccessLink: React.FC = () => {
                             <label className="block text-sm font-medium text-slate-700 mb-2">Fonte</label>
                             <select 
                                 value={layoutConfig.fontFamily}
-                                onChange={(e) => { setLayoutConfig({...layoutConfig, fontFamily: e.target.value as any}); setHasUnsavedChanges(true); }}
+                                onChange={(e) => { setLayoutConfig({...layoutConfig, fontFamily: e.target.value as 'inter' | 'serif' | 'system'}); setHasUnsavedChanges(true); }}
                                 className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-sm"
                             >
                                 <option value="serif">Luxuosa (Serifada)</option>

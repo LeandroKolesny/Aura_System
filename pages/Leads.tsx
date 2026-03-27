@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadStatus } from '../types';
-import { Plus, Phone, Mail, DollarSign, Calendar, MoreHorizontal, XCircle, RotateCcw } from 'lucide-react';
+import { Plus, Phone, Mail, DollarSign, Calendar, MoreHorizontal, XCircle, RotateCcw, TrendingUp } from 'lucide-react';
+import { formatCurrency } from '../utils/formatUtils';
 import { maskPhone } from '../utils/maskUtils';
 
 const Leads: React.FC = () => {
@@ -61,7 +62,7 @@ const Leads: React.FC = () => {
 
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-secondary-900">CRM Comercial</h1>
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">CRM Comercial</h1>
           <p className="text-slate-500">Pipeline de vendas e gestão de leads.</p>
         </div>
         <button 
@@ -77,12 +78,26 @@ const Leads: React.FC = () => {
         <div className="flex gap-4 min-w-max h-full">
           {columns.map(col => (
             <div key={col.id} className="w-80 flex flex-col h-full rounded-xl bg-slate-100 border border-slate-200">
-              <div className={`p-3 border-t-4 ${col.color} bg-white rounded-t-xl border-b border-slate-200 flex justify-between items-center`}>
-                <h3 className="font-bold text-slate-700">{col.title}</h3>
-                <span className="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded-full">
-                  {leads.filter(l => l.status === col.id).length}
-                </span>
-              </div>
+              {(() => {
+                const colLeads = leads.filter(l => l.status === col.id);
+                const colTotal = colLeads.reduce((s, l) => s + l.value, 0);
+                return (
+                  <div className={`p-3 border-t-4 ${col.color} bg-white rounded-t-xl border-b border-slate-200`}>
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-bold text-slate-700 text-sm">{col.title}</h3>
+                      <span className="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded-full">
+                        {colLeads.length}
+                      </span>
+                    </div>
+                    {colLeads.length > 0 && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <TrendingUp className="w-3 h-3 text-emerald-500" />
+                        <span className="text-xs text-emerald-600 font-semibold">{formatCurrency(colTotal)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="p-3 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
                 {leads.filter(l => l.status === col.id).map(lead => (
                   <div key={lead.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-grab group relative">

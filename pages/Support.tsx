@@ -57,7 +57,7 @@ const Support: React.FC = () => {
     <div className="h-[calc(100vh-6rem)] flex flex-col">
         <div className="mb-6 flex justify-between items-center">
             <div>
-                <h1 className="text-3xl font-serif font-bold text-secondary-900">Central de Suporte</h1>
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Central de Suporte</h1>
                 <p className="text-slate-500">{isOwner ? 'Gerencie os chamados das clínicas.' : 'Abra chamados e tire suas dúvidas.'}</p>
             </div>
             {!isOwner && !isCreating && (

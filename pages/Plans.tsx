@@ -251,7 +251,7 @@ const Plans: React.FC = () => {
       {/* --- SEÇÃO 2: CABEÇALHO DA PÁGINA (MOVIDO PARA BAIXO) --- */}
       <div className="flex justify-between items-center pt-4 border-t border-slate-100">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-secondary-900">Configuração de Planos</h1>
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Configuração de Planos</h1>
           <p className="text-slate-500">Gerencie as ofertas, preços e links de checkout do seu SaaS.</p>
         </div>
         <button 

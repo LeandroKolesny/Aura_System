@@ -330,7 +330,7 @@ const DashboardSkeleton: React.FC = () => (
       </div>
       <div className="h-10 w-32 bg-slate-200 rounded-xl"></div>
     </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
       {[1, 2, 3, 4].map(i => (
         <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200">
           <div className="flex items-center gap-4">
@@ -415,8 +415,11 @@ const ClinicDashboard: React.FC = () => {
   // Alertas do sistema (combina API + alertas do banco)
   const activeAlerts = useMemo(() => {
     const dbAlerts = systemAlerts.filter(a => (a.target === 'all' || a.target === user?.companyId) && a.status === 'active');
-    const invAlerts = dashboardData?.alerts.lowStock.map(a => ({
+    const invAlerts: SystemAlert[] = dashboardData?.alerts.lowStock.map(a => ({
       ...a,
+      type: (a.type as SystemAlert['type']) || 'warning',
+      target: 'all' as const,
+      status: 'active' as const,
       createdAt: new Date().toISOString()
     })) || [];
     return [...invAlerts, ...dbAlerts].filter(a => !dismissedAlertIds.includes(a.id)).slice(0, 5);
@@ -436,6 +439,20 @@ const ClinicDashboard: React.FC = () => {
     }, 600);
   };
 
+  // Trend: compara primeira metade vs segunda metade do histórico de receita
+  const revenueTrend = useMemo(() => {
+    const revenueChart = dashboardData?.charts?.revenueChart;
+    if (!revenueChart || revenueChart.length < 2) return null;
+    const half = Math.floor(revenueChart.length / 2);
+    const firstHalf = revenueChart.slice(0, half).reduce((s, d) => s + d.value, 0);
+    const secondHalf = revenueChart.slice(half).reduce((s, d) => s + d.value, 0);
+    if (firstHalf === 0) return secondHalf > 0 ? 100 : 0;
+    return Math.round(((secondHalf - firstHalf) / firstHalf) * 100);
+  }, [dashboardData]);
+
+  const trendStr = (val: number | null) =>
+    val !== null ? `${val >= 0 ? '+' : ''}${val}%` : undefined;
+
   // Mostrar skeleton enquanto carrega
   if (isLoadingDashboard || !dashboardData) {
     return <DashboardSkeleton />;
@@ -448,12 +465,12 @@ const ClinicDashboard: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">Dashboard <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-[10px] font-bold uppercase rounded-full border border-primary-100">{user?.role === UserRole.ADMIN ? currentCompany?.name : 'Recepção'}</span></h1>
+            <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">Dashboard <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-[10px] font-bold uppercase rounded-full border border-primary-100">{user?.role === UserRole.ADMIN ? currentCompany?.name : 'Recepção'}</span></h1>
             <p className="text-slate-500">Visão geral da clínica e performance em tempo real.</p>
           </div>
           <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-                {['7d', '30d'].map(r => (
-                    <button key={r} onClick={() => setRevenueRange(r as any)} className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all tracking-wider ${revenueRange === r ? 'bg-primary-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>{r.toUpperCase()}</button>
+                {(['7d', '30d'] as const).map(r => (
+                    <button key={r} onClick={() => setRevenueRange(r)} className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all tracking-wider ${revenueRange === r ? 'bg-primary-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>{r.toUpperCase()}</button>
                 ))}
           </div>
       </div>
@@ -481,14 +498,14 @@ const ClinicDashboard: React.FC = () => {
                           <div className="flex items-center gap-2 shrink-0">
                               <button
                                   onClick={() => updateAppointmentStatus(appt.id, 'canceled')}
-                                  className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 hover:border-red-200 transition-colors"
+                                  className="min-h-[44px] px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 hover:border-red-200 transition-colors"
                               >
                                   Recusar
                               </button>
                               <button
                                   onClick={() => handleQuickApprove(appt)}
                                   disabled={approvingId === appt.id}
-                                  className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors disabled:opacity-50"
+                                  className="min-h-[44px] px-4 py-2.5 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors disabled:opacity-50"
                               >
                                   {approvingId === appt.id ? 'Aprovando...' : 'Aprovar'}
                               </button>
@@ -505,7 +522,7 @@ const ClinicDashboard: React.FC = () => {
                   const config = ALERT_VISUAL_CONFIG[alert.type] || ALERT_VISUAL_CONFIG.info;
                   const Icon = config.icon;
                   return (
-                    <div key={alert.id} onClick={() => setSelectedAlert(alert as any)} className={`group relative p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all hover:shadow-sm ${config.bg} ${config.border} ${config.text}`}>
+                    <div key={alert.id} onClick={() => setSelectedAlert(alert)} className={`group relative p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all hover:shadow-sm ${config.bg} ${config.border} ${config.text}`}>
                         <div className="p-2 rounded-lg bg-white/50"><Icon className="w-5 h-5" /></div>
                         <div className="flex-1"><p className="font-bold text-sm tracking-tight">{alert.title}</p><p className="text-xs opacity-80 truncate max-w-[80%]">{alert.message}</p></div>
                         <div className="flex items-center gap-4 pr-2"><span className="text-[10px] font-bold uppercase text-slate-500 group-hover:text-slate-900">Ler mais</span><button onClick={(e) => { e.stopPropagation(); dismissAlert(alert.id); }} className="p-1.5 rounded-full hover:bg-black/5 text-slate-400 hover:text-slate-600 transition-all"><X className="w-4 h-4" /></button></div>
@@ -515,8 +532,8 @@ const ClinicDashboard: React.FC = () => {
           </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Faturamento" value={formatCurrency(kpis.revenue)} icon={DollarSign} color="bg-emerald-500" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
+        <StatCard title="Faturamento" value={formatCurrency(kpis.revenue)} icon={DollarSign} color="bg-emerald-500" trend={trendStr(revenueTrend)} />
         <StatCard title="Ticket Médio" value={formatCurrency(kpis.ticketMedio)} icon={TrendingUp} color="bg-primary-500" />
         <StatCard title="Pacientes Atendidos" value={kpis.seenPatients} icon={Users} color="bg-blue-500" subtitle="No período" />
         <StatCard title="Taxa de Cancelamento" value={`${kpis.cancelRate}%`} icon={UserCheck} color="bg-indigo-500" subtitle="Performance" />
@@ -594,7 +611,7 @@ const SaaSDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-        <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">SaaS Overview <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase rounded-full border border-amber-200">Global Admin</span></h1>
+        <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">SaaS Overview <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase rounded-full border border-amber-200">Global Admin</span></h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard title="Receita (MRR)" value={formatCurrency(mrr)} icon={DollarSign} color="bg-emerald-600" trend="+15%" />
             <StatCard title="Clínicas Ativas" value={companies.length} icon={Building} color="bg-blue-600" />

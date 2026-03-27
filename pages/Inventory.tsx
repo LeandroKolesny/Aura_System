@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { InventoryModal } from '../components/Modals';
 import { InventoryItem } from '../types';
-import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Filter, Loader2 } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Filter, Loader2, DollarSign } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
+import { KPICard } from '../components/charts/KPICard';
 
 const Inventory: React.FC = () => {
   const { inventory, removeInventoryItem, isReadOnly, loadInventory, loadingStates } = useApp();
@@ -54,17 +55,21 @@ const Inventory: React.FC = () => {
     );
   }
 
+  const totalItems = inventory.length;
+  const lowStockItems = inventory.filter(item => item.currentStock <= item.minStock).length;
+  const totalValue = inventory.reduce((sum, item) => sum + item.costPerUnit * item.currentStock, 0);
+
   return (
     <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">
                     <Package className="w-6 h-6 text-primary-600" /> Controle de Estoque
                 </h1>
                 <p className="text-slate-500">Gerencie insumos, produtos e controle de baixa automática.</p>
             </div>
-            
-            <button 
+
+            <button
                 onClick={() => setIsModalOpen(true)}
                 disabled={isReadOnly}
                 className={`bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm
@@ -73,6 +78,13 @@ const Inventory: React.FC = () => {
             >
                 <Plus className="w-4 h-4" /> Novo Item
             </button>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-3 gap-2 lg:gap-4">
+            <KPICard title="Total de Itens" value={totalItems} icon={Package} variant="default" size="sm" />
+            <KPICard title="Estoque Crítico" value={lowStockItems} icon={AlertTriangle} variant={lowStockItems > 0 ? 'danger' : 'success'} size="sm" subtitle={lowStockItems > 0 ? 'abaixo do mínimo' : 'tudo OK'} />
+            <KPICard title="Valor em Estoque" value={formatCurrency(totalValue)} icon={DollarSign} variant="primary" size="sm" />
         </div>
 
         {/* Filters */}
@@ -105,11 +117,11 @@ const Inventory: React.FC = () => {
                     <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs">
                         <tr>
                             <th className="px-6 py-3">Item</th>
-                            <th className="px-6 py-3 text-center">Unidade</th>
-                            <th className="px-6 py-3 text-center">Estoque Atual</th>
-                            <th className="px-6 py-3 text-center">Estoque Mínimo</th>
-                            <th className="px-6 py-3 text-right">Custo Unit.</th>
-                            <th className="px-6 py-3 text-right">Valor Total</th>
+                            <th className="hidden sm:table-cell px-6 py-3 text-center">Unidade</th>
+                            <th className="px-6 py-3 text-center">Estoque</th>
+                            <th className="hidden md:table-cell px-6 py-3 text-center">Mínimo</th>
+                            <th className="hidden lg:table-cell px-6 py-3 text-right">Custo Unit.</th>
+                            <th className="hidden sm:table-cell px-6 py-3 text-right">Valor Total</th>
                             <th className="px-6 py-3 text-right">Ações</th>
                         </tr>
                     </thead>
@@ -117,24 +129,24 @@ const Inventory: React.FC = () => {
                         {filteredItems.map(item => {
                             const isLow = item.currentStock <= item.minStock;
                             return (
-                                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                <tr key={item.id} className={`transition-colors ${isLow ? 'bg-rose-50/60 hover:bg-rose-50' : 'hover:bg-slate-50'}`}>
                                     <td className="px-6 py-4 font-medium text-slate-800">
                                         {item.name}
                                         {isLow && <span className="ml-2 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">Repor</span>}
                                     </td>
-                                    <td className="px-6 py-4 text-center text-slate-500 uppercase text-xs">{item.unit}</td>
+                                    <td className="hidden sm:table-cell px-6 py-4 text-center text-slate-500 uppercase text-xs">{item.unit}</td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={`font-bold ${isLow ? 'text-red-600' : 'text-slate-700'}`}>
                                             {item.currentStock}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-center text-slate-500">{item.minStock}</td>
-                                    <td className="px-6 py-4 text-right text-slate-600">{formatCurrency(item.costPerUnit)}</td>
-                                    <td className="px-6 py-4 text-right font-medium text-slate-800">{formatCurrency(item.costPerUnit * item.currentStock)}</td>
+                                    <td className="hidden md:table-cell px-6 py-4 text-center text-slate-500">{item.minStock}</td>
+                                    <td className="hidden lg:table-cell px-6 py-4 text-right text-slate-600">{formatCurrency(item.costPerUnit)}</td>
+                                    <td className="hidden sm:table-cell px-6 py-4 text-right font-medium text-slate-800">{formatCurrency(item.costPerUnit * item.currentStock)}</td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2">
-                                            <button onClick={() => handleEdit(item)} className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded transition-colors"><Edit className="w-4 h-4" /></button>
-                                            <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                            <button onClick={() => handleEdit(item)} className="min-h-[44px] min-w-[44px] p-2.5 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded transition-colors"><Edit className="w-4 h-4" /></button>
+                                            <button onClick={() => handleDelete(item.id)} className="min-h-[44px] min-w-[44px] p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                                         </div>
                                     </td>
                                 </tr>

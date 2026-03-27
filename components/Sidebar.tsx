@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Settings, LogOut, Syringe, Briefcase, Link as LinkIcon, Megaphone, LifeBuoy, Tag, BellRing, AlertTriangle, Save, Clock, BarChart3, Zap, Package, History, Menu, X, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Settings, LogOut, Syringe, Briefcase, Link as LinkIcon, Megaphone, LifeBuoy, Tag, BellRing, AlertTriangle, Save, Clock, BarChart3, Zap, Package, History, Menu, X, CreditCard, Repeat, type LucideIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, SystemModule } from '../types';
 import AuraLogo from './AuraLogo';
@@ -54,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
       onMobileClose?.();
   };
 
-  const navItems: { path: string; label: string; icon: any; roles: UserRole[]; module?: SystemModule }[] = [
+  const navItems: { path: string; label: string; icon: LucideIcon; roles: UserRole[]; module?: SystemModule }[] = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: [UserRole.ADMIN, UserRole.OWNER] },
     { path: '/reports', label: 'Relatórios BI', icon: BarChart3, roles: [UserRole.OWNER, UserRole.ADMIN], module: 'reports' },
     { path: '/marketing', label: 'Marketing & IA', icon: Zap, roles: [UserRole.ADMIN, UserRole.OWNER], module: 'ai_features' },
@@ -68,8 +68,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
     { path: '/business-hours', label: 'Horários de Atend.', icon: Clock, roles: [UserRole.ADMIN, UserRole.OWNER, UserRole.RECEPTIONIST] },
     { path: '/plans', label: 'Planos & Preços', icon: Tag, roles: [UserRole.OWNER] },
     { path: '/system-alerts', label: 'Alertas Sistema', icon: BellRing, roles: [UserRole.OWNER] },
+    { path: '/subscriptions', label: 'Clube de Assinaturas', icon: Repeat, roles: [UserRole.ADMIN, UserRole.OWNER] },
     { path: '/financial', label: 'Financeiro', icon: DollarSign, roles: [UserRole.ADMIN, UserRole.OWNER], module: 'financial' },
-    { path: '/billing', label: 'Planos', icon: CreditCard, roles: [UserRole.ADMIN] },
+    { path: '/billing', label: 'Assinatura', icon: CreditCard, roles: [UserRole.ADMIN, UserRole.OWNER] },
     { path: '/access-link', label: 'Agenda Online', icon: LinkIcon, roles: [UserRole.ADMIN, UserRole.RECEPTIONIST, UserRole.ESTHETICIAN], module: 'online_booking' },
     { path: '/support', label: 'Suporte', icon: LifeBuoy, roles: [UserRole.ADMIN, UserRole.OWNER], module: 'support' },
   ];
@@ -133,7 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
 
         <aside
             className={`
-              w-64 h-screen fixed left-0 top-0 flex flex-col z-[9999] text-white shadow-2xl transition-all duration-300
+              w-64 h-[100dvh] fixed left-0 top-0 flex flex-col z-[9999] text-white shadow-2xl transition-all duration-300
               ${!isPatient ? 'bg-secondary-900' : ''}
               ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
               lg:translate-x-0
@@ -233,7 +234,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
         </nav>
 
         {/* Rodapé */}
-        <div className={`px-3 py-4 border-t ${isPatient ? 'border-white/10' : 'border-secondary-800'}`}>
+        <div className={`shrink-0 px-3 py-4 border-t ${isPatient ? 'border-white/10' : 'border-secondary-800'}`}>
             <div className="grid grid-cols-2 gap-2">
                 {user?.role !== UserRole.PATIENT && (
                 <button

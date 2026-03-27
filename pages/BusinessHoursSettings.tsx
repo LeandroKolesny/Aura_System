@@ -197,7 +197,7 @@ const BusinessHoursSettings: React.FC = () => {
         )}
 
         <div>
-            <h1 className="text-3xl font-serif font-bold text-secondary-900">Horários de Atendimento</h1>
+            <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Horários de Atendimento</h1>
             <p className="text-slate-500">Configure o funcionamento da clínica e bloqueios de agenda.</p>
         </div>
 

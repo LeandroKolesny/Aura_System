@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, Phone, Mail, Building, Edit, Trash2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Search, Plus, Phone, Mail, Building, Edit, Trash2, ChevronDown, ChevronUp, Loader2, Users, UserCheck, History } from 'lucide-react';
+import { KPICard } from '../components/charts/KPICard';
 import { useApp } from '../context/AppContext';
 import { NewPatientModal } from '../components/Modals';
 import { UserRole, Patient } from '../types';
@@ -75,9 +76,9 @@ const Patients: React.FC = () => {
             <thead>
               <tr className="border-b border-slate-100">
                 <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Nome</th>
-                <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Contato</th>
+                <th className="hidden sm:table-cell px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Contato</th>
                 <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Status</th>
-                <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Última Visita</th>
+                <th className="hidden md:table-cell px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Última Visita</th>
                 <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Ações</th>
               </tr>
             </thead>
@@ -98,7 +99,7 @@ const Patients: React.FC = () => {
                         </div>
                       </Link>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="hidden sm:table-cell px-6 py-4">
                       <div className="flex flex-col text-xs text-slate-500 gap-1">
                         <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-slate-300" /> {patient.phone}</div>
                         <div className="flex items-center gap-1.5"><Mail className="w-3 h-3 text-slate-300" /> {patient.email}</div>
@@ -109,15 +110,15 @@ const Patients: React.FC = () => {
                         {badge.label}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">
+                    <td className="hidden md:table-cell px-6 py-4 text-sm text-slate-500">
                       {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString('pt-BR') : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => handleEdit(patient)} className="p-2 text-slate-300 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors" title="Editar">
+                        <button onClick={() => handleEdit(patient)} className="min-h-[44px] min-w-[44px] p-2.5 text-slate-300 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors" title="Editar">
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(patient.id)} disabled={isReadOnly} className={`p-2 rounded-lg transition-colors ${isReadOnly ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`} title="Excluir">
+                        <button onClick={() => handleDelete(patient.id)} disabled={isReadOnly} className={`min-h-[44px] min-w-[44px] p-2.5 rounded-lg transition-colors ${isReadOnly ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`} title="Excluir">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -141,11 +142,15 @@ const Patients: React.FC = () => {
     return <PatientsSkeleton />;
   }
 
+  const totalPatients = patients.length;
+  const activePatients = patients.filter(p => p.status === 'active').length;
+  const withVisitPatients = patients.filter(p => p.lastVisit).length;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-secondary-900">Pacientes</h1>
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Pacientes</h1>
           <p className="text-slate-500">
             {isOwner ? 'Visão global de pacientes por clínica.' : 'Gerencie os prontuários e informações dos clientes.'}
           </p>
@@ -154,12 +159,20 @@ const Patients: React.FC = () => {
           <button
             onClick={() => setIsModalOpen(true)}
             disabled={isReadOnly}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all ${isReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 text-white hover:-translate-y-px'}`}
+            className={`hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all ${isReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 text-white hover:-translate-y-px'}`}
           >
             <Plus className="w-4 h-4" /> Novo Paciente
           </button>
         )}
       </div>
+
+      {!isOwner && (
+        <div className="grid grid-cols-3 gap-2 lg:gap-4">
+          <KPICard title="Total de Pacientes" value={totalPatients} icon={Users} variant="default" size="sm" />
+          <KPICard title="Pacientes Ativos" value={activePatients} icon={UserCheck} variant="success" size="sm" />
+          <KPICard title="Com Visita Registrada" value={withVisitPatients} icon={History} variant="primary" size="sm" subtitle={`${totalPatients > 0 ? Math.round((withVisitPatients / totalPatients) * 100) : 0}% do total`} />
+        </div>
+      )}
 
       {/* Barra de Busca */}
       <div className="relative max-w-md">
@@ -218,6 +231,17 @@ const Patients: React.FC = () => {
       )}
 
       {isModalOpen && !isReadOnly && <NewPatientModal onClose={() => setIsModalOpen(false)} />}
+
+      {/* FAB mobile */}
+      {!isOwner && !isReadOnly && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="sm:hidden fixed bottom-6 right-6 z-20 w-14 h-14 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all active:scale-95"
+          title="Novo Paciente"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      )}
     </div>
   );
 };

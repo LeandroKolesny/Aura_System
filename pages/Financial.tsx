@@ -1,14 +1,35 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, Save, CreditCard, Loader2, Package } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, Save, CreditCard, Loader2, Package, DollarSign, TrendingDown, Wallet } from 'lucide-react';
 import { UserRole, Transaction } from '../types';
 import { NewExpenseModal } from '../components/Modals';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
 import StatusBadge from '../components/StatusBadge';
 import { PAYMENT_METHODS_LIST } from '../constants';
 import { FinancialSkeleton } from '../components/LoadingSkeleton';
+import { KPICard } from '../components/charts/KPICard';
 
-const TransactionDetailModal: React.FC<{ transaction: any; onClose: () => void }> = ({ transaction, onClose }) => (
+interface TransactionDetailData {
+  id: string;
+  type: 'income' | 'expense';
+  description: string;
+  amount: number;
+  date: string;
+  status: string;
+}
+
+interface SaaSFinancialRecord {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  type: 'income' | 'expense';
+  status: 'pending' | 'overdue' | 'paid';
+  plan?: string;
+  category?: string;
+}
+
+const TransactionDetailModal: React.FC<{ transaction: TransactionDetailData; onClose: () => void }> = ({ transaction, onClose }) => (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-fade-in">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-start shrink-0">
@@ -36,29 +57,29 @@ const TransactionDetailModal: React.FC<{ transaction: any; onClose: () => void }
 const SaaSFinancial: React.FC = () => {
   const { companies, transactions, user, saasPlans } = useApp();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionDetailData | null>(null);
 
   const subscriptionIncomes = useMemo(() => companies.map(company => {
       const plan = saasPlans.find(p => p.id === company.plan);
       const lastChar = company.id.slice(-1);
-      const status = (['2', '5', '8'].includes(lastChar) ? 'pending' : (['3', '6'].includes(lastChar) ? 'overdue' : 'paid')) as any;
+      const status: 'pending' | 'overdue' | 'paid' = ['2', '5', '8'].includes(lastChar) ? 'pending' : ['3', '6'].includes(lastChar) ? 'overdue' : 'paid';
       return { id: `sub_${company.id}`, date: new Date().toISOString(), description: company.name, category: 'Mensalidade', amount: plan?.price || 0, type: 'income' as const, status, plan: company.plan };
   }), [companies, saasPlans]);
 
   const ownerExpenses = useMemo(() => transactions.filter(t => t.companyId === user?.companyId && t.type === 'expense'), [transactions, user]);
-  const allRecords = useMemo(() => [...subscriptionIncomes, ...ownerExpenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [subscriptionIncomes, ownerExpenses]);
+  const allRecords = useMemo<SaaSFinancialRecord[]>(() => ([...subscriptionIncomes, ...ownerExpenses] as SaaSFinancialRecord[]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [subscriptionIncomes, ownerExpenses]);
   const balance = useMemo(() => subscriptionIncomes.filter(i => i.status === 'paid').reduce((a, c) => a + c.amount, 0) - ownerExpenses.reduce((a, c) => a + c.amount, 0), [subscriptionIncomes, ownerExpenses]);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div><h1 className="text-3xl font-serif font-bold text-secondary-900">Gestão Financeira SaaS</h1><p className="text-slate-500">Controle de mensalidades e despesas.</p></div>
+        <div><h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Gestão Financeira SaaS</h1><p className="text-slate-500">Controle de mensalidades e despesas.</p></div>
         <div className="flex gap-4 items-center">
            <button onClick={() => setIsExpenseModalOpen(true)} className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center gap-2 border border-red-200 font-medium"><MinusCircle className="w-4 h-4" /> Despesa</button>
            <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm"><span className="text-sm text-slate-500 block">Saldo</span><span className={`text-xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(balance)}</span></div>
         </div>
       </div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><th className="px-6 py-3">Data Ref.</th><th className="px-6 py-3">Clínica</th><th className="px-6 py-3 text-right">Valor</th><th className="px-6 py-3 text-center">Status</th><th className="px-6 py-3 text-center">Ação</th></tr></thead><tbody className="divide-y divide-slate-100">{allRecords.map((item: any) => (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><th className="px-6 py-3">Data Ref.</th><th className="px-6 py-3">Clínica</th><th className="px-6 py-3 text-right">Valor</th><th className="px-6 py-3 text-center">Status</th><th className="px-6 py-3 text-center">Ação</th></tr></thead><tbody className="divide-y divide-slate-100">{allRecords.map((item) => (
           <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
             <td className="px-6 py-4 text-sm text-slate-600">{formatDate(item.date)}</td>
             <td className="px-6 py-4"><div className="flex items-center gap-3">{item.type === 'expense' ? <div className="p-2 bg-red-50 rounded-lg"><ArrowDownCircle className="w-4 h-4 text-red-500" /></div> : <div className="p-2 bg-green-50 rounded-lg"><Building className="w-4 h-4 text-green-500" /></div>}<div><span className="font-medium text-slate-800 text-sm block">{item.description}</span>{item.type !== 'expense' && <span className="text-xs text-slate-400 capitalize">Plano {item.plan}</span>}</div></div></td>
@@ -156,7 +177,7 @@ const ClinicFinancial: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-secondary-900">Financeiro Clínica</h1>
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Financeiro Clínica</h1>
           <p className="text-slate-500">Fluxo de caixa e lançamentos.</p>
         </div>
         {user?.role === UserRole.ADMIN && (
@@ -168,22 +189,10 @@ const ClinicFinancial: React.FC = () => {
       </div>
 
       {/* Cards de resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-400 to-emerald-600 opacity-60" />
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 mb-1">Receita Total</p>
-          <p className="text-3xl font-serif font-bold text-emerald-600 leading-none">{formatCurrency(totalRevenue)}</p>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-400 to-red-600 opacity-60" />
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 mb-1">Custo Total</p>
-          <p className="text-3xl font-serif font-bold text-red-500 leading-none">{formatCurrency(totalCost)}</p>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden">
-          <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r opacity-60 ${balance >= 0 ? 'from-blue-400 to-blue-600' : 'from-red-400 to-red-600'}`} />
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 mb-1">Saldo Atual</p>
-          <p className={`text-3xl font-serif font-bold leading-none ${balance >= 0 ? 'text-secondary-900' : 'text-red-600'}`}>{formatCurrency(balance)}</p>
-        </div>
+      <div className="grid grid-cols-3 gap-2 lg:gap-4">
+        <KPICard title="Receita Total" value={formatCurrency(totalRevenue)} icon={DollarSign} variant="success" size="sm" />
+        <KPICard title="Custo Total" value={formatCurrency(totalCost)} icon={TrendingDown} variant="danger" size="sm" />
+        <KPICard title="Saldo Atual" value={formatCurrency(balance)} icon={Wallet} variant={balance >= 0 ? 'primary' : 'danger'} size="sm" />
       </div>
       {user?.role === UserRole.ADMIN && (
           <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -211,7 +220,7 @@ const ClinicFinancial: React.FC = () => {
             {groupedTransactions.map((group) => {
               // Transação standalone (sem appointmentId)
               if (group.standalone) {
-                const t = group.standalone as any;
+                const t = group.standalone;
                 const isExpense = t.type === 'expense';
 
                 // Buscar custo direto da tabela de procedimentos pelo nome
@@ -221,7 +230,7 @@ const ClinicFinancial: React.FC = () => {
 
                 return (
                   <tr key={group.key} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-slate-600">{formatDate(t.date)}</td>
+                    <td className={`pl-3 pr-6 py-4 text-sm text-slate-600 border-l-4 ${isExpense ? 'border-rose-400' : 'border-emerald-400'}`}>{formatDate(t.date)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {isExpense ? (
@@ -254,7 +263,7 @@ const ClinicFinancial: React.FC = () => {
               }
 
               // Transação de procedimento (com appointmentId)
-              const income = group.income as any;
+              const income = group.income;
               const expense = group.expense;
               const revenue = income ? Number(income.amount) : 0;
               const description = income?.description || expense?.description || '';
@@ -265,7 +274,7 @@ const ClinicFinancial: React.FC = () => {
 
               return (
                 <tr key={group.key} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-slate-600">{formatDate(group.date)}</td>
+                  <td className="pl-3 pr-6 py-4 text-sm text-slate-600 border-l-4 border-emerald-400">{formatDate(group.date)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <ArrowUpCircle className="w-4 h-4 text-green-500" />

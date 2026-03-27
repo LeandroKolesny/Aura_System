@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Plus, Briefcase, Mail, MoreVertical, Trash2, Edit, Building, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Plus, Briefcase, Mail, MoreVertical, Trash2, Edit, Building, ChevronDown, ChevronUp, Search, Users, UserCheck, TrendingUp } from 'lucide-react';
+import { KPICard } from '../components/charts/KPICard';
 import { useApp } from '../context/AppContext';
 import { ProfessionalModal } from '../components/Modals';
 import { User, UserRole, BusinessHours } from '../types';
@@ -91,7 +92,7 @@ const Professionals: React.FC = () => {
     return map[type || ''] ?? 'bg-slate-50 text-slate-500 border-slate-200';
   };
 
-  const renderTable = (profList: User[], companyData?: any) => {
+  const renderTable = (profList: User[], companyData?: { businessHours?: BusinessHours }) => {
     return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8 animate-fade-in">
         <div className="overflow-x-auto">
@@ -99,10 +100,10 @@ const Professionals: React.FC = () => {
             <thead>
               <tr className="border-b border-slate-100">
                 <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Nome / Cargo</th>
-                <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Contato</th>
-                <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Disponibilidade</th>
-                <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Contrato</th>
-                <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Comissão</th>
+                <th className="hidden sm:table-cell px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Contato</th>
+                <th className="hidden lg:table-cell px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Disponibilidade</th>
+                <th className="hidden md:table-cell px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Contrato</th>
+                <th className="hidden md:table-cell px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Comissão</th>
                 <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Ações</th>
               </tr>
             </thead>
@@ -125,12 +126,12 @@ const Professionals: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="hidden sm:table-cell px-6 py-4">
                     <div className="flex items-center gap-1.5 text-xs text-slate-500">
                       <Mail className="w-3 h-3 text-slate-300" /> {prof.email}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="hidden lg:table-cell px-6 py-4">
                     <div className="flex gap-1">
                       {weekDays.map(day => {
                         const isOpen = availabilitySource?.[day.key]?.isOpen ?? false;
@@ -146,12 +147,12 @@ const Professionals: React.FC = () => {
                       })}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="hidden md:table-cell px-6 py-4">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide border ${contractCls}`}>
                       {prof.contractType || 'N/A'}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="hidden md:table-cell px-6 py-4">
                     {prof.remunerationType === 'fixo' ? (
                       <span className="text-xs text-slate-500">Salário Fixo</span>
                     ) : (
@@ -160,11 +161,11 @@ const Professionals: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => handleEdit(prof)} disabled={isReadOnly} className={`p-2 rounded-lg transition-colors ${isReadOnly ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-primary-600 hover:bg-primary-50'}`} title="Editar">
+                      <button onClick={() => handleEdit(prof)} disabled={isReadOnly} className={`min-h-[44px] min-w-[44px] p-2.5 rounded-lg transition-colors ${isReadOnly ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-primary-600 hover:bg-primary-50'}`} title="Editar">
                         <Edit className="w-4 h-4" />
                       </button>
                       {prof.role !== UserRole.OWNER && (
-                        <button onClick={() => handleDelete(prof.id)} disabled={isReadOnly} className={`p-2 rounded-lg transition-colors ${isReadOnly ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`} title="Remover">
+                        <button onClick={() => handleDelete(prof.id)} disabled={isReadOnly} className={`min-h-[44px] min-w-[44px] p-2.5 rounded-lg transition-colors ${isReadOnly ? 'text-slate-200 cursor-not-allowed' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`} title="Remover">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
@@ -181,11 +182,18 @@ const Professionals: React.FC = () => {
     </div>
   )};
 
+  const totalTeam = baseProfessionals.length;
+  const estheticians = baseProfessionals.filter(p => p.role === UserRole.ESTHETICIAN).length;
+  const commissionBased = baseProfessionals.filter(p => p.remunerationType !== 'fixo' && p.commissionRate && p.commissionRate > 0);
+  const avgCommission = commissionBased.length > 0
+    ? Math.round(commissionBased.reduce((s, p) => s + (p.commissionRate || 0), 0) / commissionBased.length)
+    : 0;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-secondary-900">Profissionais</h1>
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Profissionais</h1>
           <p className="text-slate-500">
              {isOwner ? 'Gerenciamento de usuários por clínica.' : 'Gerencie a equipe, acessos e comissões.'}
           </p>
@@ -194,12 +202,20 @@ const Professionals: React.FC = () => {
           <button
             onClick={() => setIsModalOpen(true)}
             disabled={isReadOnly}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all ${isReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 text-white hover:-translate-y-px'}`}
+            className={`hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all ${isReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 text-white hover:-translate-y-px'}`}
           >
             <Plus className="w-4 h-4" /> Adicionar Profissional
           </button>
         )}
       </div>
+
+      {!isOwner && (
+        <div className="grid grid-cols-3 gap-2 lg:gap-4">
+          <KPICard title="Total da Equipe" value={totalTeam} icon={Users} variant="default" size="sm" />
+          <KPICard title="Esteticistas" value={estheticians} icon={UserCheck} variant="primary" size="sm" />
+          <KPICard title="Comissão Média" value={`${avgCommission}%`} icon={TrendingUp} variant="success" size="sm" subtitle={`${commissionBased.length} por comissão`} />
+        </div>
+      )}
 
       {/* Barra de Busca */}
       <div className="relative max-w-md">
@@ -258,10 +274,21 @@ const Professionals: React.FC = () => {
       )}
 
       {isModalOpen && !isReadOnly && (
-        <ProfessionalModal 
-          onClose={handleClose} 
+        <ProfessionalModal
+          onClose={handleClose}
           initialData={editingProfessional}
         />
+      )}
+
+      {/* FAB mobile */}
+      {!isOwner && !isReadOnly && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="sm:hidden fixed bottom-6 right-6 z-20 w-14 h-14 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all active:scale-95"
+          title="Adicionar Profissional"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
       )}
     </div>
   );

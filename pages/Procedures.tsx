@@ -63,7 +63,7 @@ const Procedures: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-secondary-900">
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">
              {isPatient ? 'Procedimentos Disponíveis' : 'Catálogo de Procedimentos'}
           </h1>
           <p className="text-slate-500">

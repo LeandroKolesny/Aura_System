@@ -25,6 +25,12 @@ const ADMIN_ROUTES = [
   'onboarding',
   'history',
   'auth', // prevents /auth/google-callback from being treated as a clinic slug
+  'billing', // prevents /billing from being treated as a clinic slug
+  'termos-de-uso',
+  'politica-de-privacidade',
+  'verificar-email',
+  'esqueci-senha',
+  'redefinir-senha',
 ];
 
 /**

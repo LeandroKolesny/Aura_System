@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Procedure, User, Appointment, UserRole, PublicLayoutConfig, BusinessHours, UnavailabilityRule, OnlineBookingConfig } from '../types';
-import AuraLogo from '../components/AuraLogo';
-import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, MapPin, Clock, Lock, Calendar as CalendarIcon, AlertTriangle, Info, XCircle, ArrowRight, RefreshCw, User as UserIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, Clock, Calendar as CalendarIcon, XCircle, ArrowRight, Sparkles, User as UserIcon } from 'lucide-react';
+
+// Tipo para estilos com CSS custom properties (ex: --tw-ring-color)
+type CSSWithVars = React.CSSProperties & Record<string, string | number | undefined>;
 import { maskPhone } from '../utils/maskUtils';
 import { formatCurrency } from '../utils/formatUtils';
 import { publicApi, appointmentsApi } from '../services/api';
@@ -412,7 +414,10 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
 
       <div className="p-6 shadow-sm sticky top-0 z-30 flex justify-between items-center backdrop-blur-md border-b" style={headerStyle}>
         <div className="flex items-center gap-3">
-           {companyLogo ? <img src={companyLogo} alt={companyName} className="h-9 w-auto max-w-[140px] object-contain" /> : <AuraLogo className="w-9 h-9" />}
+           {companyLogo
+             ? <img src={companyLogo} alt={companyName} className="h-9 w-auto max-w-[140px] object-contain" />
+             : <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-base shrink-0" style={{ backgroundColor: primaryColor, color: '#fff' }}>{companyName.charAt(0).toUpperCase()}</div>
+           }
            <span className="font-serif font-bold truncate max-w-[200px] text-lg">{companyName}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -448,11 +453,31 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
       </div>
 
       <div className="max-w-3xl mx-auto p-4 pb-24 relative z-10">
-        <div className="flex gap-2 mb-8 lg:mb-14 mt-4 lg:mt-6 px-4 lg:px-12">
+        {/* Barra de progresso + rótulo de etapa */}
+        <div className="flex gap-2 mb-2 mt-4 lg:mt-6 px-4 lg:px-12">
             {[1, 2, 3, 4].map(i => (
                 <div key={i} className="h-1 flex-1 rounded-full transition-all duration-700" style={{ backgroundColor: step >= i ? primaryColor : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)') }}></div>
             ))}
         </div>
+        <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] mb-6 lg:mb-10 opacity-50" style={{ color: primaryColor }}>
+          {['Tratamento', 'Especialista', 'Horário', 'Seus dados'][step - 1]} · Etapa {step} de 4
+        </p>
+
+        {/* Mini-resumo das seleções anteriores */}
+        {step > 1 && (
+          <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor, border: `1px solid ${primaryColor}30` }}>
+              <Sparkles className="w-3 h-3" />
+              {selectedProcedure?.name}
+            </div>
+            {step > 2 && (
+              <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor, border: `1px solid ${primaryColor}30` }}>
+                <UserIcon className="w-3 h-3" />
+                {selectedProfessional ? selectedProfessional.name : 'Próximo disponível'}
+              </div>
+            )}
+          </div>
+        )}
 
         {step === 1 && (
             <div className="space-y-6 lg:space-y-10 animate-fade-in text-center">
@@ -466,7 +491,13 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                             {proc.imageUrl ? (
                                 <><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 group-hover:from-black/70 transition-all"></div><img src={proc.imageUrl} alt={proc.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s]" /></>
                             ) : (
-                                <div className="absolute inset-0 z-0" style={{ background: `linear-gradient(135deg, #121212, ${primaryColor}44)` }}></div>
+                                <>
+                                  <div className="absolute inset-0 z-0" style={{ background: `linear-gradient(145deg, ${primaryColor}55, ${primaryColor}cc)` }}></div>
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent z-[1]"></div>
+                                  <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 2 }}>
+                                    <Sparkles className="w-16 h-16 lg:w-24 lg:h-24 text-white opacity-20 group-hover:opacity-30 transition-opacity" />
+                                  </div>
+                                </>
                             )}
                             <div className="relative z-20 h-full p-4 lg:p-10 flex flex-col justify-end text-left text-white">
                                 <h3 className="font-serif font-bold text-lg lg:text-2xl leading-tight mb-2 lg:mb-4 drop-shadow-md">{proc.name}</h3>
@@ -510,7 +541,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                      <div className="text-center flex-1 relative cursor-pointer group">
                          <div className="pointer-events-none group-hover:scale-105 transition-transform">
                              <p className="text-[8px] lg:text-[10px] font-bold uppercase tracking-[0.3em] lg:tracking-[0.4em] opacity-40 mb-1 lg:mb-3">{selectedDate.getFullYear()}</p>
-                             <p className="text-base lg:text-2xl font-bold capitalize flex items-center justify-center gap-2 lg:gap-3">{selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' })} <CalendarIcon className="w-4 h-4 lg:w-5 lg:h-5 text-primary-500" /></p>
+                             <p className="text-base lg:text-2xl font-bold flex items-center justify-center gap-2 lg:gap-3">{(() => { const s = selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' }).toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); })()} <CalendarIcon className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: primaryColor }} /></p>
                          </div>
                          <input type="date" className="custom-date-input" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 }} value={selectedDate.toISOString().split('T')[0]} onChange={handleDirectDateChange} />
                      </div>
@@ -577,7 +608,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                             required
                             type="text"
                             className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl"
-                            style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44`, opacity: isLoggedInPatient ? 0.7 : 1 } as any}
+                            style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44`, opacity: isLoggedInPatient ? 0.7 : 1 } as CSSWithVars}
                             placeholder="Ex: Maria Oliveira"
                             value={patientData.name}
                             onChange={e => setPatientData({...patientData, name: e.target.value})}
@@ -586,7 +617,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                     </div>
                     <div>
                         <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>WhatsApp para Confirmação</label>
-                        <input required type="tel" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} placeholder="(11) 99999-9999" value={patientData.phone} onChange={e => setPatientData({...patientData, phone: maskPhone(e.target.value)})} maxLength={15} />
+                        <input required type="tel" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as CSSWithVars} placeholder="(11) 99999-9999" value={patientData.phone} onChange={e => setPatientData({...patientData, phone: maskPhone(e.target.value)})} maxLength={15} />
                     </div>
                     <div>
                         <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>E-mail Principal</label>
@@ -594,7 +625,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                             required
                             type="email"
                             className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl"
-                            style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44`, opacity: isLoggedInPatient ? 0.7 : 1 } as any}
+                            style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44`, opacity: isLoggedInPatient ? 0.7 : 1 } as CSSWithVars}
                             placeholder="seu@email.com"
                             value={patientData.email}
                             onChange={e => setPatientData({...patientData, email: e.target.value})}
@@ -607,11 +638,11 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Sua Senha</label>
-                                <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} value={patientData.password} onChange={e => setPatientData({...patientData, password: e.target.value})} />
+                                <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as CSSWithVars} value={patientData.password} onChange={e => setPatientData({...patientData, password: e.target.value})} />
                             </div>
                             <div>
                                 <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Confirmar Senha</label>
-                                <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as any} value={patientData.confirmPassword} onChange={e => setPatientData({...patientData, confirmPassword: e.target.value})} />
+                                <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as CSSWithVars} value={patientData.confirmPassword} onChange={e => setPatientData({...patientData, confirmPassword: e.target.value})} />
                             </div>
                         </div>
                     )}
@@ -626,7 +657,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                     <button
                         type="submit"
                         className="w-full py-6 mt-12 font-bold text-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-transform text-white shadow-2xl"
-                        style={{ backgroundColor: '#16a34a', borderRadius: '2rem', boxShadow: '0 20px 40px -10px rgba(22,163,74,0.4)' }}
+                        style={{ backgroundColor: primaryColor, borderRadius: '2rem', boxShadow: `0 20px 40px -10px ${primaryColor}66` }}
                     >
                         Solicitar Agendamento <ArrowRight className="w-6 h-6" />
                     </button>

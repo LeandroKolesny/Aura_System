@@ -1,11 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   BarChart3, TrendingUp, Users, DollarSign, Building, Crown, ChevronDown,
   Star, ArrowUpRight, Activity, CalendarCheck, UserCheck, Calendar,
   Briefcase, Target, Zap, Award, PieChart, Filter, Download, RefreshCw,
-  ChevronRight, Sparkles, TrendingDown, AlertTriangle, Loader2
+  ChevronRight, Sparkles, TrendingDown, AlertTriangle, Loader2, UserX
 } from 'lucide-react';
+
+const RetentionTab = lazy(() => import('../components/RetentionTab'));
 import { formatCurrency } from '../utils/formatUtils';
 import { UserRole } from '../types';
 import { RevenueAreaChart, MetricDonutChart, HorizontalBarChart, KPICard, MiniSparkline } from '../components/charts';
@@ -127,6 +129,7 @@ const Reports: React.FC = () => {
   // State Initialization - Hook 1
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
   const [timeRange, setTimeRange] = useState<string>('6m');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'retention'>('analytics');
 
   const isOwner = user?.role === UserRole.OWNER;
 
@@ -535,6 +538,41 @@ const Reports: React.FC = () => {
     return patients.filter(p => p.companyId === selectedCompanyId).length;
   }, [selectedCompanyId, patients]);
 
+  // Compute previous period for trend comparison
+  const getPreviousPeriodDates = (range: string) => {
+    const currentStart = getStartDate(range);
+    const currentEnd = new Date();
+    const periodMs = currentEnd.getTime() - currentStart.getTime();
+    const prevEnd = new Date(currentStart.getTime() - 1);
+    const prevStart = new Date(prevEnd.getTime() - periodMs);
+    return { prevStart, prevEnd };
+  };
+
+  const trendData = useMemo(() => {
+    if (!selectedCompanyId) return { revenueTrend: 0, appointmentsTrend: 0, retentionTrend: 0 };
+    const { prevStart, prevEnd } = getPreviousPeriodDates(timeRange);
+
+    const prevRevenue = transactions
+      .filter(t => t.companyId === selectedCompanyId && t.type === 'income' && new Date(t.date) >= prevStart && new Date(t.date) <= prevEnd)
+      .reduce((acc, t) => acc + t.amount, 0);
+
+    const prevCompleted = appointments.filter(a =>
+      a.companyId === selectedCompanyId && a.status === 'completed' &&
+      new Date(a.date) >= prevStart && new Date(a.date) <= prevEnd
+    ).length;
+
+    const calcTrend = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    return {
+      revenueTrend: calcTrend(totalRevenue, prevRevenue),
+      appointmentsTrend: calcTrend(appointmentStats.completed, prevCompleted),
+      retentionTrend: 0, // retenção não tem período anterior fácil de calcular
+    };
+  }, [selectedCompanyId, transactions, appointments, timeRange, totalRevenue, appointmentStats.completed]);
+
   // Loading state - mostrar skeleton apenas se TODOS os dados principais estão carregando
   const isInitialLoading = (loadingStates.patients && patients.length === 0) ||
                            (loadingStates.appointments && appointments.length === 0) ||
@@ -566,6 +604,11 @@ const Reports: React.FC = () => {
 
   const roleLabel = isOwner ? 'Global Admin' : (currentCompany?.name || 'Gestão da Clínica');
 
+  const clinicName = currentCompany?.name ?? 'Clínica';
+  const professionalOptions = professionals
+    .filter((p) => !selectedCompanyId || p.companyId === selectedCompanyId)
+    .map((p) => ({ id: p.id, name: p.name }));
+
   const reportsContent = (
     <div className="space-y-8 pb-12 animate-in fade-in duration-500">
       {/* HEADER MODERNO */}
@@ -577,7 +620,7 @@ const Reports: React.FC = () => {
                 <BarChart3 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-serif font-bold text-secondary-900">Relatórios de Inteligência</h1>
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900">Relatórios de Inteligência</h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-semibold rounded-md border border-primary-100">
                     {roleLabel}
@@ -630,6 +673,45 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
+      {/* TAB NAVIGATION */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'analytics'
+              ? 'bg-white text-slate-800 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Análise Geral
+        </button>
+        <button
+          onClick={() => setActiveTab('retention')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'retention'
+              ? 'bg-white text-slate-800 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <UserX className="w-4 h-4" />
+          Retorno de Pacientes
+        </button>
+      </div>
+
+      {/* RETENTION TAB */}
+      {activeTab === 'retention' && (
+        <Suspense fallback={
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+          </div>
+        }>
+          <RetentionTab clinicName={clinicName} professionalOptions={professionalOptions} />
+        </Suspense>
+      )}
+
+      {activeTab === 'analytics' && <>
+
       {/* SEÇÃO OWNER: PERFORMANCE GLOBAL DO SAAS */}
       {isOwner && (
         <section className="space-y-6">
@@ -675,6 +757,10 @@ const Reports: React.FC = () => {
             subtitle={isRevenueLoading ? 'Carregando...' : getTimeRangeLabel(timeRange)}
             icon={isRevenueLoading ? Loader2 : DollarSign}
             variant="success"
+            trend={isRevenueLoading ? undefined : {
+              value: trendData.revenueTrend,
+              label: trendData.revenueTrend !== 0 ? `vs período anterior` : undefined
+            }}
           />
           <KPICard
             title="Atendimentos"
@@ -682,6 +768,10 @@ const Reports: React.FC = () => {
             subtitle={isAppointmentsLoading ? 'Carregando...' : `${appointmentStats.total} agendados`}
             icon={isAppointmentsLoading ? Loader2 : CalendarCheck}
             variant="primary"
+            trend={isAppointmentsLoading ? undefined : {
+              value: trendData.appointmentsTrend,
+              label: trendData.appointmentsTrend !== 0 ? `vs período anterior` : undefined
+            }}
           />
           <KPICard
             title="Pacientes Ativos"
@@ -696,72 +786,97 @@ const Reports: React.FC = () => {
             subtitle={isAppointmentsLoading ? 'Carregando...' : `${retentionMetrics.returning} recorrentes`}
             icon={UserCheck}
             variant={Number(retentionMetrics.rate) >= 30 ? 'success' : 'warning'}
+            trend={isAppointmentsLoading ? undefined : {
+              value: Number(retentionMetrics.rate) >= 30 ? 1 : -1,
+              label: Number(retentionMetrics.rate) >= 30 ? 'Taxa saudável' : 'Abaixo do ideal'
+            }}
           />
         </div>
       </section>
 
-      {/* SEÇÃO: ANÁLISE VISUAL */}
-      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* CARD HERO - INSIGHT */}
-        <div className="xl:col-span-1 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary-500/20 to-transparent rounded-full blur-2xl" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-emerald-500/10 to-transparent rounded-full blur-xl" />
-
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-amber-400" />
-              <h3 className="font-bold text-lg">Insights Inteligentes</h3>
-            </div>
-
-            <div className="space-y-4">
-              <InsightCard
-                title="Procedimento Campeão"
-                value={procedureEfficiency[0]?.name || '-'}
-                subtitle={procedureEfficiency[0] ? `${formatCurrency(procedureEfficiency[0].totalRevenue)} gerados` : undefined}
-                variant="highlight"
-              />
-
-              <InsightCard
-                title="Ticket Médio Geral"
-                value={formatCurrency(
-                  procedureEfficiency.length > 0
-                    ? procedureEfficiency.reduce((acc, curr) => acc + curr.totalRevenue, 0) /
-                      Math.max(1, procedureEfficiency.reduce((acc, curr) => acc + curr.volume, 0))
-                    : 0
-                )}
-              />
-
-              <InsightCard
-                title="Taxa de Cancelamento"
-                value={`${appointmentStats.cancelRate}%`}
-                subtitle={Number(appointmentStats.cancelRate) > 15 ? '⚠️ Acima do ideal' : '✓ Saudável'}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* GRÁFICO DE EVOLUÇÃO */}
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+      {/* SEÇÃO: GRÁFICO FULL-WIDTH */}
+      <section className="space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="font-bold text-slate-800">Evolução do Faturamento</h3>
+              <h3 className="font-bold text-slate-800 text-lg">Evolução do Faturamento</h3>
               <p className="text-sm text-slate-500">{getTimeRangeLabel(timeRange)}</p>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <div className="w-3 h-3 rounded-full bg-emerald-500" />
-              <span className="text-slate-600">Receita</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span className="text-slate-600 font-medium">Receita</span>
             </div>
           </div>
           {isRevenueLoading ? (
-            <div className="h-[260px] flex items-center justify-center">
+            <div className="h-[280px] flex items-center justify-center">
               <div className="text-center">
                 <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-2" />
                 <p className="text-sm text-slate-400">Carregando dados...</p>
               </div>
             </div>
           ) : (
-            <RevenueAreaChart data={monthlyRevenueData} height={260} color="#10b981" />
+            <RevenueAreaChart data={monthlyRevenueData} height={280} color="#10b981" />
           )}
+        </div>
+
+        {/* BARRA DE INSIGHTS HORIZONTAIS */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200/60 rounded-2xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-amber-100 rounded-xl shrink-0">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Proc. Campeão</p>
+              <p className="text-sm font-bold text-slate-800 truncate">{procedureEfficiency[0]?.name || '—'}</p>
+              <p className="text-[11px] text-amber-700">{procedureEfficiency[0] ? formatCurrency(procedureEfficiency[0].totalRevenue) : '—'}</p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200/60 rounded-2xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-100 rounded-xl shrink-0">
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Ticket Médio</p>
+              <p className="text-sm font-bold text-slate-800">
+                {formatCurrency(
+                  procedureEfficiency.length > 0
+                    ? procedureEfficiency.reduce((acc, curr) => acc + curr.totalRevenue, 0) /
+                      Math.max(1, procedureEfficiency.reduce((acc, curr) => acc + curr.volume, 0))
+                    : 0
+                )}
+              </p>
+              <p className="text-[11px] text-emerald-700">por atendimento</p>
+            </div>
+          </div>
+
+          <div className={`bg-gradient-to-br border rounded-2xl p-4 flex items-center gap-3 ${
+            Number(appointmentStats.cancelRate) > 15
+              ? 'from-rose-50 to-rose-100/50 border-rose-200/60'
+              : 'from-slate-50 to-slate-100/50 border-slate-200/60'
+          }`}>
+            <div className={`p-2.5 rounded-xl shrink-0 ${Number(appointmentStats.cancelRate) > 15 ? 'bg-rose-100' : 'bg-slate-100'}`}>
+              <Activity className={`w-4 h-4 ${Number(appointmentStats.cancelRate) > 15 ? 'text-rose-600' : 'text-slate-600'}`} />
+            </div>
+            <div>
+              <p className={`text-[10px] font-bold uppercase tracking-wider ${Number(appointmentStats.cancelRate) > 15 ? 'text-rose-600' : 'text-slate-500'}`}>Cancelamentos</p>
+              <p className="text-sm font-bold text-slate-800">{appointmentStats.cancelRate}%</p>
+              <p className={`text-[11px] ${Number(appointmentStats.cancelRate) > 15 ? 'text-rose-600' : 'text-slate-500'}`}>
+                {Number(appointmentStats.cancelRate) > 15 ? '⚠️ Acima do ideal' : '✓ Saudável'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 border border-primary-200/60 rounded-2xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-primary-100 rounded-xl shrink-0">
+              <Award className="w-4 h-4 text-primary-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">Top Profissional</p>
+              <p className="text-sm font-bold text-slate-800 truncate">{professionalPerformance[0]?.name || '—'}</p>
+              <p className="text-[11px] text-primary-700">{professionalPerformance[0] ? formatCurrency(professionalPerformance[0].revenue) : '—'}</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -878,36 +993,58 @@ const Reports: React.FC = () => {
           iconColor="text-amber-500"
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-          {topSpendersInClinic.slice(0, 5).map((client, idx) => (
-            <div
-              key={idx}
-              className={`bg-white rounded-2xl border shadow-sm p-5 transition-all duration-300 hover:shadow-md ${
-                idx === 0 ? 'border-amber-200 bg-gradient-to-br from-amber-50/50 to-white' : 'border-slate-200/60'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm ${
-                  idx === 0 ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-white' :
-                  idx === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' :
-                  idx === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-white' :
-                  'bg-slate-100 text-slate-500'
-                }`}>
-                  {idx === 0 ? '👑' : client.name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800 text-sm truncate">{client.name}</p>
-                  <p className="text-xs text-slate-400">#{idx + 1} Top Spender</p>
-                </div>
-              </div>
-              <p className="text-lg font-bold text-emerald-600">{client.value}</p>
-            </div>
-          ))}
-          {topSpendersInClinic.length === 0 && (
-            <div className="col-span-full bg-white rounded-2xl border border-slate-200/60 p-8 text-center">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+          {topSpendersInClinic.length === 0 ? (
+            <div className="p-12 text-center">
               <Star className="w-10 h-10 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-500">Nenhum cliente VIP no período selecionado</p>
             </div>
+          ) : (
+            <>
+              {/* Destaque #1 */}
+              {topSpendersInClinic[0] && (
+                <div className="bg-gradient-to-r from-amber-50 via-amber-50/60 to-white border-b border-amber-100 px-6 py-5 flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center text-2xl shadow-lg shadow-amber-200/50 shrink-0">
+                    👑
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">1º lugar · Melhor Cliente</span>
+                    </div>
+                    <p className="text-lg font-bold text-slate-900 truncate">{topSpendersInClinic[0].name}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-2xl font-bold text-emerald-600">{topSpendersInClinic[0].value}</p>
+                    <p className="text-xs text-slate-400">no período</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Posições 2-5 */}
+              <div className="divide-y divide-slate-50">
+                {topSpendersInClinic.slice(1).map((client, idx) => {
+                  const pos = idx + 2;
+                  const medalColors = ['bg-gradient-to-br from-slate-300 to-slate-400', 'bg-gradient-to-br from-orange-300 to-orange-400'];
+                  const medalColor = medalColors[idx] ?? 'bg-slate-100';
+                  const medalText = idx < 2 ? 'text-white' : 'text-slate-500';
+                  return (
+                    <div key={idx} className="px-6 py-4 flex items-center gap-4 hover:bg-slate-50/60 transition-colors group">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm shrink-0 ${medalColor} ${medalText}`}>
+                        {pos}
+                      </div>
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-sm text-slate-600 shrink-0">
+                        {client.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 text-sm group-hover:text-slate-900 truncate">{client.name}</p>
+                        <p className="text-xs text-slate-400">#{pos} Top Spender</p>
+                      </div>
+                      <p className="font-bold text-emerald-600 shrink-0">{client.value}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </section>
@@ -932,51 +1069,72 @@ const Reports: React.FC = () => {
                   <th className="px-6 py-4 text-right font-semibold text-slate-600 uppercase text-xs tracking-wider">Salário</th>
                   <th className="px-6 py-4 text-right font-semibold text-slate-600 uppercase text-xs tracking-wider">Comissões</th>
                   <th className="px-6 py-4 text-right font-semibold text-slate-600 uppercase text-xs tracking-wider">Total Pago</th>
+                  <th className="px-6 py-4 text-right font-semibold text-slate-600 uppercase text-xs tracking-wider">Margem</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {professionalPerformance.map((pro, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shadow-sm ${
-                          idx === 0 ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-white' :
-                          idx === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' :
-                          'bg-slate-100 text-slate-500 border border-slate-200'
-                        }`}>
-                          {pro.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-800 group-hover:text-slate-900">{pro.name}</p>
-                          {idx === 0 && <p className="text-[10px] text-amber-600 font-medium">🏆 Top Performer</p>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex flex-col items-end">
-                        <span className="font-bold text-slate-700 text-base">{pro.completedCount}</span>
-                        {pro.canceledCount > 0 && (
-                          <span className="text-[10px] text-rose-500 font-medium">{pro.canceledCount} cancelados</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-bold text-emerald-600">{formatCurrency(pro.revenue)}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right text-slate-500">
-                      {pro.salaryCost > 0 ? formatCurrency(pro.salaryCost) : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right text-slate-500">
-                      {pro.commissionCost > 0 ? formatCurrency(pro.commissionCost) : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-bold text-rose-600">{formatCurrency(pro.totalCost)}</span>
-                    </td>
-                  </tr>
-                ))}
+                {(() => {
+                  const totalTeamRevenue = professionalPerformance.reduce((acc, p) => acc + p.revenue, 0);
+                  return professionalPerformance.map((pro, idx) => {
+                    const margin = pro.revenue - pro.totalCost;
+                    const revenuePercent = totalTeamRevenue > 0 ? (pro.revenue / totalTeamRevenue) * 100 : 0;
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shadow-sm ${
+                              idx === 0 ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-white' :
+                              idx === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' :
+                              'bg-slate-100 text-slate-500 border border-slate-200'
+                            }`}>
+                              {pro.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-800 group-hover:text-slate-900">{pro.name}</p>
+                              {idx === 0 && <p className="text-[10px] text-amber-600 font-medium">🏆 Top Performer</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex flex-col items-end">
+                            <span className="font-bold text-slate-700 text-base">{pro.completedCount}</span>
+                            {pro.canceledCount > 0 && (
+                              <span className="text-[10px] text-rose-500 font-medium">{pro.canceledCount} cancelados</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="font-bold text-emerald-600">{formatCurrency(pro.revenue)}</span>
+                            <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${revenuePercent}%` }} />
+                            </div>
+                            <span className="text-[10px] text-slate-400">{revenuePercent.toFixed(0)}% do total</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right text-slate-500">
+                          {pro.salaryCost > 0 ? formatCurrency(pro.salaryCost) : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-right text-slate-500">
+                          {pro.commissionCost > 0 ? formatCurrency(pro.commissionCost) : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="font-bold text-rose-600">{formatCurrency(pro.totalCost)}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className={`font-bold text-sm px-2.5 py-1 rounded-lg ${
+                            margin >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                          }`}>
+                            {margin >= 0 ? '+' : ''}{formatCurrency(margin)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
                 {professionalPerformance.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-12 text-center">
+                    <td colSpan={7} className="p-12 text-center">
                       <Briefcase className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                       <p className="text-slate-500">Nenhum atendimento no período selecionado</p>
                     </td>
@@ -1052,6 +1210,8 @@ const Reports: React.FC = () => {
           </div>
         </div>
       </section>
+
+      </>}
     </div>
   );
 

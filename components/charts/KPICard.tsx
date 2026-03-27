@@ -70,37 +70,39 @@ export const KPICard: React.FC<KPICardProps> = ({
   };
 
   return (
-    <div className={`relative bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group ${sizeStyles[size].container}`}>
+    <div className={`relative ${styles.bg} rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group ${sizeStyles[size].container}`}>
       {/* Accent bar */}
       <div className={`absolute top-0 left-0 right-0 h-1 ${styles.accent} opacity-80`} />
-      
-      <div className="flex items-start justify-between mb-3">
+
+      <div className="flex items-start justify-between mb-4">
         <div className={`${styles.iconBg} p-2.5 rounded-xl transition-transform duration-300 group-hover:scale-110`}>
           <Icon className={`${sizeStyles[size].icon} ${styles.iconColor}`} />
         </div>
-        
+
         {trend && (
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-            isPositive ? 'bg-emerald-100 text-emerald-700' : 
-            isNegative ? 'bg-rose-100 text-rose-700' : 
+          <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold ${
+            isPositive ? 'bg-emerald-100 text-emerald-700' :
+            isNegative ? 'bg-rose-100 text-rose-700' :
             'bg-slate-100 text-slate-600'
           }`}>
-            <TrendIcon className="w-3 h-3" />
-            <span>{Math.abs(trend.value)}%</span>
+            <TrendIcon className="w-3.5 h-3.5" />
+            <span>{isNeutral ? '—' : `${isPositive ? '+' : ''}${trend.value}%`}</span>
           </div>
         )}
       </div>
 
       <div>
-        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{title}</h4>
-        <p className={`${sizeStyles[size].value} font-bold text-slate-900 tracking-tight leading-none`}>
+        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{title}</h4>
+        <p className={`${size === 'md' ? 'text-3xl' : size === 'lg' ? 'text-4xl' : 'text-xl'} font-bold text-slate-900 tracking-tight leading-none`}>
           {value}
         </p>
         {subtitle && (
-          <p className="text-xs text-slate-400 mt-1.5">{subtitle}</p>
+          <p className="text-xs text-slate-500 mt-2">{subtitle}</p>
         )}
         {trend?.label && (
-          <p className="text-[10px] text-slate-400 mt-1">{trend.label}</p>
+          <p className={`text-[11px] font-medium mt-1.5 ${isPositive ? 'text-emerald-600' : isNegative ? 'text-rose-600' : 'text-slate-400'}`}>
+            {trend.label}
+          </p>
         )}
       </div>
     </div>

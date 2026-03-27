@@ -177,7 +177,7 @@ const ClinicMarketing: React.FC = () => {
     <div className="space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-                <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">
                     <Zap className="w-6 h-6 text-amber-500 fill-amber-500" /> Pós-vendas / IA
                 </h1>
                 <p className="text-slate-500">Recupere clientes inativos e garanta o retorno de procedimentos recorrentes.</p>
@@ -632,7 +632,7 @@ const SaaSMarketing: React.FC = () => {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">
+                    <h1 className="text-2xl md:text-3xl font-serif font-bold text-secondary-900 flex items-center gap-2">
                         <Crown className="w-6 h-6 text-amber-500" /> Customer Success (SaaS)
                     </h1>
                     <p className="text-slate-500">Gestão inteligente de retenção e expansão da base de clínicas.</p>
