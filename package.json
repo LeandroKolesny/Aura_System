@@ -10,7 +10,14 @@
     "type-check": "tsc",
     "deploy:frontend": "npm run type-check && vercel --prod --yes",
     "deploy:backend": "npm --prefix aura-backend run deploy",
-    "deploy:all": "npm run deploy:backend && npm run deploy:frontend"
+    "deploy:all": "npm run deploy:backend && npm run deploy:frontend",
+    "test:unit": "npm --prefix aura-backend run test:ci",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "test:all": "bash test-all.sh",
+    "test:all:unit": "bash test-all.sh --unit-only",
+    "test:all:e2e": "bash test-all.sh --e2e-only"
   },
   "dependencies": {
     "@google/genai": "latest",
@@ -22,6 +29,7 @@
     "recharts": "2.12.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
