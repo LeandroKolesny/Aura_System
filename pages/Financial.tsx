@@ -94,7 +94,7 @@ const SaaSFinancial: React.FC = () => {
 }
 
 const ClinicFinancial: React.FC = () => {
-  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadProcedures, procedures, loadingStates } = useApp();
+  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadProcedures, procedures, loadingStates, markInstallmentPaid } = useApp();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isPaymentMethodsOpen, setIsPaymentMethodsOpen] = useState(false);
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>([]);
@@ -173,6 +173,12 @@ const ClinicFinancial: React.FC = () => {
   const totalRevenue = visibleTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
   const totalCost = visibleTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
 
+  const pendingInstallments = useMemo(() => {
+    return visibleTransactions
+      .filter(t => t.type === 'income' && t.status === 'pending' && t.installmentGroupId)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+  }, [visibleTransactions]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -189,10 +195,11 @@ const ClinicFinancial: React.FC = () => {
       </div>
 
       {/* Cards de resumo */}
-      <div className="grid grid-cols-3 gap-2 lg:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 lg:gap-4">
         <KPICard title="Receita Total" value={formatCurrency(totalRevenue)} icon={DollarSign} variant="success" size="sm" />
         <KPICard title="Custo Total" value={formatCurrency(totalCost)} icon={TrendingDown} variant="danger" size="sm" />
         <KPICard title="Saldo Atual" value={formatCurrency(balance)} icon={Wallet} variant={balance >= 0 ? 'primary' : 'danger'} size="sm" />
+        <KPICard title="A Receber (Parcelas)" value={formatCurrency(pendingInstallments)} icon={CreditCard} variant="warning" size="sm" />
       </div>
       {user?.role === UserRole.ADMIN && (
           <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -214,6 +221,7 @@ const ClinicFinancial: React.FC = () => {
               <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Custo</th>
               <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Lucro</th>
               <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-center">Status</th>
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-center">Ação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -258,6 +266,7 @@ const ClinicFinancial: React.FC = () => {
                       {profit >= 0 ? formatCurrency(profit) : `- ${formatCurrency(Math.abs(profit))}`}
                     </td>
                     <td className="px-6 py-4 text-center"><StatusBadge status={t.status} type="financial" /></td>
+                    <td className="px-6 py-4 text-center"><span className="text-slate-300 text-xs">—</span></td>
                   </tr>
                 );
               }
@@ -279,6 +288,11 @@ const ClinicFinancial: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <ArrowUpCircle className="w-4 h-4 text-green-500" />
                       <span className="font-medium text-slate-800 text-sm">{displayDesc}</span>
+                      {income?.installmentGroupId && income.installments && income.installments > 1 && (
+                        <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-700">
+                          Parc. {income.installmentIndex}/{income.installments}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-bold text-green-600">+ {formatCurrency(revenue)}</td>
@@ -298,12 +312,24 @@ const ClinicFinancial: React.FC = () => {
                   <td className="px-6 py-4 text-center">
                     <StatusBadge status={income?.status || expense?.status || 'paid'} type="financial" />
                   </td>
+                  <td className="px-6 py-4 text-center">
+                    {income?.installmentGroupId && income.status === 'pending' && !isReadOnly ? (
+                      <button
+                        onClick={async () => { await markInstallmentPaid(income.id); }}
+                        className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Receber
+                      </button>
+                    ) : (
+                      <span className="text-slate-300 text-xs">—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
             {groupedTransactions.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                   Nenhuma transação encontrada.
                 </td>
               </tr>

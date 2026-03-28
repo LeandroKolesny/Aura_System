@@ -26,6 +26,7 @@ import {
   setAuthToken,
   getAuthToken,
 } from '../services/api';
+import { installmentsApi } from '../services/installmentsApi';
 
 interface AppContextType {
   user: User | null;
@@ -58,6 +59,7 @@ interface AppContextType {
   transactions: Transaction[];
   addTransaction: (transaction: Omit<Transaction, 'id' | 'companyId'>) => void;
   processPayment: (appointment: Appointment, method: string) => void;
+  markInstallmentPaid: (transactionId: string) => Promise<{ success: boolean; error?: string }>;
 
   procedures: Procedure[];
   addProcedure: (proc: Omit<Procedure, 'id' | 'companyId'>) => void;
@@ -1385,6 +1387,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  const markInstallmentPaid = async (transactionId: string): Promise<{ success: boolean; error?: string }> => {
+    checkWriteAccess();
+    try {
+      const response = await installmentsApi.markInstallmentPaid(transactionId);
+      if (response.success) {
+        setTransactions(prev =>
+          prev.map(t => t.id === transactionId ? { ...t, status: 'paid' as const } : t)
+        );
+        return { success: true };
+      }
+      return { success: false, error: response.error };
+    } catch (error) {
+      console.error('Erro ao marcar parcela como paga:', error);
+      return { success: false, error: 'Erro de conexão' };
+    }
+  };
+
   // --- Procedures (SEMPRE via API) ---
   const addProcedure = async (proc: Omit<Procedure, 'id' | 'companyId'>) => {
       checkWriteAccess();
@@ -2030,6 +2049,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       transactions: user?.role === UserRole.OWNER ? transactions : transactions.filter(t => t.companyId === user?.companyId),
       addTransaction,
       processPayment,
+      markInstallmentPaid,
       procedures: user?.role === UserRole.OWNER ? procedures : procedures.filter(p => p.companyId === user?.companyId),
       addProcedure,
       updateProcedure,
