@@ -979,11 +979,12 @@ export const CheckoutModal: React.FC<{ appointment: Appointment; onClose: () => 
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [installments, setInstallments] = useState(1);
+  const [paymentDone, setPaymentDone] = useState<{ method: string; installments: number; amountPerInstallment: number } | null>(null);
   const handleComplete = async () => {
     setIsProcessing(true);
     try {
       await processPayment(appointment, method, installments);
-      onClose();
+      setPaymentDone({ method, installments, amountPerInstallment: appointment.price / installments });
     } catch (error) {
       console.error('Erro ao processar pagamento:', error);
       setIsProcessing(false);
@@ -994,13 +995,33 @@ export const CheckoutModal: React.FC<{ appointment: Appointment; onClose: () => 
   return (
     <BaseModal title="Checkout de Atendimento" onClose={onClose}>
       <div className="space-y-6">
-        <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
+        {paymentDone ? (
+          <div className="space-y-4 animate-fade-in">
+            <div className="flex flex-col items-center py-6 gap-3">
+              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center"><CheckCircle className="w-8 h-8 text-green-600" /></div>
+              <h4 className="text-xl font-bold text-slate-800">Pagamento Registrado!</h4>
+              <p className="text-slate-500 text-sm">{appointment.service} — {appointment.patientName}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
+              <div className="flex justify-between items-center px-5 py-3"><span className="text-sm text-slate-500">Valor total</span><span className="font-bold text-slate-800">{formatCurrency(appointment.price)}</span></div>
+              <div className="flex justify-between items-center px-5 py-3"><span className="text-sm text-slate-500">Forma de pagamento</span><span className="font-bold text-slate-800">{PAYMENT_LABELS[paymentDone.method] || paymentDone.method}</span></div>
+              {paymentDone.installments > 1 && (<>
+                <div className="flex justify-between items-center px-5 py-3"><span className="text-sm text-slate-500">Parcelamento</span><span className="font-bold text-primary-700">{paymentDone.installments}x de {formatCurrency(paymentDone.amountPerInstallment)}</span></div>
+                <div className="flex justify-between items-center px-5 py-3"><span className="text-sm text-slate-500">1ª parcela</span><span className="text-sm font-medium text-green-600">Paga agora</span></div>
+                <div className="flex justify-between items-center px-5 py-3"><span className="text-sm text-slate-500">Parcelas restantes</span><span className="text-sm font-medium text-amber-600">{paymentDone.installments - 1}x a receber (Financeiro)</span></div>
+              </>)}
+            </div>
+            <button onClick={onClose} className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-colors">Fechar</button>
+          </div>
+        ) : (
+        <><div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
           <div className="flex justify-between items-start mb-4"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Procedimento</p><h4 className={`text-xl font-bold text-slate-800 ${appointment.status === 'canceled' ? 'line-through opacity-50' : ''}`}>{appointment.service}</h4></div><div className="text-right"><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Valor</p><p className={`text-2xl font-bold ${appointment.status === 'canceled' ? 'text-slate-400' : 'text-green-600'}`}>{formatCurrency(appointment.price)}</p></div></div>
           <div className="pt-4 border-t border-slate-200 text-sm text-slate-600 space-y-1"><p>Paciente: <strong className={appointment.status === 'canceled' ? 'line-through opacity-50' : ''}>{appointment.patientName}</strong></p><p>Profissional: <strong className={appointment.status === 'canceled' ? 'line-through opacity-50' : ''}>{appointment.professionalName}</strong></p><p>Data: {formatDate(appointment.date)}</p></div>
         </div>
         {!showConfirmCancel ? (<>{appointment.status !== 'completed' && appointment.status !== 'canceled' && (<div>{appointment.price === 0 ? (<div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-blue-600" /></div><div><p className="text-sm font-bold text-blue-800">Atendimento sem cobrança</p><p className="text-xs text-blue-600 mt-0.5">Este procedimento está coberto pelo plano de assinatura do paciente.</p></div></div>) : (<><h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4" /> Forma de Pagamento</h4><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{(currentCompany?.paymentMethods || ['money', 'credit_card', 'pix']).map(m => (<button key={m} onClick={() => { setMethod(m); if (m !== 'credit_card') setInstallments(1); }} className={`p-3 rounded-xl border text-center transition-all ${method === m ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-500 ring-opacity-10' : 'border-slate-200 hover:border-slate-300'}`}><span className={`text-xs font-bold uppercase ${method === m ? 'text-primary-700' : 'text-slate-500'}`}>{PAYMENT_LABELS[m] || m}</span></button>))}</div>{method === 'credit_card' && (<div className="mt-4"><h4 className="font-bold text-slate-800 text-sm mb-3">Parcelamento</h4><div className="grid grid-cols-4 sm:grid-cols-6 gap-2">{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (<button key={n} onClick={() => setInstallments(n)} className={`py-2 rounded-xl border text-center text-xs font-bold transition-all ${installments === n ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-500 ring-opacity-10 text-primary-700' : 'border-slate-200 hover:border-slate-300 text-slate-500'}`}>{n === 1 ? '1x' : `${n}x`}<div className="text-[10px] font-normal text-slate-400 mt-0.5">{formatCurrency(appointment.price / n)}</div></button>))}</div></div>)}</>)}</div>)}{appointment.status === 'canceled' && (<div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm flex items-center gap-2 font-bold"><XCircle className="w-5 h-5" /> Este agendamento já foi cancelado.</div>)}<div className="pt-4 flex flex-wrap gap-3 border-t border-slate-100"><button onClick={onClose} className="px-6 py-3 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 transition-colors">Voltar</button>{appointment.status !== 'completed' && appointment.status !== 'canceled' && (<>{canCancel && (<button onClick={() => setShowConfirmCancel(true)} className="px-4 py-3 border border-red-200 rounded-xl text-red-600 font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2"><XCircle className="w-4 h-4" /> Cancelar</button>)}<button onClick={handleComplete} disabled={isProcessing} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-all">{isProcessing ? (<><RefreshCw className="w-5 h-5 animate-spin" /> Processando...</>) : (<><CheckCircle className="w-5 h-5" /> Finalizar e Receber</>)}</button></>)}</div></>) : (
             <div className="bg-red-50 p-6 rounded-xl border border-red-200 animate-fade-in"><h4 className="font-bold text-red-800 mb-2 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Confirmar Cancelamento?</h4><p className="text-sm text-red-700 mb-6">Deseja realmente cancelar este agendamento? Esta ação não pode ser desfeita.</p><div className="flex gap-3"><button onClick={() => setShowConfirmCancel(false)} className="flex-1 py-3 bg-white border border-red-200 rounded-xl text-red-700 font-bold hover:bg-red-50 transition-colors">Não, Voltar</button><button onClick={handleCancelAppointment} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg">Sim, Cancelar</button></div></div>
         )}
+        </>)}
       </div>
     </BaseModal>
   );
