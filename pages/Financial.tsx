@@ -139,6 +139,11 @@ const ClinicFinancial: React.FC = () => {
 
     visibleTransactions.forEach(t => {
       if (t.appointmentId) {
+        // Parcelas 2-N: cada uma vira linha separada, ordenada pela dueDate (mês futuro)
+        if (t.type === 'income' && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1) {
+          groups[`installment_${t.id}`] = { standalone: t };
+          return;
+        }
         if (!groups[t.appointmentId]) {
           groups[t.appointmentId] = {};
         }
@@ -153,12 +158,12 @@ const ClinicFinancial: React.FC = () => {
       }
     });
 
-    // Converter para array e ordenar por data
+    // Converter para array e ordenar por data (parcelas usam dueDate para ordenar pelo mês correto)
     return Object.entries(groups)
       .map(([key, group]) => ({
         key,
         ...group,
-        date: group.income?.date || group.expense?.date || group.standalone?.date || '',
+        date: group.standalone?.dueDate || group.standalone?.date || group.income?.date || group.expense?.date || '',
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [visibleTransactions]);
@@ -226,19 +231,21 @@ const ClinicFinancial: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {groupedTransactions.map((group) => {
-              // Transação standalone (sem appointmentId)
+              // Transação standalone (despesas avulsas + parcelas futuras 2-N)
               if (group.standalone) {
                 const t = group.standalone;
                 const isExpense = t.type === 'expense';
-
-                // Buscar custo direto da tabela de procedimentos pelo nome
-                const cost = isExpense ? Number(t.amount) : findProcedureCost(t.description || '');
+                const isFutureInstallment = !!(t.installmentGroupId && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1);
+                // Parcelas 2-N não somam custo (custo já foi registrado na 1ª parcela)
+                const cost = isFutureInstallment ? 0 : (isExpense ? Number(t.amount) : findProcedureCost(t.description || ''));
                 const revenue = isExpense ? 0 : Number(t.amount);
                 const profit = revenue - cost;
+                const displayDate = t.dueDate || t.date;
+                const displayDesc = (t.description || '').replace('Atendimento: ', '').replace(`Atendimento (${t.installmentIndex}/${t.installments}): `, '');
 
                 return (
                   <tr key={group.key} className="hover:bg-slate-50/50 transition-colors">
-                    <td className={`pl-3 pr-6 py-4 text-sm text-slate-600 border-l-4 ${isExpense ? 'border-rose-400' : 'border-emerald-400'}`}>{formatDate(t.date)}</td>
+                    <td className={`pl-3 pr-6 py-4 text-sm text-slate-600 border-l-4 ${isExpense ? 'border-rose-400' : 'border-emerald-400'}`}>{formatDate(displayDate)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {isExpense ? (
@@ -246,7 +253,12 @@ const ClinicFinancial: React.FC = () => {
                         ) : (
                           <ArrowUpCircle className="w-4 h-4 text-green-500" />
                         )}
-                        <span className="font-medium text-slate-800 text-sm">{t.description}</span>
+                        <span className="font-medium text-slate-800 text-sm">{displayDesc}</span>
+                        {isFutureInstallment && (
+                          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-700">
+                            Parc. {t.installmentIndex}/{t.installments}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className={`px-6 py-4 text-right text-sm font-bold ${isExpense ? 'text-slate-400' : 'text-green-600'}`}>
@@ -263,10 +275,19 @@ const ClinicFinancial: React.FC = () => {
                       )}
                     </td>
                     <td className={`px-6 py-4 text-right text-sm font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {profit >= 0 ? formatCurrency(profit) : `- ${formatCurrency(Math.abs(profit))}`}
+                      {isFutureInstallment ? <span className="text-slate-400">—</span> : (profit >= 0 ? formatCurrency(profit) : `- ${formatCurrency(Math.abs(profit))}`)}
                     </td>
                     <td className="px-6 py-4 text-center"><StatusBadge status={t.status} type="financial" /></td>
-                    <td className="px-6 py-4 text-center"><span className="text-slate-300 text-xs">—</span></td>
+                    <td className="px-6 py-4 text-center">
+                      {isFutureInstallment && t.status === 'pending' && !isReadOnly ? (
+                        <button
+                          onClick={async () => { await markInstallmentPaid(t.id); }}
+                          className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >Receber</button>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
                   </tr>
                 );
               }
