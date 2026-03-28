@@ -1295,17 +1295,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  const processPayment = async (appointment: Appointment, method: string) => {
+  const processPayment = async (appointment: Appointment, method: string, installments = 1) => {
       checkWriteAccess();
 
       try {
-        const response = await appointmentsApi.processPayment(appointment.id, method);
+        const response = await appointmentsApi.processPayment(appointment.id, method, installments);
         if (response.success) {
           // Atualizar estado local com dados da API
           updateAppointment(appointment.id, { paid: true, status: 'completed' });
 
-          // Adicionar transações ao estado local
-          if (response.data?.transactions?.income) {
+          // Trata parcelas (array) ou transação única
+          const installmentTxs = response.data?.transactions?.installments;
+          if (installmentTxs && Array.isArray(installmentTxs) && installmentTxs.length > 0) {
+            const newTxs = installmentTxs.map((tx: {
+              id: string;
+              companyId: string;
+              date: string;
+              description: string;
+              amount: number | string;
+              category: string;
+              status: string;
+              appointmentId?: string;
+              installments?: number;
+              installmentIndex?: number;
+              installmentGroupId?: string;
+              dueDate?: string;
+            }) => ({
+              id: tx.id,
+              companyId: tx.companyId,
+              date: tx.date,
+              description: tx.description,
+              amount: Number(tx.amount),
+              type: 'income' as const,
+              category: tx.category,
+              status: (tx.status === 'PAID' ? 'paid' : 'pending') as 'paid' | 'pending',
+              appointmentId: tx.appointmentId,
+              installments: tx.installments,
+              installmentIndex: tx.installmentIndex,
+              installmentGroupId: tx.installmentGroupId,
+              dueDate: tx.dueDate,
+            }));
+            setTransactions(prev => [...prev, ...newTxs]);
+          } else if (response.data?.transactions?.income) {
             const income = response.data.transactions.income;
             setTransactions(prev => [...prev, {
               id: income.id,
@@ -1313,9 +1344,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               date: income.date,
               description: income.description,
               amount: Number(income.amount),
-              type: 'income',
+              type: 'income' as const,
               category: income.category,
-              status: 'paid',
+              status: 'paid' as const,
               appointmentId: income.appointmentId
             }]);
           }
