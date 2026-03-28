@@ -1,6 +1,7 @@
 // Aura System - API de Pagamento de Agendamento
 // Cria transações de RECEITA (valor) e DESPESA (custo insumos)
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
@@ -54,7 +55,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
-    const { paymentMethod } = body;
+    const { paymentMethod, installments: installmentCount = 1 } = body;
+    const numInstallments = Math.max(1, Math.min(12, Number(installmentCount) || 1));
 
     // Calcular custo dos insumos DINAMICAMENTE a partir dos supplies
     let calculatedCost = 0;
@@ -69,21 +71,40 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Usar o custo calculado ou o custo salvo no procedimento (o que for maior)
     const procedureCost = Math.max(calculatedCost, Number(appointment.procedure.cost) || 0);
 
-    // 1. Criar transação de RECEITA (valor do procedimento)
-    const incomeTransaction = await prisma.transaction.create({
-      data: {
-        companyId: user.companyId,
-        date: new Date(),
-        description: `Atendimento: ${appointment.procedure.name} - ${appointment.patient.name}`,
-        amount: appointment.price,
-        type: "INCOME",
-        category: "Procedimentos",
-        status: "PAID",
-        appointmentId: id,
-        patientId: appointment.patientId,
-        professionalId: appointment.professionalId,
-      },
-    });
+    // 1. Criar transações de RECEITA (uma por parcela)
+    const installmentGroupId = numInstallments > 1 ? randomUUID() : null;
+    const installmentAmount = Number((Number(appointment.price) / numInstallments).toFixed(2));
+    const now = new Date();
+
+    const incomeTransactions = [];
+    for (let i = 1; i <= numInstallments; i++) {
+      const dueDate = new Date(now);
+      dueDate.setMonth(dueDate.getMonth() + (i - 1));
+
+      const tx = await prisma.transaction.create({
+        data: {
+          companyId: user.companyId,
+          date: now,
+          description: numInstallments > 1
+            ? `Atendimento (${i}/${numInstallments}): ${appointment.procedure.name} - ${appointment.patient.name}`
+            : `Atendimento: ${appointment.procedure.name} - ${appointment.patient.name}`,
+          amount: installmentAmount,
+          type: "INCOME",
+          category: "Procedimentos",
+          status: i === 1 ? "PAID" : "PENDING",
+          paymentMethod,
+          appointmentId: id,
+          patientId: appointment.patientId,
+          professionalId: appointment.professionalId,
+          installments: numInstallments,
+          installmentIndex: i,
+          installmentGroupId,
+          dueDate,
+        },
+      });
+      incomeTransactions.push(tx);
+    }
+    const incomeTransaction = incomeTransactions[0];
 
     // 2. Criar transação de DESPESA para custo dos insumos (se houver)
     let expenseTransaction = null;
@@ -168,7 +189,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       appointment: updated,
       transactions: {
         income: incomeTransaction,
-        expense: expenseTransaction
+        expense: expenseTransaction,
+        installments: incomeTransactions,
       },
       inventory: updatedInventory, // Estoque atualizado para sincronizar frontend
       summary: {
