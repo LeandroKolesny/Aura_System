@@ -192,13 +192,15 @@ const ClinicFinancial: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [visibleTransactions]);
 
-  const balance = monthFilteredTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
+  // Saldo acumulado usa TODAS as transações (não filtradas por mês)
+  const allTimeBalance = visibleTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
 
+  // Parcelas pendentes em aberto (todos os meses futuros)
   const pendingInstallments = useMemo(() => {
-    return monthFilteredTransactions
+    return visibleTransactions
       .filter(t => t.type === 'income' && t.status === 'pending' && t.installmentGroupId)
       .reduce((sum, t) => sum + Number(t.amount), 0);
-  }, [monthFilteredTransactions]);
+  }, [visibleTransactions]);
 
   // Loading state - usar skeleton
   if (loadingStates.transactions && transactions.length === 0) {
@@ -227,7 +229,7 @@ const ClinicFinancial: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 lg:gap-4">
         <KPICard title="Receita Total" value={formatCurrency(totalRevenue)} icon={DollarSign} variant="success" size="sm" />
         <KPICard title="Custo Total" value={formatCurrency(totalCost)} icon={TrendingDown} variant="danger" size="sm" />
-        <KPICard title="Saldo Atual" value={formatCurrency(balance)} icon={Wallet} variant={balance >= 0 ? 'primary' : 'danger'} size="sm" />
+        <KPICard title="Saldo Acumulado" value={formatCurrency(allTimeBalance)} icon={Wallet} variant={allTimeBalance >= 0 ? 'primary' : 'danger'} size="sm" />
         <KPICard title="A Receber (Parcelas)" value={formatCurrency(pendingInstallments)} icon={CreditCard} variant="warning" size="sm" />
       </div>
       {user?.role === UserRole.ADMIN && (
