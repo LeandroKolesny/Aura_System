@@ -300,15 +300,15 @@ export const appointmentsApi = {
     return fetchApi(`/api/appointments/${id}`, { method: 'DELETE' });
   },
 
-  async processPayment(id: string, paymentMethod: string) {
+  async processPayment(id: string, paymentMethod: string, installments = 1) {
     return fetchApi<{
       success: boolean;
       appointment: any;
-      transactions: { income: any; expense: any };
+      transactions: { income: any; expense: any; installments?: any[] };
       summary: { revenue: number; cost: number; profit: number };
     }>(`/api/appointments/${id}/pay`, {
       method: 'POST',
-      body: JSON.stringify({ paymentMethod }),
+      body: JSON.stringify({ paymentMethod, installments }),
     });
   },
 };
@@ -357,6 +357,7 @@ export const transactionsApi = {
       method: 'DELETE',
     });
   },
+
 };
 
 // ============================================
@@ -855,6 +856,7 @@ export interface SubscriptionPlan {
   name: string;
   price: number;
   description: string | null;
+  imageUrl: string | null;
   isActive: boolean;
   companyId: string;
   createdAt: string;
@@ -882,10 +884,10 @@ export const subscriptionsApi = {
   async listPlans(includeInactive = false) {
     return fetchApi<SubscriptionPlan[]>(`/api/subscriptions/plans${includeInactive ? '?includeInactive=true' : ''}`);
   },
-  async createPlan(data: { name: string; price: number; description?: string; items: { procedureId: string; sessionsPerCycle: number }[] }) {
+  async createPlan(data: { name: string; price: number; description?: string; imageUrl?: string; items: { procedureId: string; sessionsPerCycle: number }[] }) {
     return fetchApi<SubscriptionPlan>('/api/subscriptions/plans', { method: 'POST', body: JSON.stringify(data) });
   },
-  async updatePlan(id: string, data: { name?: string; price?: number; description?: string; isActive?: boolean; items?: { procedureId: string; sessionsPerCycle: number }[] }) {
+  async updatePlan(id: string, data: { name?: string; price?: number; description?: string; imageUrl?: string; isActive?: boolean; items?: { procedureId: string; sessionsPerCycle: number }[] }) {
     return fetchApi<SubscriptionPlan>(`/api/subscriptions/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   },
   async deactivatePlan(id: string) {
@@ -902,6 +904,22 @@ export const subscriptionsApi = {
   },
   async cancel(subscriptionId: string) {
     return fetchApi<PatientSubscription>(`/api/subscriptions/patients/${subscriptionId}/cancel`, { method: 'PUT' });
+  },
+};
+
+export const publicBookingApi = {
+  async bookSubscriptionPlan(data: {
+    companyId: string;
+    planId: string;
+    procedureId: string;
+    professionalId: string | null;
+    date: string;
+    patientInfo: { name: string; email: string; phone: string; password?: string };
+  }) {
+    return fetchApi<{ appointmentId: string; patientToken: string }>('/api/public/subscriptions/book', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 
