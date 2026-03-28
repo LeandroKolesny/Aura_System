@@ -130,6 +130,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Buscar planos de assinatura ativos (para seção Promoções)
+    const subscriptionPlans = await prisma.subscriptionPlan.findMany({
+      where: { companyId: company.id, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        description: true,
+        imageUrl: true,
+        items: {
+          include: {
+            procedure: {
+              select: { id: true, name: true, price: true, durationMinutes: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
     return NextResponse.json({
       success: true,
       company,
@@ -143,6 +163,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         status: a.status.toLowerCase(),
       })),
       unavailabilityRules,
+      subscriptionPlans: subscriptionPlans.map(p => ({
+        ...p,
+        price: Number(p.price),
+        items: p.items.map(i => ({
+          ...i,
+          procedure: { ...i.procedure, price: Number(i.procedure.price) },
+        })),
+      })),
     });
   } catch (error) {
     console.error("Erro ao buscar empresa pública:", error);
