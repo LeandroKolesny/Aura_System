@@ -190,7 +190,7 @@ const ClinicFinancial: React.FC = () => {
         date: group.standalone?.dueDate || group.standalone?.date || group.income?.date || group.expense?.date || '',
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [visibleTransactions]);
+  }, [monthFilteredTransactions]);
 
   // Saldo acumulado usa TODAS as transações (não filtradas por mês)
   const allTimeBalance = visibleTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
