@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Loader2 } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, Upload } from 'lucide-react';
 import { subscriptionsApi, SubscriptionPlan } from '../services/api';
 
 interface Procedure {
@@ -33,6 +33,7 @@ const SubscriptionPlanModal: React.FC<Props> = ({ plan, procedures, onClose, onS
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState(plan?.imageUrl ?? '');
 
   // Close on Escape
   useEffect(() => {
@@ -65,7 +66,7 @@ const SubscriptionPlanModal: React.FC<Props> = ({ plan, procedures, onClose, onS
     if (new Set(ids).size !== ids.length) { setError('Cada procedimento pode aparecer apenas uma vez no plano'); return; }
 
     setSaving(true);
-    const payload = { name: name.trim(), price: parsedPrice, description: description.trim() || undefined, items };
+    const payload = { name: name.trim(), price: parsedPrice, description: description.trim() || undefined, items, imageUrl: imageUrl || undefined };
 
     const res = isEditing
       ? await subscriptionsApi.updatePlan(plan!.id, payload)
@@ -137,6 +138,50 @@ const SubscriptionPlanModal: React.FC<Props> = ({ plan, procedures, onClose, onS
               rows={2}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm resize-none"
             />
+          </div>
+
+          {/* Imagem do Plano */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Imagem do Plano (opcional)
+            </label>
+            {!imageUrl ? (
+              <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 hover:border-primary-400 transition-all">
+                <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                <p className="text-sm text-slate-500"><span className="font-semibold text-primary-600">Clique para enviar</span></p>
+                <p className="text-xs text-slate-400">PNG, JPG ou WEBP (max. 2MB)</p>
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 2 * 1024 * 1024) { alert('Imagem muito grande. Máximo 2MB.'); return; }
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    const img = new window.Image();
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const maxSize = 800;
+                      let width = img.width, height = img.height;
+                      if (width > height && width > maxSize) { height = (height * maxSize) / width; width = maxSize; }
+                      else if (height > maxSize) { width = (width * maxSize) / height; height = maxSize; }
+                      canvas.width = width; canvas.height = height;
+                      canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
+                      setImageUrl(canvas.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.src = event.target?.result as string;
+                  };
+                  reader.readAsDataURL(file);
+                }} />
+              </label>
+            ) : (
+              <div className="relative rounded-lg overflow-hidden h-32 bg-slate-100 group">
+                <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button type="button" onClick={() => setImageUrl('')} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-medium flex items-center gap-1">
+                    <Trash2 className="w-4 h-4" /> Remover
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Procedures */}
