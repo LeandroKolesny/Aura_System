@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, Save, CreditCard, Loader2, Package, DollarSign, TrendingDown, Wallet } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Save, CreditCard, Loader2, Package, DollarSign, TrendingDown, Wallet } from 'lucide-react';
 import { UserRole, Transaction } from '../types';
 import { NewExpenseModal } from '../components/Modals';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
@@ -93,12 +93,26 @@ const SaaSFinancial: React.FC = () => {
   );
 }
 
+const MONTHS_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
 const ClinicFinancial: React.FC = () => {
   const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadProcedures, procedures, loadingStates, markInstallmentPaid } = useApp();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isPaymentMethodsOpen, setIsPaymentMethodsOpen] = useState(false);
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+
+  const goToPrevMonth = () => {
+    if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1); }
+    else setSelectedMonth(m => m - 1);
+  };
+  const goToNextMonth = () => {
+    if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1); }
+    else setSelectedMonth(m => m + 1);
+  };
 
   // Lazy loading
   useEffect(() => {
@@ -133,11 +147,21 @@ const ClinicFinancial: React.FC = () => {
     return transactions.filter(t => t.appointmentId && myAppIds.includes(t.appointmentId) && t.type === 'income');
   }, [transactions, user, appointments]);
 
+  // Filtra pelo mês/ano selecionado usando dueDate para parcelas futuras
+  const monthFilteredTransactions = useMemo(() => {
+    return visibleTransactions.filter(t => {
+      const isFutureInstallment = t.type === 'income' && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1;
+      const effectiveDate = isFutureInstallment && t.dueDate ? t.dueDate : t.date;
+      const d = new Date(effectiveDate);
+      return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+    });
+  }, [visibleTransactions, selectedMonth, selectedYear]);
+
   // Agrupar transações por appointmentId para mostrar receita + despesa juntas
   const groupedTransactions = useMemo(() => {
     const groups: Record<string, { income?: Transaction; expense?: Transaction; standalone?: Transaction }> = {};
 
-    visibleTransactions.forEach(t => {
+    monthFilteredTransactions.forEach(t => {
       if (t.appointmentId) {
         // Parcelas 2-N: cada uma vira linha separada, ordenada pela dueDate (mês futuro)
         if (t.type === 'income' && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1) {
@@ -168,21 +192,21 @@ const ClinicFinancial: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [visibleTransactions]);
 
-  const balance = visibleTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
+  const balance = monthFilteredTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
 
   const pendingInstallments = useMemo(() => {
-    return visibleTransactions
+    return monthFilteredTransactions
       .filter(t => t.type === 'income' && t.status === 'pending' && t.installmentGroupId)
       .reduce((sum, t) => sum + Number(t.amount), 0);
-  }, [visibleTransactions]);
+  }, [monthFilteredTransactions]);
 
   // Loading state - usar skeleton
   if (loadingStates.transactions && transactions.length === 0) {
     return <FinancialSkeleton />;
   }
 
-  const totalRevenue = visibleTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
-  const totalCost = visibleTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+  const totalRevenue = monthFilteredTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
+  const totalCost = monthFilteredTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
 
   return (
     <div className="space-y-6">
@@ -217,6 +241,19 @@ const ClinicFinancial: React.FC = () => {
 
       {/* Tabela de transações agrupadas */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {/* Navegador de mês */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          <button onClick={goToPrevMonth} className="p-1.5 rounded-lg hover:bg-slate-200 transition-colors text-slate-500 hover:text-slate-800">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="text-center">
+            <p className="font-bold text-slate-800 text-base">{MONTHS_PT[selectedMonth]} {selectedYear}</p>
+            <p className="text-xs text-slate-400">{groupedTransactions.length} lançamento{groupedTransactions.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={goToNextMonth} className="p-1.5 rounded-lg hover:bg-slate-200 transition-colors text-slate-500 hover:text-slate-800">
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-slate-100">
@@ -351,12 +388,22 @@ const ClinicFinancial: React.FC = () => {
             {groupedTransactions.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                  Nenhuma transação encontrada.
+                  Nenhuma transação em {MONTHS_PT[selectedMonth]} {selectedYear}.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        {/* Rodapé de navegação */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+          <button onClick={goToPrevMonth} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-sm font-medium text-slate-600 transition-colors">
+            <ChevronLeft className="w-4 h-4" /> {MONTHS_PT[selectedMonth === 0 ? 11 : selectedMonth - 1]}
+          </button>
+          <span className="text-xs text-slate-400 font-medium">{MONTHS_PT[selectedMonth]} {selectedYear}</span>
+          <button onClick={goToNextMonth} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-sm font-medium text-slate-600 transition-colors">
+            {MONTHS_PT[selectedMonth === 11 ? 0 : selectedMonth + 1]} <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
       {isExpenseModalOpen && !isReadOnly && <NewExpenseModal onClose={() => setIsExpenseModalOpen(false)} />}
     </div>
