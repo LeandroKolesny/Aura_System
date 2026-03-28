@@ -157,6 +157,19 @@ const ClinicFinancial: React.FC = () => {
     });
   }, [visibleTransactions, selectedMonth, selectedYear]);
 
+  // Mês anterior para comparação nos KPIs
+  const prevMonthFilteredTransactions = useMemo(() => {
+    const prevDate = new Date(selectedYear, selectedMonth - 1, 1);
+    const prevMonth = prevDate.getMonth();
+    const prevYear = prevDate.getFullYear();
+    return visibleTransactions.filter(t => {
+      const isFutureInstallment = t.type === 'income' && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1;
+      const effectiveDate = isFutureInstallment && t.dueDate ? t.dueDate : t.date;
+      const d = new Date(effectiveDate);
+      return d.getMonth() === prevMonth && d.getFullYear() === prevYear;
+    });
+  }, [visibleTransactions, selectedMonth, selectedYear]);
+
   // Agrupar transações por appointmentId para mostrar receita + despesa juntas
   const groupedTransactions = useMemo(() => {
     const groups: Record<string, { income?: Transaction; expense?: Transaction; standalone?: Transaction }> = {};
@@ -210,6 +223,18 @@ const ClinicFinancial: React.FC = () => {
   const totalRevenue = monthFilteredTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
   const totalCost = monthFilteredTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
 
+  const prevRevenue = prevMonthFilteredTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
+  const prevCost = prevMonthFilteredTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+
+  const prevMonthName = MONTHS_PT[new Date(selectedYear, selectedMonth - 1, 1).getMonth()];
+
+  const calcTrend = (current: number, prev: number) => {
+    if (prev === 0 && current === 0) return undefined;
+    if (prev === 0) return { value: 100, label: `vs ${prevMonthName}` };
+    const pct = Math.round(((current - prev) / prev) * 100);
+    return { value: pct, label: `vs ${prevMonthName}` };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -227,8 +252,8 @@ const ClinicFinancial: React.FC = () => {
 
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 lg:gap-4">
-        <KPICard title="Receita Total" value={formatCurrency(totalRevenue)} icon={DollarSign} variant="success" size="sm" />
-        <KPICard title="Custo Total" value={formatCurrency(totalCost)} icon={TrendingDown} variant="danger" size="sm" />
+        <KPICard title="Receita Total" value={formatCurrency(totalRevenue)} icon={DollarSign} variant="success" size="sm" trend={calcTrend(totalRevenue, prevRevenue)} />
+        <KPICard title="Custo Total" value={formatCurrency(totalCost)} icon={TrendingDown} variant="danger" size="sm" trend={calcTrend(totalCost, prevCost)} />
         <KPICard title="Saldo Acumulado" value={formatCurrency(allTimeBalance)} icon={Wallet} variant={allTimeBalance >= 0 ? 'primary' : 'danger'} size="sm" />
         <KPICard title="A Receber (Parcelas)" value={formatCurrency(pendingInstallments)} icon={CreditCard} variant="warning" size="sm" />
       </div>
