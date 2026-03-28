@@ -8,7 +8,20 @@ import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, Clock, Calendar a
 type CSSWithVars = React.CSSProperties & Record<string, string | number | undefined>;
 import { maskPhone } from '../utils/maskUtils';
 import { formatCurrency } from '../utils/formatUtils';
-import { publicApi, appointmentsApi } from '../services/api';
+import { publicApi, appointmentsApi, publicBookingApi } from '../services/api';
+
+interface PlanForBooking {
+  id: string;
+  name: string;
+  price: number;
+  description?: string | null;
+  imageUrl?: string | null;
+  items: Array<{
+    procedureId: string;
+    sessionsPerCycle: number;
+    procedure: { id: string; name: string; price: number };
+  }>;
+}
 import { getClinicSlug, getPortalBasePath } from '../utils/subdomain';
 
 interface PublicBookingProps {
@@ -50,6 +63,12 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
 
+  // Subscription plan booking state
+  const [subscriptionPlans, setSubscriptionPlans] = useState<PlanForBooking[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<PlanForBooking | null>(null);
+  const [bookingMode, setBookingMode] = useState<'procedure' | 'plan'>('procedure');
+  const [showPlanProcedurePicker, setShowPlanProcedurePicker] = useState(false);
+
   const canGoBackToSystem = user && (
     user.role === UserRole.ADMIN ||
     user.role === UserRole.OWNER ||
@@ -72,7 +91,8 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
         const response = await publicApi.getCompanyBySlug(slug);
 
         if (response.success && response.data) {
-          const { company, procedures: procs, professionals: profs, appointments: appts, unavailabilityRules: rules } = response.data;
+          const responseData = response.data as typeof response.data & { subscriptionPlans: PlanForBooking[] };
+          const { company, procedures: procs, professionals: profs, appointments: appts, unavailabilityRules: rules, subscriptionPlans: plans } = responseData;
 
           setCompanyId(company.id);
           setCompanySlug(company.slug);
@@ -86,6 +106,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
           setLayoutConfig(company.layoutConfig);
           setBusinessHours(company.businessHours);
           setOnlineConfig(company.onlineBookingConfig);
+          setSubscriptionPlans(plans || []);
         } else {
           setLoadError('Clínica não encontrada');
         }
@@ -274,6 +295,29 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
     return slots;
   };
 
+  const handleSelectPlan = (plan: PlanForBooking) => {
+    setSelectedPlan(plan);
+    setBookingMode('plan');
+    if (plan.items.length > 1) {
+      setShowPlanProcedurePicker(true);
+    } else {
+      const proc = procedures.find(p => p.id === plan.items[0]?.procedureId);
+      if (proc) {
+        setSelectedProcedure(proc);
+        setStep(2);
+      }
+    }
+  };
+
+  const handleSelectPlanProcedure = (procedureId: string) => {
+    const proc = procedures.find(p => p.id === procedureId);
+    if (proc) {
+      setSelectedProcedure(proc);
+      setShowPlanProcedurePicker(false);
+      setStep(2);
+    }
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
@@ -294,9 +338,23 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
 
       let result;
 
-      if (isLoggedInPatient) {
+      if (bookingMode === 'plan' && selectedPlan) {
+        // Agendamento via plano de assinatura (sempre usa API pública)
+        result = await publicBookingApi.bookSubscriptionPlan({
+          companyId,
+          planId: selectedPlan.id,
+          procedureId: selectedProcedure.id,
+          professionalId: finalPro?.id ?? null,
+          date: isoDate.toISOString(),
+          patientInfo: {
+            name: patientData.name,
+            email: patientData.email,
+            phone: patientData.phone,
+            password: patientData.password || undefined,
+          },
+        });
+      } else if (isLoggedInPatient) {
         // Paciente logado: usar API autenticada
-        // O backend vai buscar o patientId pelo email do usuário logado
         result = await appointmentsApi.create({
           patientId: '', // O backend vai sobrescrever com o ID correto
           procedureId: selectedProcedure.id,
@@ -480,34 +538,89 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
         )}
 
         {step === 1 && (
-            <div className="space-y-6 lg:space-y-10 animate-fade-in text-center">
-                <div className="mb-6 lg:mb-12">
+            <div className="space-y-10 lg:space-y-14 animate-fade-in text-center">
+                <div className="mb-4 lg:mb-8">
                     <h2 className="text-2xl lg:text-4xl xl:text-5xl font-serif font-bold mb-2 lg:mb-4" style={headingStyle}>Escolha o tratamento</h2>
                     <p className="text-sm lg:text-lg font-light" style={descriptionStyle}>Selecione um dos nossos procedimentos premium.</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-8">
-                    {procedures.map(proc => (
-                        <div key={proc.id} onClick={() => { setSelectedProcedure(proc); setStep(2); }} className={`group relative overflow-hidden rounded-2xl lg:rounded-[3rem] h-48 lg:h-72 border shadow-xl lg:shadow-2xl hover:shadow-primary-500/20 transition-all duration-500 cursor-pointer bg-black/40 glass-card`}>
-                            {proc.imageUrl ? (
-                                <><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 group-hover:from-black/70 transition-all"></div><img src={proc.imageUrl} alt={proc.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s]" /></>
-                            ) : (
-                                <>
-                                  <div className="absolute inset-0 z-0" style={{ background: `linear-gradient(145deg, ${primaryColor}55, ${primaryColor}cc)` }}></div>
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent z-[1]"></div>
-                                  <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 2 }}>
-                                    <Sparkles className="w-16 h-16 lg:w-24 lg:h-24 text-white opacity-20 group-hover:opacity-30 transition-opacity" />
-                                  </div>
-                                </>
-                            )}
-                            <div className="relative z-20 h-full p-4 lg:p-10 flex flex-col justify-end text-left text-white">
-                                <h3 className="font-serif font-bold text-lg lg:text-2xl leading-tight mb-2 lg:mb-4 drop-shadow-md">{proc.name}</h3>
-                                <div className="flex items-center gap-2 lg:gap-4 text-white/95 text-[9px] lg:text-[10px] font-bold uppercase tracking-wider lg:tracking-widest">
-                                    <span className="bg-white/10 backdrop-blur-xl px-2 lg:px-4 py-1.5 lg:py-2 rounded-full flex items-center gap-1.5 lg:gap-2 border border-white/10"><Clock className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-primary-400" /> {proc.durationMinutes} min</span>
-                                    <span className="px-2 lg:px-4 py-1.5 lg:py-2 rounded-full shadow-xl" style={{ backgroundColor: primaryColor }}>{formatCurrency(proc.price)}</span>
+
+                {/* Promoções — Planos de Assinatura */}
+                {subscriptionPlans.length > 0 && (
+                    <div className="text-left">
+                        <div className="flex items-center gap-2 mb-4 lg:mb-6">
+                            <Sparkles className="w-5 h-5" style={{ color: primaryColor }} />
+                            <h3 className="text-base lg:text-xl font-bold uppercase tracking-widest" style={{ color: primaryColor }}>Promoções</h3>
+                            <div className="flex-1 h-px" style={{ backgroundColor: `${primaryColor}30` }} />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-8">
+                            {subscriptionPlans.map(plan => (
+                                <div key={plan.id} onClick={() => handleSelectPlan(plan)} className="group relative overflow-hidden rounded-2xl lg:rounded-[3rem] h-48 lg:h-72 border shadow-xl lg:shadow-2xl hover:shadow-primary-500/20 transition-all duration-500 cursor-pointer glass-card">
+                                    {plan.imageUrl ? (
+                                        <><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 group-hover:from-black/70 transition-all"></div><img src={plan.imageUrl} alt={plan.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s]" /></>
+                                    ) : (
+                                        <>
+                                            <div className="absolute inset-0 z-0" style={{ background: `linear-gradient(145deg, ${primaryColor}88, ${primaryColor}ff)` }}></div>
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-[1]"></div>
+                                            <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 2 }}>
+                                                <Sparkles className="w-16 h-16 lg:w-24 lg:h-24 text-white opacity-30 group-hover:opacity-50 transition-opacity" />
+                                            </div>
+                                        </>
+                                    )}
+                                    {/* Badge Promoção */}
+                                    <div className="absolute top-3 left-3 z-30 flex items-center gap-1 px-3 py-1 rounded-full text-[9px] lg:text-[10px] font-bold uppercase tracking-widest text-white" style={{ backgroundColor: primaryColor }}>
+                                        <Sparkles className="w-3 h-3" /> Promoção
+                                    </div>
+                                    <div className="relative z-20 h-full p-4 lg:p-8 flex flex-col justify-end text-left text-white">
+                                        <h3 className="font-serif font-bold text-lg lg:text-2xl leading-tight mb-2 drop-shadow-md">{plan.name}</h3>
+                                        {plan.description && <p className="text-white/70 text-xs lg:text-sm mb-2 line-clamp-2">{plan.description}</p>}
+                                        <div className="flex items-center gap-2 flex-wrap text-white/95 text-[9px] lg:text-[10px] font-bold uppercase tracking-widest">
+                                            {plan.items.map(item => (
+                                                <span key={item.procedureId} className="bg-white/10 backdrop-blur-xl px-2 lg:px-3 py-1 rounded-full border border-white/10">
+                                                    {item.sessionsPerCycle}x {item.procedure.name}
+                                                </span>
+                                            ))}
+                                            <span className="px-2 lg:px-4 py-1.5 rounded-full shadow-xl ml-auto" style={{ backgroundColor: primaryColor }}>{formatCurrency(plan.price)}/mês</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Procedimentos avulsos */}
+                <div className="text-left">
+                    {subscriptionPlans.length > 0 && (
+                        <div className="flex items-center gap-2 mb-4 lg:mb-6">
+                            <Clock className="w-4 h-4 opacity-60" style={{ color: textColor }} />
+                            <h3 className="text-base lg:text-xl font-bold uppercase tracking-widest opacity-60" style={{ color: textColor }}>Procedimentos</h3>
+                            <div className="flex-1 h-px opacity-20" style={{ backgroundColor: textColor }} />
+                        </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-8">
+                        {procedures.map(proc => (
+                            <div key={proc.id} onClick={() => { setSelectedProcedure(proc); setBookingMode('procedure'); setStep(2); }} className={`group relative overflow-hidden rounded-2xl lg:rounded-[3rem] h-48 lg:h-72 border shadow-xl lg:shadow-2xl hover:shadow-primary-500/20 transition-all duration-500 cursor-pointer bg-black/40 glass-card`}>
+                                {proc.imageUrl ? (
+                                    <><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 group-hover:from-black/70 transition-all"></div><img src={proc.imageUrl} alt={proc.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s]" /></>
+                                ) : (
+                                    <>
+                                        <div className="absolute inset-0 z-0" style={{ background: `linear-gradient(145deg, ${primaryColor}55, ${primaryColor}cc)` }}></div>
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent z-[1]"></div>
+                                        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 2 }}>
+                                            <Sparkles className="w-16 h-16 lg:w-24 lg:h-24 text-white opacity-20 group-hover:opacity-30 transition-opacity" />
+                                        </div>
+                                    </>
+                                )}
+                                <div className="relative z-20 h-full p-4 lg:p-10 flex flex-col justify-end text-left text-white">
+                                    <h3 className="font-serif font-bold text-lg lg:text-2xl leading-tight mb-2 lg:mb-4 drop-shadow-md">{proc.name}</h3>
+                                    <div className="flex items-center gap-2 lg:gap-4 text-white/95 text-[9px] lg:text-[10px] font-bold uppercase tracking-wider lg:tracking-widest">
+                                        <span className="bg-white/10 backdrop-blur-xl px-2 lg:px-4 py-1.5 lg:py-2 rounded-full flex items-center gap-1.5 lg:gap-2 border border-white/10"><Clock className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-primary-400" /> {proc.durationMinutes} min</span>
+                                        <span className="px-2 lg:px-4 py-1.5 lg:py-2 rounded-full shadow-xl" style={{ backgroundColor: primaryColor }}>{formatCurrency(proc.price)}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </div>
         )}
@@ -672,6 +785,40 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
             </div>
         )}
       </div>
+
+      {/* Plan Procedure Picker Overlay */}
+      {showPlanProcedurePicker && selectedPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowPlanProcedurePicker(false)} />
+          <div className="relative w-full max-w-lg rounded-3xl shadow-2xl border p-8 animate-fade-in" style={{ backgroundColor: cardBgColor, borderColor: `${primaryColor}30`, color: cardTxtColor }}>
+            <button onClick={() => setShowPlanProcedurePicker(false)} className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors">
+              <XCircle className="w-5 h-5 opacity-60" />
+            </button>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-5 h-5" style={{ color: primaryColor }} />
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: primaryColor }}>Plano Promocional</span>
+            </div>
+            <h3 className="text-xl lg:text-2xl font-serif font-bold mb-1" style={headingStyle}>{selectedPlan.name}</h3>
+            <p className="text-sm mb-6 opacity-60">Este plano inclui {selectedPlan.items.length} procedimentos. Qual você gostaria de agendar na primeira consulta?</p>
+            <div className="space-y-3">
+              {selectedPlan.items.map(item => (
+                <button
+                  key={item.procedureId}
+                  onClick={() => handleSelectPlanProcedure(item.procedureId)}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border transition-all hover:scale-[1.02] active:scale-95 text-left"
+                  style={{ borderColor: `${primaryColor}30`, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}
+                >
+                  <div>
+                    <p className="font-bold text-sm">{item.procedure.name}</p>
+                    <p className="text-xs opacity-50 mt-0.5">{item.sessionsPerCycle} sessão{item.sessionsPerCycle > 1 ? 'ões' : ''} incluída{item.sessionsPerCycle > 1 ? 's' : ''} por mês</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 shrink-0" style={{ color: primaryColor }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
