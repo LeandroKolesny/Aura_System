@@ -165,6 +165,12 @@ const ClinicFinancial: React.FC = () => {
 
   const balance = visibleTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
 
+  const pendingInstallments = useMemo(() => {
+    return visibleTransactions
+      .filter(t => t.type === 'income' && t.status === 'pending' && t.installmentGroupId)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+  }, [visibleTransactions]);
+
   // Loading state - usar skeleton
   if (loadingStates.transactions && transactions.length === 0) {
     return <FinancialSkeleton />;
@@ -172,12 +178,6 @@ const ClinicFinancial: React.FC = () => {
 
   const totalRevenue = visibleTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
   const totalCost = visibleTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
-
-  const pendingInstallments = useMemo(() => {
-    return visibleTransactions
-      .filter(t => t.type === 'income' && t.status === 'pending' && t.installmentGroupId)
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-  }, [visibleTransactions]);
 
   return (
     <div className="space-y-6">
