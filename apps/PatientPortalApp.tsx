@@ -17,6 +17,7 @@ import PatientHistory from '../pages/PatientHistory';
 
 // Páginas novas do portal
 import PatientLogin from '../pages/patient-portal/PatientLogin';
+import PatientPlans from '../pages/patient-portal/PatientPlans';
 import PatientSidebar from '../components/patient-portal/PatientSidebar';
 
 // Utilitários de cores
@@ -159,6 +160,7 @@ const PatientPortalRoutes: React.FC<{ clinicSlug: string }> = ({ clinicSlug }) =
       {/* Rotas Privadas do Portal (paciente logado) */}
       <Route element={<PatientPortalLayout />}>
         <Route path={`${prefix}/minha-conta`} element={<PatientDashboard />} />
+        <Route path={`${prefix}/meus-planos`} element={<PatientPlans />} />
         <Route path={`${prefix}/agendamentos`} element={<Schedule />} />
         <Route path={`${prefix}/procedimentos`} element={<Procedures />} />
         <Route path={`${prefix}/historico`} element={<PatientHistory />} />
@@ -238,6 +240,16 @@ const PatientDashboard: React.FC = () => {
           description="Veja seu histórico de procedimentos"
           link={`${getPortalBasePath()}/historico`}
           linkText="Ver histórico"
+          cardStyle={cardStyle}
+          titleStyle={cardTitleStyle}
+          descStyle={cardDescStyle}
+          linkStyle={linkStyle}
+        />
+        <DashboardCard
+          title="Meus Planos"
+          description="Veja seus planos e sessões disponíveis"
+          link={`${getPortalBasePath()}/meus-planos`}
+          linkText="Ver meus planos"
           cardStyle={cardStyle}
           titleStyle={cardTitleStyle}
           descStyle={cardDescStyle}

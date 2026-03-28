@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Calendar, Scissors, Clock, LogOut, User, X } from 'lucide-react';
+import { Home, Calendar, Scissors, Clock, LogOut, User, X, Sparkles } from 'lucide-react';
 import { useClinic } from '../../context/ClinicContext';
 import { useApp } from '../../context/AppContext';
 import { getPortalBasePath } from '../../utils/subdomain';
@@ -21,6 +21,7 @@ const PatientSidebar: React.FC<PatientSidebarProps> = ({ isMobileOpen = false, o
 
   const menuItems = [
     { icon: Home, label: 'Minha Conta', path: `${basePath}/minha-conta` },
+    { icon: Sparkles, label: 'Meus Planos', path: `${basePath}/meus-planos` },
     { icon: Calendar, label: 'Agendamentos', path: `${basePath}/agendamentos` },
     { icon: Scissors, label: 'Procedimentos', path: `${basePath}/procedimentos` },
     { icon: Clock, label: 'Histórico', path: `${basePath}/historico` },
