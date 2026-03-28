@@ -59,7 +59,6 @@ export const KPICard: React.FC<KPICardProps> = ({
   const styles = variantStyles[variant];
   const isPositive = trend && trend.value > 0;
   const isNegative = trend && trend.value < 0;
-  const isNeutral = !trend || trend.value === 0;
 
   const TrendIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
   
@@ -86,7 +85,7 @@ export const KPICard: React.FC<KPICardProps> = ({
             'bg-slate-100 text-slate-600'
           }`}>
             <TrendIcon className="w-3.5 h-3.5" />
-            <span>{isNeutral ? '—' : `${isPositive ? '+' : ''}${trend.value}%`}</span>
+            <span>{`${isPositive ? '+' : ''}${trend!.value}%`}</span>
           </div>
         )}
       </div>
