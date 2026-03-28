@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ success: true, data: plans });
+    return NextResponse.json(plans);
   } catch (error) {
     console.error("Erro ao listar planos de assinatura:", error);
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
@@ -52,10 +52,11 @@ export async function POST(request: NextRequest) {
       name: string;
       price: number;
       description?: string;
+      imageUrl?: string;
       items: { procedureId: string; sessionsPerCycle: number }[];
     };
 
-    const { name, price, description, items } = body;
+    const { name, price, description, imageUrl, items } = body;
 
     if (!name || price == null || !items || items.length === 0) {
       return NextResponse.json(
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
         name,
         price,
         description: description ?? null,
+        imageUrl: imageUrl ?? null,
         companyId: user.companyId!,
         items: {
           create: items.map((item) => ({

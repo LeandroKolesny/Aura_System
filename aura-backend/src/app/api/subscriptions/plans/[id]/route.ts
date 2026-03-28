@@ -30,11 +30,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       name?: string;
       price?: number;
       description?: string;
+      imageUrl?: string;
       isActive?: boolean;
       items?: { procedureId: string; sessionsPerCycle: number }[];
     };
 
-    const { name, price, description, isActive, items } = body;
+    const { name, price, description, imageUrl, isActive, items } = body;
 
     const plan = await prisma.subscriptionPlan.update({
       where: { id },
@@ -43,6 +44,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(price !== undefined ? { price } : {}),
         ...(description !== undefined ? { description } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
         // Se items foram enviados, recria todos
         ...(items
           ? {
