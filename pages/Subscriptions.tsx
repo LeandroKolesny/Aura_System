@@ -166,8 +166,8 @@ const Subscriptions: React.FC = () => {
       subscriptionsApi.listSubscribers(),
     ]);
     setLoading(false);
-    if (plansRes.success && plansRes.data) setPlans(plansRes.data as unknown as SubscriptionPlan[]);
-    if (subsRes.success && subsRes.data) setSubscribers(subsRes.data as unknown as PatientSubscription[]);
+    if (plansRes.success && Array.isArray(plansRes.data)) setPlans(plansRes.data as SubscriptionPlan[]);
+    if (subsRes.success && Array.isArray(subsRes.data)) setSubscribers(subsRes.data as PatientSubscription[]);
     if (!plansRes.success) setError(plansRes.error ?? 'Erro ao carregar dados');
   }, []);
 
@@ -284,6 +284,12 @@ const Subscriptions: React.FC = () => {
                   plan.isActive ? 'border-slate-200/60' : 'border-slate-200 opacity-60'
                 }`}
               >
+                {plan.imageUrl && (
+                  <div className="relative h-36 overflow-hidden bg-slate-100">
+                    <img src={plan.imageUrl} alt={plan.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                  </div>
+                )}
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div>
