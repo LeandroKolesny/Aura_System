@@ -6,16 +6,16 @@ import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
 import { generateJWT } from "@/lib/auth";
 
 const schema = z.object({
-  companyId: z.string().cuid(),
-  planId: z.string().cuid(),
-  procedureId: z.string().cuid(),
-  professionalId: z.string().cuid().nullable(),
-  date: z.string().datetime(),
+  companyId: z.string().cuid("ID de empresa inválido"),
+  planId: z.string().cuid("ID de plano inválido"),
+  procedureId: z.string().cuid("ID de procedimento inválido"),
+  professionalId: z.string().cuid("ID de profissional inválido").nullable(),
+  date: z.string().datetime("Data ou hora inválida"),
   patientInfo: z.object({
-    name: z.string().min(2).max(100),
-    email: z.string().email(),
-    phone: z.string().min(8).max(20),
-    password: z.string().min(8).max(100).optional(),
+    name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres").max(100, "Nome muito longo"),
+    email: z.string().email("E-mail inválido"),
+    phone: z.string().min(8, "Celular deve ter pelo menos 8 dígitos").max(20, "Celular muito longo"),
+    password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres").max(100, "Senha muito longa").optional(),
   }),
 });
 
@@ -30,8 +30,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validation = schema.safeParse(body);
     if (!validation.success) {
+      const fieldLabels: Record<string, string> = {
+        "patientInfo.name": "Nome",
+        "patientInfo.email": "E-mail",
+        "patientInfo.phone": "Celular",
+        "patientInfo.password": "Senha",
+        date: "Data/hora",
+        procedureId: "Procedimento",
+        planId: "Plano",
+        companyId: "Empresa",
+        professionalId: "Profissional",
+      };
+      const messages = validation.error.errors.map((e) => {
+        const path = e.path.join(".");
+        const label = fieldLabels[path] ?? String(e.path[e.path.length - 1] ?? path);
+        return `${label}: ${e.message}`;
+      });
+      const message = [...new Set(messages)].join(" | ");
       return NextResponse.json(
-        { error: "Dados inválidos", details: validation.error.flatten() },
+        { error: message || "Dados inválidos" },
         { status: 400 }
       );
     }
@@ -73,13 +90,35 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 });
     }
 
-    // Find or create patient
-    let patient = await prisma.user.findFirst({ where: { email, companyId } });
+    // Find or create Patient (para agendamento e assinatura)
+    let patient = await prisma.patient.findFirst({ where: { email, companyId } });
     if (!patient) {
+      patient = await prisma.patient.create({
+        data: { name, email, phone, companyId },
+      });
+    }
+
+    // Find or create User PATIENT (para login no portal — separado do Patient)
+    let portalUser = await prisma.user.findFirst({ where: { email, companyId } });
+    if (portalUser) {
+      // Usuário já existe: se informou senha, verificar se bate com a cadastrada
+      if (password) {
+        const passwordMatches = await bcrypt.compare(password, portalUser.password);
+        if (!passwordMatches) {
+          return NextResponse.json(
+            {
+              error: "Este e-mail já possui uma conta. Use sua senha cadastrada para fazer login no portal.",
+              code: "EMAIL_ALREADY_EXISTS",
+            },
+            { status: 409 }
+          );
+        }
+      }
+    } else {
       const hashedPassword = password
         ? await bcrypt.hash(password, 10)
         : await bcrypt.hash(Math.random().toString(36), 10);
-      patient = await prisma.user.create({
+      portalUser = await prisma.user.create({
         data: {
           name,
           email,
@@ -88,7 +127,6 @@ export async function POST(request: NextRequest) {
           role: "PATIENT",
           companyId,
           isActive: true,
-          emailVerified: null,
         },
       });
     }
@@ -100,31 +138,18 @@ export async function POST(request: NextRequest) {
         where: { companyId, isActive: true, role: { in: ["ADMIN", "ESTHETICIAN"] } },
         select: { id: true },
       });
-      resolvedProfessionalId = fallbackPro?.id ?? patient.id;
+      resolvedProfessionalId = fallbackPro?.id ?? portalUser.id;
     }
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        date: new Date(date),
-        durationMinutes: procedure.durationMinutes,
-        status: "SCHEDULED",
-        price: 0,
-        patientId: patient.id,
-        professionalId: resolvedProfessionalId,
-        procedureId,
-        companyId,
-        notes: `Agendamento via Plano: ${plan.name}`,
-      },
-    });
-
-    // Find or create PatientSubscription
+    // Find or create PatientSubscription (activates PENDING if exists)
     let subscription = await prisma.patientSubscription.findFirst({
       where: {
         patientId: patient.id,
         planId,
         companyId,
-        status: { in: ["ACTIVE", "PAUSED"] },
+        status: { in: ["PENDING", "ACTIVE", "PAUSED"] },
       },
+      orderBy: { createdAt: "desc" },
     });
 
     if (!subscription) {
@@ -144,13 +169,34 @@ export async function POST(request: NextRequest) {
           lastCycleReset: new Date(),
         },
       });
+    } else if (subscription.status === "PENDING") {
+      // Activate PENDING subscription on first booking
+      subscription = await prisma.patientSubscription.update({
+        where: { id: subscription.id },
+        data: { status: "ACTIVE", startDate: new Date() },
+      });
     }
 
+    const appointment = await prisma.appointment.create({
+      data: {
+        date: new Date(date),
+        durationMinutes: procedure.durationMinutes,
+        status: "SCHEDULED",
+        price: 0,
+        patientId: patient.id,
+        professionalId: resolvedProfessionalId,
+        procedureId,
+        companyId,
+        subscriptionId: subscription.id,
+        notes: `Agendamento via Plano: ${plan.name}`,
+      },
+    });
+
     const token = generateJWT({
-      id: patient.id,
-      email: patient.email,
-      role: patient.role,
-      companyId: patient.companyId,
+      id: portalUser.id,
+      email: portalUser.email,
+      role: portalUser.role,
+      companyId: portalUser.companyId,
     });
 
     return NextResponse.json(
