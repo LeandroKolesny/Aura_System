@@ -233,23 +233,6 @@ export async function POST(request: NextRequest) {
     let { patientId, professionalId, procedureId, date, durationMinutes, price, notes, roomId } = validation.data;
     const appointmentDate = new Date(date);
 
-    // Se for paciente, garantir que só pode agendar para si mesmo
-    if (isPatient) {
-      const patientRecord = await prisma.patient.findFirst({
-        where: { email: user.email, companyId: user.companyId },
-      });
-
-      if (!patientRecord) {
-        return NextResponse.json(
-          { error: "Paciente não encontrado para este usuário" },
-          { status: 404 }
-        );
-      }
-
-      // Sobrescreve o patientId com o próprio ID do paciente logado
-      patientId = patientRecord.id;
-    }
-
     // Buscar configurações da empresa (business hours + indisponibilidades)
     const [company, unavailabilityRules] = await Promise.all([
       prisma.company.findUnique({
@@ -299,9 +282,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── Clube de Assinaturas: verificar cobertura ──
+    let subscriptionCoverage: {
+      covered: boolean;
+      subscriptionId: string | null;
+      sessionsRemaining: number;
+      warning?: string;
+    } = { covered: false, subscriptionId: null, sessionsRemaining: 0 };
+
+    // For patient role, resolve their patientId from their email
+    let resolvedPatientId = patientId;
+    if (isPatient) {
+      const patientRecord = await prisma.patient.findFirst({
+        where: { email: user.email, companyId: user.companyId! },
+        select: { id: true },
+      });
+      if (patientRecord) resolvedPatientId = patientRecord.id;
+    }
+
     // Verificar se paciente existe
     const patient = await prisma.patient.findFirst({
-      where: { id: patientId, companyId: user.companyId },
+      where: { id: resolvedPatientId, companyId: user.companyId },
     });
     if (!patient) {
       return NextResponse.json({ error: "Paciente não encontrado" }, { status: 404 });
@@ -315,48 +316,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Procedimento não encontrado" }, { status: 404 });
     }
 
-    // ── Clube de Assinaturas: verificar cobertura ──
-    let subscriptionCoverage: {
-      covered: boolean;
-      subscriptionId: string | null;
-      sessionsRemaining: number;
-      warning?: string;
-    } = { covered: false, subscriptionId: null, sessionsRemaining: 0 };
+    const activeSubscription = await prisma.patientSubscription.findFirst({
+      where: { patientId: resolvedPatientId, companyId: user.companyId!, status: "ACTIVE" },
+      include: { plan: { include: { items: true } } },
+    });
 
-    if (!isPatient) {
-      // Só staff inicia cobertura de assinatura (paciente usa agendamento normal)
-      const activeSubscription = await prisma.patientSubscription.findFirst({
-        where: { patientId, companyId: user.companyId!, status: "ACTIVE" },
-        include: { plan: { include: { items: true } } },
-      });
+    if (activeSubscription) {
+      const planItem = activeSubscription.plan.items.find(
+        (item) => item.procedureId === procedureId
+      );
 
-      if (activeSubscription) {
-        const planItem = activeSubscription.plan.items.find(
-          (item) => item.procedureId === procedureId
-        );
+      if (planItem) {
+        const sessionsUsed =
+          (activeSubscription.sessionsUsedThisCycle as Record<string, number>)[procedureId] ?? 0;
+        const sessionsRemaining = planItem.sessionsPerCycle - sessionsUsed;
 
-        if (planItem) {
-          const sessionsUsed =
-            (activeSubscription.sessionsUsedThisCycle as Record<string, number>)[procedureId] ?? 0;
-          const sessionsRemaining = planItem.sessionsPerCycle - sessionsUsed;
-
-          if (sessionsRemaining > 0) {
-            // Coberto: desconta sessão e zera o preço
-            subscriptionCoverage = {
-              covered: true,
-              subscriptionId: activeSubscription.id,
-              sessionsRemaining: sessionsRemaining - 1,
-            };
-            price = 0;
-          } else {
-            // Limite atingido: avisa mas agenda normalmente com preço cheio
-            subscriptionCoverage = {
-              covered: false,
-              subscriptionId: activeSubscription.id,
-              sessionsRemaining: 0,
-              warning: `Sessões do plano esgotadas para ${procedure.name} neste ciclo. Agendamento cobrado normalmente.`,
-            };
-          }
+        if (sessionsRemaining > 0) {
+          subscriptionCoverage = {
+            covered: true,
+            subscriptionId: activeSubscription.id,
+            sessionsRemaining: sessionsRemaining - 1,
+          };
+          price = 0;
+        } else {
+          subscriptionCoverage = {
+            covered: false,
+            subscriptionId: activeSubscription.id,
+            sessionsRemaining: 0,
+            warning: `Sessões do plano esgotadas para ${procedure.name} neste ciclo. Agendamento cobrado normalmente.`,
+          };
         }
       }
     }
@@ -369,7 +357,7 @@ export async function POST(request: NextRequest) {
     const appointment = await prisma.appointment.create({
       data: {
         companyId: user.companyId,
-        patientId,
+        patientId: resolvedPatientId,
         professionalId,
         procedureId,
         date: appointmentDate,

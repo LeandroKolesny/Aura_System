@@ -13,11 +13,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") ?? undefined;
+    const patientId = searchParams.get("patientId") ?? undefined;
 
     const subscriptions = await prisma.patientSubscription.findMany({
       where: {
         companyId: user.companyId,
         ...(status ? { status: status as "ACTIVE" | "PAUSED" | "CANCELED" | "OVERDUE" | "PENDING" } : {}),
+        ...(patientId ? { patientId } : {}),
       },
       include: {
         patient: { select: { id: true, name: true, phone: true, email: true } },
