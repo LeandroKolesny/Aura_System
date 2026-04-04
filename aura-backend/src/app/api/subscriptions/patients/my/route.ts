@@ -8,11 +8,20 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    if (!user.companyId) return NextResponse.json({ success: true, data: [] });
+
+    // Patient and User are separate records linked by email+companyId
+    const patient = await prisma.patient.findFirst({
+      where: { email: user.email, companyId: user.companyId },
+      select: { id: true },
+    });
+    if (!patient) return NextResponse.json({ success: true, data: [] });
 
     const subscriptions = await prisma.patientSubscription.findMany({
       where: {
-        patientId: user.id,
-        status: { in: ["ACTIVE", "PAUSED"] },
+        patientId: patient.id,
+        companyId: user.companyId,
+        status: { in: ["PENDING", "ACTIVE", "PAUSED"] },
       },
       include: {
         plan: {
