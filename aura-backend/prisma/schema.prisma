@@ -317,6 +317,8 @@ model Appointment {
   signatureUrl    String?
   signatureMetadata Json?
   googleEventId   String?
+  subscriptionId  String?
+  subscription    PatientSubscription? @relation(fields: [subscriptionId], references: [id])
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -810,6 +812,7 @@ model PatientSubscription {
   planId              String
   company             Company          @relation(fields: [companyId], references: [id])
   companyId           String
+  appointments        Appointment[]
 
   @@index([companyId])
   @@index([companyId, status])
@@ -818,6 +821,7 @@ model PatientSubscription {
 }
 
 enum PatientSubscriptionStatus {
+  PENDING
   ACTIVE
   PAUSED
   CANCELED
