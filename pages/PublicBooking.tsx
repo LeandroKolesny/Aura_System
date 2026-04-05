@@ -174,6 +174,28 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
     }
   }, [isLoggedInPatient, user]);
 
+  // Map: procedureId → covered by active subscription (for logged-in patient)
+  // Must be before early returns to avoid Rules of Hooks violation
+  const coveredProcedureIds = useMemo(() => {
+    const ids = new Set<string>();
+    patientOwnSubscriptions
+      .filter(s => s.status === 'ACTIVE')
+      .forEach(s => s.plan.items.forEach(i => ids.add(i.procedureId)));
+    return ids;
+  }, [patientOwnSubscriptions]);
+
+  const getSessionsRemaining = (procedureId: string): number => {
+    for (const sub of patientOwnSubscriptions) {
+      if (sub.status !== 'ACTIVE') continue;
+      const item = sub.plan.items.find(i => i.procedureId === procedureId);
+      if (item) {
+        const used = sub.sessionsUsedThisCycle[procedureId] ?? 0;
+        return item.sessionsPerCycle - used;
+      }
+    }
+    return -1;
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50">Carregando...</div>;
   if (loadError || !companyName) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">{loadError || 'Clínica não encontrada.'}</div>;
 
@@ -242,27 +264,6 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
   const headerStyle = { backgroundColor: headerBgColor, color: headerTxtColor, borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' };
   const headingStyle = { color: textColor };
   const descriptionStyle = { color: textColor, opacity: 0.7 };
-
-  // Map: procedureId → covered by active subscription (for logged-in patient)
-  const coveredProcedureIds = useMemo(() => {
-    const ids = new Set<string>();
-    patientOwnSubscriptions
-      .filter(s => s.status === 'ACTIVE')
-      .forEach(s => s.plan.items.forEach(i => ids.add(i.procedureId)));
-    return ids;
-  }, [patientOwnSubscriptions]);
-
-  const getSessionsRemaining = (procedureId: string): number => {
-    for (const sub of patientOwnSubscriptions) {
-      if (sub.status !== 'ACTIVE') continue;
-      const item = sub.plan.items.find(i => i.procedureId === procedureId);
-      if (item) {
-        const used = sub.sessionsUsedThisCycle[procedureId] ?? 0;
-        return item.sessionsPerCycle - used;
-      }
-    }
-    return -1;
-  };
 
   const getAvailableSlots = () => {
     const slots: { time: string, available: boolean, isPast: boolean }[] = [];
