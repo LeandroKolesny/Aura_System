@@ -6,7 +6,7 @@ import { maskCpf, maskPhone, validateCPF, validateBirthDate } from '../utils/mas
 import { formatCurrency, formatDateTime, formatDate } from '../utils/formatUtils';
 import { PAYMENT_LABELS, PAYMENT_METHODS_LIST } from '../constants';
 import { BusinessHoursEditor } from './BusinessHoursEditor';
-import { appointmentsApi } from '../services/api';
+import { appointmentsApi, subscriptionsApi, SubscriptionPlan } from '../services/api';
 
 interface ModalProps {
   onClose: () => void;
@@ -202,6 +202,13 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
   const [isCheckingGoogle, setIsCheckingGoogle] = useState(false);
   const [simulateClientRequest, setSimulateClientRequest] = useState(isPatientUser);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [patientSubscription, setPatientSubscription] = useState<{
+    id: string;
+    planName: string;
+    sessionsRemaining: number;
+  } | null>(null);
+  const [usePlan, setUsePlan] = useState(true);
+  const [availablePlans, setAvailablePlans] = useState<SubscriptionPlan[]>([]);
 
   useEffect(() => {
     if (selectedProcId) {
@@ -236,11 +243,48 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
       .catch(() => setGoogleConflict(null))
       .finally(() => setIsCheckingGoogle(false));
   }, [professionalId, date, duration, isPatientUser]);
+
+  useEffect(() => {
+    subscriptionsApi.listPlans().then(res => {
+      if (res.success && res.data) setAvailablePlans(res.data);
+    });
+  }, []);
+
+  useEffect(() => {
+    setPatientSubscription(null);
+    if (!patientId || !selectedProcId || isPatientUser) return;
+    subscriptionsApi.listForPatient(patientId).then(res => {
+      if (!res.success || !res.data) return;
+      const active = res.data.find(s => s.status === 'ACTIVE');
+      if (!active) return;
+      const planItem = (active.plan as SubscriptionPlan).items?.find(
+        (i: { procedureId: string; sessionsPerCycle: number }) => i.procedureId === selectedProcId
+      );
+      if (!planItem) return;
+      const used = (active.sessionsUsedThisCycle as Record<string, number>)[selectedProcId] ?? 0;
+      const remaining = planItem.sessionsPerCycle - used;
+      setPatientSubscription({ id: active.id, planName: active.plan.name, sessionsRemaining: remaining });
+      setUsePlan(remaining > 0);
+    });
+  }, [patientId, selectedProcId, isPatientUser]);
+
   const handleProcedureChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const procId = e.target.value;
-    setSelectedProcId(procId);
-    const proc = procedures.find(p => p.id === procId);
-    if (proc) { setServiceName(proc.name); setPrice(proc.price); setDuration(proc.durationMinutes); } else { setServiceName(''); setPrice(''); setDuration(''); }
+    const val = e.target.value;
+    if (val.startsWith('plan-')) {
+      const planId = val.replace('plan-', '');
+      const plan = availablePlans.find(p => p.id === planId);
+      if (plan && plan.items.length > 0) {
+        const firstProcId = plan.items[0].procedureId;
+        setSelectedProcId(firstProcId);
+        const proc = procedures.find(p => p.id === firstProcId);
+        if (proc) { setServiceName(proc.name); setPrice(0); setDuration(proc.durationMinutes); }
+      }
+      return;
+    }
+    setSelectedProcId(val);
+    const proc = procedures.find(p => p.id === val);
+    if (proc) { setServiceName(proc.name); setPrice(proc.price); setDuration(proc.durationMinutes); }
+    else { setServiceName(''); setPrice(''); setDuration(''); }
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,7 +342,66 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
           )}
           <div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Profissional Responsável</label><select required className="w-full p-2 border rounded-lg bg-white" value={professionalId} onChange={e => setProfessionalId(e.target.value)}><option value="">Selecione o Profissional...</option>{medicalStaff.map(p => (<option key={p.id} value={p.id}>{p.name} {p.title ? `- ${p.title}` : ''}</option>))}</select></div>
         </div>
-        <div><label className="block text-sm font-medium text-slate-700 mb-1">Procedimento</label><select required className="w-full p-2 border rounded-lg" value={selectedProcId} onChange={handleProcedureChange}><option value="">Selecione da lista...</option>{procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento</label>
+          <select required className="w-full p-2 border rounded-lg" value={selectedProcId} onChange={handleProcedureChange}>
+            <option value="">Selecione da lista...</option>
+            {availablePlans.length > 0 && (
+              <optgroup label="── Promoções ──">
+                {availablePlans.map(plan => (
+                  <option key={`plan-${plan.id}`} value={`plan-${plan.id}`}>
+                    Promoção {plan.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="── Procedimentos ──">
+              {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </optgroup>
+          </select>
+        </div>
+        {patientSubscription && !isPatientUser && (
+          patientSubscription.sessionsRemaining > 0 ? (
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-sm text-emerald-800">
+                  <strong>Plano disponível:</strong> Paciente tem{' '}
+                  <strong>{patientSubscription.sessionsRemaining} sessão{patientSubscription.sessionsRemaining !== 1 ? 'ões' : ''}</strong>{' '}
+                  restante{patientSubscription.sessionsRemaining !== 1 ? 's' : ''} no{' '}
+                  <strong>Promoção {patientSubscription.planName}</strong>.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUsePlan(true)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    usePlan ? 'bg-emerald-600 text-white border-emerald-600' : 'text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                  }`}
+                >
+                  Usar plano (R$ 0,00)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUsePlan(false)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    !usePlan ? 'bg-slate-600 text-white border-slate-600' : 'text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  Cobrar normalmente
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                Sessões do <strong>Promoção {patientSubscription.planName}</strong> esgotadas neste ciclo. O agendamento será cobrado normalmente.
+              </p>
+            </div>
+          )
+        )}
         <div className="grid grid-cols-2 gap-4">
             <div className={isPatientUser ? "col-span-2" : ""}><label className="block text-sm font-medium text-slate-700 mb-1">Data/Hora</label><input required type="datetime-local" className="w-full p-2 border rounded-lg" value={date} onChange={e => { if (e.target.value && e.target.value.split('-')[0].length > 4) return; setDate(e.target.value); }} max="9999-12-31T23:59" /></div>
             {!isPatientUser && (<div><label className="block text-sm font-medium text-slate-700 mb-1">Sala</label><select required className="w-full p-2 border rounded-lg" value={roomId} onChange={e => setRoomId(Number(e.target.value))}><option value={1}>Consultório 1</option><option value={2}>Consultório 2</option><option value={3}>Sala VIP</option></select></div>)}
