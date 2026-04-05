@@ -439,8 +439,21 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
 
       let result;
 
-      if (bookingMode === 'plan' && selectedPlan) {
-        // Agendamento via plano de assinatura (sempre usa API pública)
+      if (isLoggedInPatient) {
+        // Paciente logado: sempre usa API autenticada (backend detecta plano automaticamente)
+        result = await appointmentsApi.create({
+          patientId: '', // O backend sobrescreve com o ID correto via email+companyId
+          procedureId: selectedProcedure.id,
+          professionalId: finalPro.id,
+          date: isoDate.toISOString(),
+          durationMinutes: selectedProcedure.durationMinutes,
+          price: bookingMode === 'plan' ? 0 : selectedProcedure.price,
+          notes: bookingMode === 'plan' && selectedPlan
+            ? `Agendamento via plano ${selectedPlan.name}`
+            : `Agendamento via portal - ${patientData.phone || user?.email}`,
+        });
+      } else if (bookingMode === 'plan' && selectedPlan) {
+        // Não logado contratando plano: usa API pública
         result = await publicBookingApi.bookSubscriptionPlan({
           companyId,
           planId: selectedPlan.id,
@@ -453,17 +466,6 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
             phone: patientData.phone,
             password: patientData.password || undefined,
           },
-        });
-      } else if (isLoggedInPatient) {
-        // Paciente logado: usar API autenticada
-        result = await appointmentsApi.create({
-          patientId: '', // O backend vai sobrescrever com o ID correto
-          procedureId: selectedProcedure.id,
-          professionalId: finalPro.id,
-          date: isoDate.toISOString(),
-          durationMinutes: selectedProcedure.durationMinutes,
-          price: selectedProcedure.price,
-          notes: `Agendamento via portal - ${patientData.phone || user?.email}`,
         });
       } else {
         // Novo paciente: usar API pública
@@ -631,7 +633,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
           <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor, border: `1px solid ${primaryColor}30` }}>
               <Sparkles className="w-3 h-3" />
-              {selectedProcedure?.name}
+              {bookingMode === 'plan' && selectedPlan ? `Promoção ${selectedPlan.name}` : selectedProcedure?.name}
             </div>
             {step > 2 && (
               <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor, border: `1px solid ${primaryColor}30` }}>
