@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import {
   User, Company, Patient, Appointment, Transaction, Procedure,
   PhotoRecord, SaasPlan, Lead, Ticket, SystemAlert, AppNotification,
-  UserRole, SystemModule, UnavailabilityRule, LeadStatus, InventoryItem, SignatureMetadata
+  UserRole, SystemModule, UnavailabilityRule, LeadStatus, InventoryItem, SignatureMetadata,
+  SubscriptionStatus, BusinessHours
 } from '../types';
 import { PLAN_NAMES, PlanLimits } from '../constants';
 import {
@@ -23,8 +24,20 @@ import {
   notificationsApi,
   plansApi,
   kingApi,
+  subscriptionsApi,
   setAuthToken,
   getAuthToken,
+  type ApiPatient,
+  type ApiAppointment,
+  type ApiTransaction,
+  type ApiProcedure,
+  type ApiProcedureSupply,
+  type ApiUser_Extended,
+  type ApiPhoto,
+  type ApiLead,
+  type ApiKingLead,
+  type ApiCompany,
+  type SaasPlan as ApiSaasPlan,
 } from '../services/api';
 import { installmentsApi } from '../services/installmentsApi';
 
@@ -34,7 +47,7 @@ interface AppContextType {
   login: (email: string, password?: string) => Promise<boolean>;
   loginWithToken: (token: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  registerCompany: (companyName: string, adminData: any) => Promise<{ success: boolean; error?: string }>;
+  registerCompany: (companyName: string, adminData: { name: string; email: string; password: string; phone?: string; acceptedTerms?: boolean }) => Promise<{ success: boolean; error?: string }>;
   setupGoogleCompany: (companyName: string, state?: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
 
   companies: Company[];
@@ -51,7 +64,7 @@ interface AppContextType {
   toggleAnamnesisSent: (id: string) => void;
 
   appointments: Appointment[];
-  addAppointment: (appt: any, isPublic?: boolean, publicCompanyId?: string, patientInfo?: any) => { success: boolean; conflict?: boolean; error?: string };
+  addAppointment: (appt: Record<string, unknown>, isPublic?: boolean, publicCompanyId?: string, patientInfo?: { name?: string; email: string; phone: string; password?: string }) => { success: boolean; conflict?: boolean; error?: string };
   updateAppointment: (id: string, data: Partial<Appointment>) => void;
   updateAppointmentStatus: (id: string, status: Appointment['status']) => void;
   signAppointmentConsent: (id: string, signatureBase64: string) => void; // Novo
@@ -67,7 +80,7 @@ interface AppContextType {
   removeProcedure: (id: string) => void;
 
   professionals: User[];
-  addProfessional: (prof: any) => void;
+  addProfessional: (prof: Record<string, unknown>) => void;
   updateProfessional: (id: string, data: Partial<User>) => void;
   removeProfessional: (id: string) => void;
   resetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
@@ -139,6 +152,8 @@ interface AppContextType {
   loadPhotos: (patientId?: string, forceReload?: boolean) => Promise<void>;
   loadLeads: (forceReload?: boolean) => Promise<void>;
   loadUnavailabilityRules: (forceReload?: boolean) => Promise<void>;
+  pendingSubscriptionsCount: number;
+  loadPendingSubscriptions: () => Promise<void>;
 
   // Estados de loading individuais
   loadingStates: {
@@ -187,6 +202,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [unavailabilityRules, setUnavailabilityRules] = useState<UnavailabilityRule[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
+  const [pendingSubscriptionsCount, setPendingSubscriptionsCount] = useState(0);
 
   // UI States
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -208,7 +224,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return isExpired || (isBasic && isExpired); 
   }, [currentCompany, user]);
 
-  const checkModuleAccess: any = (module: SystemModule): boolean => {
+  const checkModuleAccess = (module: SystemModule): boolean => {
       if (!currentCompany) return false;
       if (user?.role === UserRole.OWNER) return true;
 
@@ -325,9 +341,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               name: apiUser.company.name,
               slug: apiUser.company.slug,
               plan: apiUser.company.plan?.toLowerCase() || 'free',
-              subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
+              subscriptionStatus: (apiUser.company.subscriptionStatus?.toLowerCase() || 'active') as SubscriptionStatus,
               subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-              businessHours: apiUser.company.businessHours || {},
+              businessHours: (apiUser.company.businessHours || {}) as unknown as BusinessHours,
               onboardingCompleted: apiUser.company.onboardingCompleted ?? false,
             };
             setCompanies([mappedCompany]);
@@ -389,7 +405,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await patientsApi.list({ limit: 100 });
       if (res.success && res.data?.patients) {
-        const mapped = res.data.patients.map((p: any) => ({
+        const mapped = res.data.patients.map((p: ApiPatient) => ({
           ...p,
           status: p.status?.toLowerCase() || 'active'
         }));
@@ -428,7 +444,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await appointmentsApi.list({ limit: 100 });
       if (res.success && res.data?.appointments) {
-        const mapped = res.data.appointments.map((a: any) => ({
+        type ApptWithRelations = ApiAppointment & {
+          patient?: { id: string; name: string };
+          professional?: { id: string; name: string };
+          procedure?: { id: string; name: string };
+          patientName?: string;
+          professionalName?: string;
+          service?: string;
+        };
+        const mapped = res.data.appointments.map((a: ApptWithRelations) => ({
           ...a,
           price: Number(a.price) || 0,
           durationMinutes: Number(a.durationMinutes) || 60,
@@ -464,7 +488,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await transactionsApi.list({ limit: 100 });
       if (res.success && res.data?.transactions) {
-        const mapped = res.data.transactions.map((t: any) => ({
+        const mapped = res.data.transactions.map((t: ApiTransaction) => ({
           ...t,
           amount: Number(t.amount) || 0,
           type: t.type?.toLowerCase() || 'income',
@@ -490,11 +514,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await proceduresApi.list({ limit: 100 });
       if (res.success && res.data?.procedures) {
-        const mapped = res.data.procedures.map((p: any) => ({
+        const mapped = res.data.procedures.map((p: ApiProcedure) => ({
           ...p,
           price: Number(p.price) || 0,
           cost: Number(p.cost) || 0,
-          supplies: p.supplies?.map((s: any) => ({
+          supplies: p.supplies?.map((s: ApiProcedureSupply) => ({
             id: s.id,
             inventoryItemId: s.inventoryItemId || s.inventoryItem?.id,
             name: s.inventoryItem?.name || s.name || 'Insumo',
@@ -527,11 +551,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
           'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
         };
-        const mapped = res.data.users.map((u: any) => ({
+        const mapped = res.data.users.map((u: ApiUser_Extended) => ({
           ...u,
           role: u.role || 'ESTHETICIAN',
-          contractType: u.contractType?.toLowerCase() || 'pj',
-          remunerationType: remunerationMap[u.remunerationType] || u.remunerationType?.toLowerCase() || 'comissao',
+          contractType: (u.contractType as string | undefined)?.toLowerCase() || 'pj',
+          remunerationType: remunerationMap[u.remunerationType as string] || (u.remunerationType as string | undefined)?.toLowerCase() || 'comissao',
           commissionRate: Number(u.commissionRate) || 0,
           fixedSalary: Number(u.fixedSalary) || 0
         }));
@@ -583,7 +607,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // O filtro por patientId é feito no frontend
       const res = await photosApi.list({ limit: 500 });
       if (res.success && res.data?.photos) {
-        const mapped = res.data.photos.map((p: any) => ({
+        const mapped = res.data.photos.map((p: ApiPhoto) => ({
           id: p.id,
           companyId: p.companyId,
           patientId: p.patientId,
@@ -616,7 +640,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await plansApi.list();
       if (res.success && res.data) {
-        const mappedPlans = res.data.map((p: any) => ({
+        const mappedPlans = res.data.map((p: ApiSaasPlan & { displayName?: string }) => ({
           id: p.id,
           name: p.name,
           displayName: p.displayName || p.name,
@@ -660,9 +684,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ? await kingApi.leads()
         : await leadsApi.list({ limit: 200 });
       if (res.success && res.data?.leads) {
-        const mapped = res.data.leads.map((l: any) => ({
+        const mapped = res.data.leads.map((l: ApiLead | ApiKingLead) => ({
           ...l,
-          status: l.status?.toLowerCase() || 'new',
+          status: (l.status as string | undefined)?.toLowerCase() || 'new',
           value: Number(l.value) || 0,
         }));
         setLeads(mapped);
@@ -697,7 +721,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ]);
 
       if (companiesRes.success && companiesRes.data?.companies) {
-        const mappedCompanies = companiesRes.data.companies.map((c: any) => ({
+        const mappedCompanies = companiesRes.data.companies.map((c: ApiCompany) => ({
           ...c,
           plan: c.plan?.toLowerCase() || 'basic',
           subscriptionStatus: c.subscriptionStatus?.toLowerCase() || 'active',
@@ -721,11 +745,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
           'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
         };
-        const mapped = usersRes.data.users.map((u: any) => ({
+        const mapped = usersRes.data.users.map((u: ApiUser_Extended) => ({
           ...u,
           role: u.role || 'ESTHETICIAN',
-          contractType: u.contractType?.toLowerCase() || 'pj',
-          remunerationType: remunerationMap[u.remunerationType] || u.remunerationType?.toLowerCase() || 'comissao',
+          contractType: (u.contractType as string | undefined)?.toLowerCase() || 'pj',
+          remunerationType: remunerationMap[u.remunerationType as string] || (u.remunerationType as string | undefined)?.toLowerCase() || 'comissao',
           commissionRate: Number(u.commissionRate) || 0,
           fixedSalary: Number(u.fixedSalary) || 0
         }));
@@ -736,7 +760,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       // CRÍTICO: Carregar planos para checkModuleAccess funcionar corretamente
       if (plansRes.success && plansRes.data) {
-        const mappedPlans = plansRes.data.map((p: any) => ({
+        const mappedPlans = plansRes.data.map((p: ApiSaasPlan & { displayName?: string }) => ({
           id: p.id,
           name: p.name,
           displayName: p.displayName || p.name,
@@ -810,9 +834,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               name: apiUser.company.name,
               slug: apiUser.company.slug,
               plan: apiUser.company.plan?.toLowerCase() || 'free',
-              subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
+              subscriptionStatus: (apiUser.company.subscriptionStatus?.toLowerCase() || 'active') as SubscriptionStatus,
               subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-              businessHours: apiUser.company.businessHours || {},
+              businessHours: (apiUser.company.businessHours || {}) as unknown as BusinessHours,
               onboardingCompleted: apiUser.company.onboardingCompleted ?? false,
             };
             setCompanies(prev => {
@@ -872,9 +896,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             name: apiUser.company.name,
             slug: apiUser.company.slug,
             plan: apiUser.company.plan?.toLowerCase() || 'free',
-            subscriptionStatus: apiUser.company.subscriptionStatus?.toLowerCase() || 'active',
+            subscriptionStatus: (apiUser.company.subscriptionStatus?.toLowerCase() || 'active') as SubscriptionStatus,
             subscriptionExpiresAt: apiUser.company.subscriptionExpiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-            businessHours: apiUser.company.businessHours || {},
+            businessHours: (apiUser.company.businessHours || {}) as unknown as BusinessHours,
             onboardingCompleted: apiUser.company.onboardingCompleted ?? false,
           };
           setCompanies(prev => {
@@ -926,7 +950,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setDismissedAlertIds([]);
   };
 
-  const registerCompany = async (companyName: string, adminData: any): Promise<{ success: boolean; error?: string }> => {
+  const registerCompany = async (companyName: string, adminData: { name: string; email: string; password: string; phone?: string; acceptedTerms?: boolean }): Promise<{ success: boolean; error?: string }> => {
       try {
         // Chamar API de registro para salvar no banco de dados
         const response = await authApi.register({
@@ -1027,7 +1051,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // --- Patient Actions (SEMPRE via API) ---
-  const addPatient = async (patientData: any) => {
+  const addPatient = async (patientData: Record<string, unknown>) => {
       checkWriteAccess();
 
       // Verificar limite de pacientes do plano (busca do estado saasPlans)
@@ -1125,7 +1149,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // --- Appointment Actions (SEMPRE via API) ---
-  const addAppointment = async (appt: any, isPublic = false, publicCompanyId?: string, patientInfo?: any) => {
+  const addAppointment = async (appt: { procedureId?: string; service?: string; professionalId?: string; date?: string; patientName?: string; companyId?: string; [key: string]: unknown }, isPublic = false, publicCompanyId?: string, patientInfo?: { name?: string; email: string; phone: string; password?: string }) => {
       if (!isPublic) checkWriteAccess();
 
       const companyId = isPublic ? publicCompanyId : user?.companyId;
@@ -1369,9 +1393,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
 
           // Atualizar estoque local (já foi atualizado na API)
-          const responseData = response.data as any;
+          const responseData = response.data as { inventory?: { id: string; currentStock: number }[] } & typeof response.data;
           if (responseData?.inventory) {
-            responseData.inventory.forEach((item: any) => {
+            responseData.inventory.forEach((item: { id: string; currentStock: number }) => {
               setInventory(prev => prev.map(i => i.id === item.id ? { ...i, currentStock: Number(item.currentStock) } : i));
             });
           }
@@ -1430,7 +1454,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...response.data.procedure,
             price: Number(response.data.procedure.price) || 0,
             cost: Number(response.data.procedure.cost) || 0,
-            supplies: response.data.procedure.supplies?.map((s: any) => ({
+            supplies: response.data.procedure.supplies?.map((s: ApiProcedureSupply) => ({
               id: s.id,
               inventoryItemId: s.inventoryItemId,
               name: s.inventoryItem?.name || 'Insumo',
@@ -1475,7 +1499,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...response.data.procedure,
             price: Number(response.data.procedure.price) || 0,
             cost: Number(response.data.procedure.cost) || 0,
-            supplies: response.data.procedure.supplies?.map((s: any) => ({
+            supplies: response.data.procedure.supplies?.map((s: ApiProcedureSupply) => ({
               id: s.id,
               inventoryItemId: s.inventoryItemId,
               name: s.inventoryItem?.name || 'Insumo',
@@ -1513,7 +1537,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // --- Professionals (SEMPRE via API) ---
-  const addProfessional = async (prof: any) => {
+  const addProfessional = async (prof: Record<string, unknown>) => {
       checkWriteAccess();
 
       // Verificar limite de profissionais do plano (busca do estado saasPlans)
@@ -1972,6 +1996,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  const loadPendingSubscriptions = useCallback(async () => {
+    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.OWNER)) return;
+    try {
+      const res = await subscriptionsApi.listPending();
+      if (res.success && res.data) {
+        setPendingSubscriptionsCount(res.data.length);
+      }
+    } catch { /* silent */ }
+  }, [user]);
+
+  // Polling: pending subscriptions every 60s
+  useEffect(() => {
+    loadPendingSubscriptions();
+    const interval = setInterval(loadPendingSubscriptions, 60_000);
+    return () => clearInterval(interval);
+  }, [loadPendingSubscriptions]);
+
   // --- Inventory Actions (SEMPRE via API) ---
   const addInventoryItem = async (item: Omit<InventoryItem, 'id' | 'companyId'>) => {
       checkWriteAccess();
@@ -2114,7 +2155,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       loadLeads,
       loadUnavailabilityRules,
       loadingStates,
-      loadedStates
+      loadedStates,
+      pendingSubscriptionsCount,
+      loadPendingSubscriptions,
     }}>
       {children}
     </AppContext.Provider>
