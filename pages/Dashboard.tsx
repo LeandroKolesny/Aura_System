@@ -6,7 +6,7 @@ import { AlertDetailsModal } from '../components/Modals';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
 import { ALERT_VISUAL_CONFIG } from '../utils/statusUtils';
 import StatCard from '../components/StatCard';
-import { dashboardApi, DashboardData } from '../services/api';
+import { dashboardApi, DashboardData, subscriptionsApi, PatientSubscription } from '../services/api';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // --- COMPONENTES DE GRÁFICOS ---
@@ -412,6 +412,29 @@ const ClinicDashboard: React.FC = () => {
     return appointments.filter(a => a.status === 'pending_approval');
   }, [appointments]);
 
+  const [pendingPlans, setPendingPlans] = useState<PatientSubscription[]>([]);
+  const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
+
+  useEffect(() => {
+    subscriptionsApi.listPending().then(res => {
+      if (res.success && res.data) setPendingPlans(res.data);
+    });
+  }, []);
+
+  const handleActivatePlan = async (subscriptionId: string) => {
+    setActivatingPlanId(subscriptionId);
+    const res = await subscriptionsApi.activate(subscriptionId);
+    if (res.success) {
+      setPendingPlans(prev => prev.filter(p => p.id !== subscriptionId));
+    }
+    setActivatingPlanId(null);
+  };
+
+  const handleCancelPlan = async (subscriptionId: string) => {
+    await subscriptionsApi.cancel(subscriptionId);
+    setPendingPlans(prev => prev.filter(p => p.id !== subscriptionId));
+  };
+
   // Alertas do sistema (combina API + alertas do banco)
   const activeAlerts = useMemo(() => {
     const dbAlerts = systemAlerts.filter(a => (a.target === 'all' || a.target === user?.companyId) && a.status === 'active');
@@ -514,6 +537,49 @@ const ClinicDashboard: React.FC = () => {
                   ))}
               </div>
           </div>
+      )}
+
+      {pendingPlans.length > 0 && (
+        <div className="bg-purple-50 border border-purple-200 rounded-2xl overflow-hidden animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-purple-100">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+              <span className="text-sm font-semibold text-purple-800">Novos Planos para Aprovação</span>
+              <span className="px-1.5 py-0.5 bg-purple-500 text-white text-[10px] font-bold rounded-full">{pendingPlans.length}</span>
+            </div>
+            <span className="text-xs text-purple-600 font-medium hidden sm:block">Planos de assinatura</span>
+          </div>
+          <div className="divide-y divide-purple-100 max-h-72 overflow-y-auto">
+            {pendingPlans.map((sub) => (
+              <div key={sub.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm shrink-0">
+                  {sub.patient.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{sub.patient.name}</p>
+                  <p className="text-xs text-slate-500 truncate">
+                    Promoção {sub.plan.name} · Solicitado {new Date(sub.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleCancelPlan(sub.id)}
+                    className="min-h-[44px] px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 hover:border-red-200 transition-colors"
+                  >
+                    Recusar
+                  </button>
+                  <button
+                    onClick={() => handleActivatePlan(sub.id)}
+                    disabled={activatingPlanId === sub.id}
+                    className="min-h-[44px] px-4 py-2.5 text-xs font-semibold text-white bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {activatingPlanId === sub.id ? 'Ativando...' : 'Ativar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {activeAlerts.length > 0 && (
