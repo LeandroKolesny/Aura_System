@@ -20,6 +20,7 @@ const STATUS_CONFIG: Record<PatientSubscription['status'], { label: string; badg
   PAUSED:   { label: 'Pausada',    badge: 'bg-amber-50 text-amber-700 border-amber-200' },
   CANCELED: { label: 'Cancelada',  badge: 'bg-slate-100 text-slate-500 border-slate-200' },
   OVERDUE:  { label: 'Em atraso',  badge: 'bg-rose-50 text-rose-700 border-rose-200' },
+  PENDING:  { label: 'Pendente',   badge: 'bg-purple-50 text-purple-700 border-purple-200' },
 };
 
 // ──────────────────────────────────────────────
@@ -147,9 +148,11 @@ const EnrollModal: React.FC<EnrollModalProps> = ({ plans, patients, onClose, onE
 const Subscriptions: React.FC = () => {
   const { patients, procedures, loadPatients, loadProcedures } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'plans' | 'subscribers'>('plans');
+  const [activeTab, setActiveTab] = useState<'plans' | 'subscribers' | 'pending'>('plans');
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [subscribers, setSubscribers] = useState<PatientSubscription[]>([]);
+  const [pendingSubscriptions, setPendingSubscriptions] = useState<PatientSubscription[]>([]);
+  const [activatingId, setActivatingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -169,6 +172,8 @@ const Subscriptions: React.FC = () => {
     if (plansRes.success && Array.isArray(plansRes.data)) setPlans(plansRes.data as SubscriptionPlan[]);
     if (subsRes.success && Array.isArray(subsRes.data)) setSubscribers(subsRes.data as PatientSubscription[]);
     if (!plansRes.success) setError(plansRes.error ?? 'Erro ao carregar dados');
+    const pendingRes = await subscriptionsApi.listPending();
+    if (pendingRes.success && pendingRes.data) setPendingSubscriptions(pendingRes.data as PatientSubscription[]);
   }, []);
 
   useEffect(() => {
@@ -246,15 +251,16 @@ const Subscriptions: React.FC = () => {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard icon={CreditCard} label="Planos ativos" value={activePlans.length} color="bg-primary-100 text-primary-600" />
         <KPICard icon={Users} label="Assinantes ativos" value={activeSubscribers.length} color="bg-emerald-100 text-emerald-600" />
         <KPICard icon={DollarSign} label="Receita recorrente/mês" value={formatCurrency(mrr)} color="bg-amber-100 text-amber-600" />
+        <KPICard icon={Clock} label="Pendentes" value={pendingSubscriptions.length} color="bg-amber-100 text-amber-700" />
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
-        {(['plans', 'subscribers'] as const).map((tab) => (
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        {(['plans', 'subscribers', 'pending'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -262,7 +268,19 @@ const Subscriptions: React.FC = () => {
               activeTab === tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            {tab === 'plans' ? <><CreditCard className="w-4 h-4" /> Planos</> : <><Users className="w-4 h-4" /> Assinantes</>}
+            {tab === 'plans' && <><CreditCard className="w-4 h-4" /> Planos</>}
+            {tab === 'subscribers' && <><Users className="w-4 h-4" /> Assinantes</>}
+            {tab === 'pending' && (
+              <>
+                <Clock className="w-4 h-4" />
+                Pendentes
+                {pendingSubscriptions.length > 0 && (
+                  <span className="ml-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold px-1">
+                    {pendingSubscriptions.length}
+                  </span>
+                )}
+              </>
+            )}
           </button>
         ))}
       </div>
@@ -434,6 +452,70 @@ const Subscriptions: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* PENDING TAB */}
+      {activeTab === 'pending' && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+          {pendingSubscriptions.length === 0 ? (
+            <div className="p-12 text-center">
+              <Clock className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 font-medium">Nenhum plano pendente</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-5 py-3.5 font-semibold text-slate-600 uppercase text-xs tracking-wider">Paciente</th>
+                  <th className="px-5 py-3.5 font-semibold text-slate-600 uppercase text-xs tracking-wider hidden md:table-cell">Plano</th>
+                  <th className="px-5 py-3.5 font-semibold text-slate-600 uppercase text-xs tracking-wider hidden lg:table-cell">Solicitado em</th>
+                  <th className="px-5 py-3.5 font-semibold text-slate-600 uppercase text-xs tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pendingSubscriptions.map(sub => (
+                  <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-slate-800">{sub.patient.name}</p>
+                      <p className="text-xs text-slate-500">{sub.patient.email}</p>
+                    </td>
+                    <td className="px-5 py-4 hidden md:table-cell">
+                      <span className="font-medium text-purple-700">Promoção {sub.plan.name}</span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 hidden lg:table-cell">
+                      {new Date(sub.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={async () => {
+                            await subscriptionsApi.cancel(sub.id);
+                            setPendingSubscriptions(prev => prev.filter(s => s.id !== sub.id));
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
+                        >
+                          Recusar
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setActivatingId(sub.id);
+                            const res = await subscriptionsApi.activate(sub.id);
+                            if (res.success) setPendingSubscriptions(prev => prev.filter(s => s.id !== sub.id));
+                            setActivatingId(null);
+                          }}
+                          disabled={activatingId === sub.id}
+                          className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {activatingId === sub.id ? 'Ativando...' : 'Ativar Plano'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       )}
