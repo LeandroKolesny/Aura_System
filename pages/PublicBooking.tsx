@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Procedure, User, Appointment, UserRole, PublicLayoutConfig, BusinessHours, UnavailabilityRule, OnlineBookingConfig } from '../types';
 import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, Clock, Calendar as CalendarIcon, XCircle, ArrowRight, Sparkles, User as UserIcon } from 'lucide-react';
@@ -8,7 +8,9 @@ import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, Clock, Calendar a
 type CSSWithVars = React.CSSProperties & Record<string, string | number | undefined>;
 import { maskPhone } from '../utils/maskUtils';
 import { formatCurrency } from '../utils/formatUtils';
-import { publicApi, appointmentsApi, publicBookingApi } from '../services/api';
+import { publicApi, appointmentsApi, publicBookingApi, getAuthToken } from '../services/api';
+import { PlanProcedurePickerModal } from '../components/patient-portal/PlanProcedurePickerModal';
+import { PlanContractModal } from '../components/patient-portal/PlanContractModal';
 
 interface PlanForBooking {
   id: string;
@@ -22,6 +24,18 @@ interface PlanForBooking {
     procedure: { id: string; name: string; price: number };
   }>;
 }
+interface PatientOwnSubscription {
+  id: string;
+  status: string;
+  planId: string;
+  sessionsUsedThisCycle: Record<string, number>;
+  plan: {
+    id: string;
+    name: string;
+    items: Array<{ procedureId: string; sessionsPerCycle: number; procedure?: { name: string } }>;
+  };
+}
+
 import { getClinicSlug, getPortalBasePath } from '../utils/subdomain';
 
 interface PublicBookingProps {
@@ -37,6 +51,8 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
   const slug = clinicSlug || urlSlug || getClinicSlug();
   const { user, logout } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
+  const pendingPlanState = (location.state as { pendingPlanId?: string; pendingPlanName?: string } | null);
 
   const [companyId, setCompanyId] = useState('');
   const [companySlug, setCompanySlug] = useState('');
@@ -62,12 +78,16 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
   const [patientData, setPatientData] = useState({ name: '', phone: '', email: '', password: '', confirmPassword: '' });
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [emailAlreadyExists, setEmailAlreadyExists] = useState(false);
 
   // Subscription plan booking state
   const [subscriptionPlans, setSubscriptionPlans] = useState<PlanForBooking[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanForBooking | null>(null);
   const [bookingMode, setBookingMode] = useState<'procedure' | 'plan'>('procedure');
   const [showPlanProcedurePicker, setShowPlanProcedurePicker] = useState(false);
+  const [patientOwnSubscriptions, setPatientOwnSubscriptions] = useState<PatientOwnSubscription[]>([]);
+  const [showContractForPlan, setShowContractForPlan] = useState<PlanForBooking | null>(null);
+  const [additionalPlanProcedureIds, setAdditionalPlanProcedureIds] = useState<string[]>([]);
 
   const canGoBackToSystem = user && (
     user.role === UserRole.ADMIN ||
@@ -107,12 +127,34 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
           setBusinessHours(company.businessHours);
           setOnlineConfig(company.onlineBookingConfig);
           setSubscriptionPlans(plans || []);
+
+          // Auto-select plan when coming from PatientPlans contract flow
+          if (pendingPlanState?.pendingPlanId && plans?.length) {
+            const autoplan = plans.find((p: PlanForBooking) => p.id === pendingPlanState.pendingPlanId);
+            if (autoplan) {
+              // Use setTimeout to allow state to settle before triggering select
+              setTimeout(() => handleSelectPlan(autoplan), 0);
+            }
+          }
         } else {
           setLoadError('Clínica não encontrada');
         }
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
         setLoadError('Erro ao carregar dados da clínica');
+      }
+
+      // Fetch patient's own subscriptions if logged in as patient
+      if (user?.role === UserRole.PATIENT) {
+        const token = getAuthToken();
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        try {
+          const r = await fetch(`${API_BASE_URL}/api/subscriptions/patients/my`, {
+            headers: { Authorization: token ? `Bearer ${token}` : '' },
+          });
+          const j = await r.json() as { success: boolean; data?: PatientOwnSubscription[] };
+          if (j.success && j.data) setPatientOwnSubscriptions(j.data);
+        } catch { /* silent */ }
       }
 
       setLoading(false);
@@ -200,6 +242,27 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
   const headerStyle = { backgroundColor: headerBgColor, color: headerTxtColor, borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' };
   const headingStyle = { color: textColor };
   const descriptionStyle = { color: textColor, opacity: 0.7 };
+
+  // Map: procedureId → covered by active subscription (for logged-in patient)
+  const coveredProcedureIds = useMemo(() => {
+    const ids = new Set<string>();
+    patientOwnSubscriptions
+      .filter(s => s.status === 'ACTIVE')
+      .forEach(s => s.plan.items.forEach(i => ids.add(i.procedureId)));
+    return ids;
+  }, [patientOwnSubscriptions]);
+
+  const getSessionsRemaining = (procedureId: string): number => {
+    for (const sub of patientOwnSubscriptions) {
+      if (sub.status !== 'ACTIVE') continue;
+      const item = sub.plan.items.find(i => i.procedureId === procedureId);
+      if (item) {
+        const used = sub.sessionsUsedThisCycle[procedureId] ?? 0;
+        return item.sessionsPerCycle - used;
+      }
+    }
+    return -1;
+  };
 
   const getAvailableSlots = () => {
     const slots: { time: string, available: boolean, isPast: boolean }[] = [];
@@ -296,6 +359,15 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
   };
 
   const handleSelectPlan = (plan: PlanForBooking) => {
+    const ownSub = patientOwnSubscriptions.find(
+      s => s.planId === plan.id && (s.status === 'ACTIVE' || s.status === 'PAUSED')
+    );
+
+    if (!ownSub && isLoggedInPatient) {
+      setShowContractForPlan(plan);
+      return;
+    }
+
     setSelectedPlan(plan);
     setBookingMode('plan');
     if (plan.items.length > 1) {
@@ -309,18 +381,46 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
     }
   };
 
-  const handleSelectPlanProcedure = (procedureId: string) => {
-    const proc = procedures.find(p => p.id === procedureId);
+  const handleSelectPlanProcedures = (procedureIds: string[]) => {
+    const primaryId = procedureIds[0];
+    const proc = procedures.find(p => p.id === primaryId);
     if (proc) {
       setSelectedProcedure(proc);
+      setAdditionalPlanProcedureIds(procedureIds.slice(1));
       setShowPlanProcedurePicker(false);
       setStep(2);
+    }
+  };
+
+  const handleContractAndBook = async (plan: PlanForBooking) => {
+    const token = getAuthToken();
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const res = await fetch(`${API_BASE_URL}/api/subscriptions/patients/self`, {
+      method: 'POST',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ planId: plan.id }),
+    });
+    const json = await res.json() as { success?: boolean; error?: string };
+    if (res.ok || res.status === 409) {
+      setShowContractForPlan(null);
+      setSelectedPlan(plan);
+      setBookingMode('plan');
+      if (plan.items.length > 1) {
+        setShowPlanProcedurePicker(true);
+      } else {
+        const proc = procedures.find(p => p.id === plan.items[0]?.procedureId);
+        if (proc) { setSelectedProcedure(proc); setStep(2); }
+      }
     }
   };
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
+    setEmailAlreadyExists(false);
 
     // Validação de senha apenas para novos pacientes (não logados)
     if (!isLoggedInPatient && patientData.password !== patientData.confirmPassword) {
@@ -383,6 +483,10 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
       if (result.success) {
         setBookingSuccess(true);
       } else {
+        const isEmailConflict = result.error?.includes('já possui uma conta');
+        if (isEmailConflict) {
+          setEmailAlreadyExists(true);
+        }
         setBookingError(result.error || "Desculpe, este horário não está disponível.");
       }
     } catch (err) {
@@ -572,6 +676,23 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                                     </div>
                                     <div className="relative z-20 h-full p-4 lg:p-8 flex flex-col justify-end text-left text-white">
                                         <h3 className="font-serif font-bold text-lg lg:text-2xl leading-tight mb-2 drop-shadow-md">{plan.name}</h3>
+                                        {isLoggedInPatient && (() => {
+                                          const ownSub = patientOwnSubscriptions.find(s => s.planId === plan.id && s.status === 'ACTIVE');
+                                          if (!ownSub) return (
+                                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white">
+                                              Contratar plano
+                                            </span>
+                                          );
+                                          const totalRemaining = plan.items.reduce((sum, item) => {
+                                            const used = ownSub.sessionsUsedThisCycle[item.procedureId] ?? 0;
+                                            return sum + (item.sessionsPerCycle - used);
+                                          }, 0);
+                                          return (
+                                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/30 text-white">
+                                              {totalRemaining} sessão{totalRemaining !== 1 ? 'ões' : ''} disponível{totalRemaining !== 1 ? 'is' : ''}
+                                            </span>
+                                          );
+                                        })()}
                                         {plan.description && <p className="text-white/70 text-xs lg:text-sm mb-2 line-clamp-2">{plan.description}</p>}
                                         <div className="flex items-center gap-2 flex-wrap text-white/95 text-[9px] lg:text-[10px] font-bold uppercase tracking-widest">
                                             {plan.items.map(item => (
@@ -598,7 +719,9 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                         </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-8">
-                        {procedures.map(proc => (
+                        {procedures.filter(proc =>
+                          !isLoggedInPatient || !coveredProcedureIds.has(proc.id)
+                        ).map(proc => (
                             <div key={proc.id} onClick={() => { setSelectedProcedure(proc); setBookingMode('procedure'); setStep(2); }} className={`group relative overflow-hidden rounded-2xl lg:rounded-[3rem] h-48 lg:h-72 border shadow-xl lg:shadow-2xl hover:shadow-primary-500/20 transition-all duration-500 cursor-pointer bg-black/40 glass-card`}>
                                 {proc.imageUrl ? (
                                     <><div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 group-hover:from-black/70 transition-all"></div><img src={proc.imageUrl} alt={proc.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s]" /></>
@@ -627,6 +750,15 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
 
         {step === 2 && (
             <div className="space-y-6 lg:space-y-10 animate-fade-in text-center py-6 lg:py-10">
+                {bookingMode === 'plan' && pendingPlanState?.pendingPlanName && (
+                    <div
+                        className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium text-white mb-2"
+                        style={{ backgroundColor: primaryColor }}
+                    >
+                        <Sparkles className="w-4 h-4 shrink-0" />
+                        <span>Plano <strong>{pendingPlanState.pendingPlanName}</strong> selecionado — escolha o profissional e a data.</span>
+                    </div>
+                )}
                 <h2 className="text-2xl lg:text-4xl font-serif font-bold mb-2 lg:mb-4" style={headingStyle}>Qual especialista?</h2>
                 <p className="mb-8 lg:mb-14 text-sm lg:text-lg font-light" style={descriptionStyle}>Selecione seu especialista de preferência.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-10">
@@ -752,6 +884,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                             <div>
                                 <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Sua Senha</label>
                                 <input required type="password" placeholder="••••••••" className="w-full p-6 border rounded-[2rem] outline-none focus:ring-4 transition-all shadow-xl" style={{ ...inputStyle, '--tw-ring-color': `${primaryColor}44` } as CSSWithVars} value={patientData.password} onChange={e => setPatientData({...patientData, password: e.target.value})} />
+                                <p className="mt-2 ml-2 text-xs" style={{ color: `${primaryColor}99` }}>Mínimo 8 caracteres</p>
                             </div>
                             <div>
                                 <label className="block text-[11px] font-bold uppercase tracking-[0.25em] mb-3 ml-2" style={headingStyle}>Confirmar Senha</label>
@@ -761,9 +894,20 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                     )}
 
                     {bookingError && (
-                        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-[1.5rem] flex items-center gap-3 text-rose-500 text-sm animate-fade-in font-bold">
-                            <XCircle className="w-5 h-5 shrink-0" />
-                            {bookingError}
+                        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-[1.5rem] flex flex-col gap-3 text-rose-500 text-sm animate-fade-in">
+                            <div className="flex items-center gap-3 font-bold">
+                                <XCircle className="w-5 h-5 shrink-0" />
+                                {bookingError}
+                            </div>
+                            {emailAlreadyExists && (
+                                <a
+                                    href={`${getPortalBasePath()}/login`}
+                                    className="ml-8 underline font-bold text-sm"
+                                    style={{ color: primaryColor }}
+                                >
+                                    Ir para o login →
+                                </a>
+                            )}
                         </div>
                     )}
 
@@ -786,38 +930,45 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
         )}
       </div>
 
-      {/* Plan Procedure Picker Overlay */}
       {showPlanProcedurePicker && selectedPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowPlanProcedurePicker(false)} />
-          <div className="relative w-full max-w-lg rounded-3xl shadow-2xl border p-8 animate-fade-in" style={{ backgroundColor: cardBgColor, borderColor: `${primaryColor}30`, color: cardTxtColor }}>
-            <button onClick={() => setShowPlanProcedurePicker(false)} className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors">
-              <XCircle className="w-5 h-5 opacity-60" />
-            </button>
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-5 h-5" style={{ color: primaryColor }} />
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: primaryColor }}>Plano Promocional</span>
-            </div>
-            <h3 className="text-xl lg:text-2xl font-serif font-bold mb-1" style={headingStyle}>{selectedPlan.name}</h3>
-            <p className="text-sm mb-6 opacity-60">Este plano inclui {selectedPlan.items.length} procedimentos. Qual você gostaria de agendar na primeira consulta?</p>
-            <div className="space-y-3">
-              {selectedPlan.items.map(item => (
-                <button
-                  key={item.procedureId}
-                  onClick={() => handleSelectPlanProcedure(item.procedureId)}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl border transition-all hover:scale-[1.02] active:scale-95 text-left"
-                  style={{ borderColor: `${primaryColor}30`, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}
-                >
-                  <div>
-                    <p className="font-bold text-sm">{item.procedure.name}</p>
-                    <p className="text-xs opacity-50 mt-0.5">{item.sessionsPerCycle} sessão{item.sessionsPerCycle > 1 ? 'ões' : ''} incluída{item.sessionsPerCycle > 1 ? 's' : ''} por mês</p>
-                  </div>
-                  <ArrowRight className="w-4 h-4 shrink-0" style={{ color: primaryColor }} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <PlanProcedurePickerModal
+          planName={selectedPlan.name}
+          items={selectedPlan.items.map(item => ({
+            procedureId: item.procedureId,
+            procedureName: item.procedure?.name || item.procedureId,
+            sessionsPerCycle: item.sessionsPerCycle,
+            sessionsRemaining: getSessionsRemaining(item.procedureId),
+          }))}
+          primaryColor={primaryColor}
+          cardBg={cardBgColor}
+          cardText={cardTxtColor}
+          borderColor={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}
+          onConfirm={handleSelectPlanProcedures}
+          onClose={() => setShowPlanProcedurePicker(false)}
+        />
+      )}
+
+      {showContractForPlan && (
+        <PlanContractModal
+          plan={{
+            id: showContractForPlan.id,
+            name: showContractForPlan.name,
+            price: showContractForPlan.price,
+            description: showContractForPlan.description,
+            imageUrl: showContractForPlan.imageUrl,
+            items: showContractForPlan.items.map(i => ({
+              procedureId: i.procedureId,
+              procedureName: i.procedure?.name || i.procedureId,
+              sessionsPerCycle: i.sessionsPerCycle,
+            })),
+          }}
+          primaryColor={primaryColor}
+          cardBg={cardBgColor}
+          cardText={cardTxtColor}
+          borderColor={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}
+          onClose={() => setShowContractForPlan(null)}
+          onConfirm={() => handleContractAndBook(showContractForPlan)}
+        />
       )}
     </div>
   );
