@@ -72,12 +72,268 @@ async function fetchApi<T>(
 }
 
 // ============================================
+// SHARED MINIMAL TYPES
+// ============================================
+
+export interface ApiCompany {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status: string;
+  subscriptionStatus?: string;
+  subscriptionExpiresAt?: string;
+  businessHours?: Record<string, { isOpen?: boolean; start?: string; end?: string }>;
+  onboardingCompleted?: boolean;
+  targetFemale?: boolean;
+  targetMale?: boolean;
+  targetKids?: boolean;
+  instagram?: string;
+  facebook?: string;
+  website?: string;
+  address?: string;
+  logo?: string;
+  layoutConfig?: {
+    backgroundColor: string;
+    primaryColor: string;
+    textColor?: string;
+    fontFamily?: string;
+    baseFontSize?: string;
+    cardBackgroundColor?: string;
+    cardTextColor?: string;
+    headerBackgroundColor?: string;
+    headerTextColor?: string;
+  };
+  onlineBookingConfig?: {
+    slotInterval: number;
+    minAdvanceTime: number;
+    maxBookingPeriod: number;
+    cancellationNotice: number;
+    cancellationPolicy?: string;
+  };
+}
+
+export interface ApiUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  companyId: string | null;
+  emailVerified?: boolean;
+  googleCalendarConnected?: boolean;
+  googleCalendarId?: string | null;
+  avatar?: string;
+  isActive?: boolean;
+  patientId?: string;
+  company?: ApiCompany | null;
+}
+
+export interface ApiPagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ApiLead {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  status: string;
+  companyId: string;
+  [key: string]: unknown;
+}
+
+export interface ApiTask {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  companyId: string;
+  [key: string]: unknown;
+}
+
+export interface ApiPatient {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  companyId: string;
+  status: string;
+}
+
+export interface ApiAppointment {
+  id: string;
+  date: string;
+  status: string;
+  patientId: string;
+  procedureId: string;
+  professionalId: string;
+  companyId: string;
+  [key: string]: unknown;
+}
+
+export interface ApiTransaction {
+  id: string;
+  type: string;
+  status: string;
+  amount: number | string;
+  companyId: string;
+  date: string;
+  description: string;
+  category: string;
+  appointmentId?: string;
+  installments?: number;
+  installmentIndex?: number;
+  installmentGroupId?: string;
+  dueDate?: string;
+  [key: string]: unknown;
+}
+
+export interface ApiTransactionSummary {
+  revenue: number;
+  expenses: number;
+  profit: number;
+  [key: string]: unknown;
+}
+
+export interface ApiProcedureSupply {
+  id: string;
+  inventoryItemId: string;
+  quantityUsed: number;
+  inventoryItem?: { id: string; name: string; costPerUnit: number; unit: string };
+  name?: string;
+}
+
+export interface ApiProcedure {
+  id: string;
+  name: string;
+  price: number;
+  cost: number;
+  duration: number;
+  durationMinutes?: number;
+  isActive: boolean;
+  companyId: string;
+  description?: string;
+  imageUrl?: string;
+  maintenanceRequired?: boolean;
+  maintenanceIntervalDays?: number;
+  supplies?: ApiProcedureSupply[];
+}
+
+export interface ApiInventoryItem {
+  id: string;
+  name: string;
+  quantity: number;
+  minStock: number;
+  companyId: string;
+  [key: string]: unknown;
+}
+
+export interface ApiInventoryMovement {
+  id: string;
+  type: string;
+  quantity: number;
+  itemId: string;
+  [key: string]: unknown;
+}
+
+export interface ApiProduct {
+  id: string;
+  name: string;
+  price: number;
+  companyId: string;
+  [key: string]: unknown;
+}
+
+export interface ApiUnavailabilityRule {
+  id: string;
+  professionalId: string;
+  startDate: string;
+  endDate: string;
+  [key: string]: unknown;
+}
+
+export interface ApiNotification {
+  id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  type: string;
+  createdAt: string;
+  isRead: boolean;
+}
+
+export interface ApiPhoto {
+  id: string;
+  url: string;
+  patientId: string;
+  companyId: string;
+  type: string;
+  procedure: string;
+  date: string;
+  groupId?: string;
+}
+
+export interface ApiTicket {
+  id: string;
+  subject: string;
+  status: string;
+  companyId: string;
+  company?: { name: string };
+}
+
+export interface ApiSystemAlert {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface ApiProfessional {
+  id: string;
+  name: string;
+  companyId: string;
+  [key: string]: unknown;
+}
+
+export interface ApiPublicBookingData {
+  company: ApiCompany;
+  procedures: ApiProcedure[];
+  professionals: ApiProfessional[];
+  appointments: ApiAppointment[];
+  unavailabilityRules: ApiUnavailabilityRule[];
+}
+
+export interface ApiUser_Extended {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  companyId: string | null;
+  [key: string]: unknown;
+}
+
+export interface ApiKingLead {
+  id: string;
+  name: string;
+  email: string;
+  plan: string;
+  status: string;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
+// ============================================
 // AUTH API
 // ============================================
 
 export const authApi = {
   async login(email: string, password: string) {
-    const result = await fetchApi<{ user: any; token: string }>('/api/auth/login', {
+    const result = await fetchApi<{ user: ApiUser; token: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -91,7 +347,7 @@ export const authApi = {
   },
 
   async register(data: { name: string; email: string; password: string; companyName: string; acceptedTerms?: boolean }) {
-    return fetchApi<{ user: any; company: any }>('/api/auth/register', {
+    return fetchApi<{ user: ApiUser; company: ApiCompany }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -104,7 +360,7 @@ export const authApi = {
   },
 
   async me() {
-    return fetchApi<{ user: any; token: string | null }>('/api/auth/me');
+    return fetchApi<{ user: ApiUser; token: string | null }>('/api/auth/me');
   },
 
   async googleSignIn(mode: 'login' | 'register' | 'calendar' = 'login', returnTo = '/') {
@@ -155,23 +411,23 @@ export const authApi = {
 
 export const leadsApi = {
   async list(params?: { status?: string; page?: number; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
-    return fetchApi<{ leads: any[]; total: number }>(`/api/leads${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ leads: ApiLead[]; total: number }>(`/api/leads${query ? `?${query}` : ''}`);
   },
 
   async get(id: string) {
-    return fetchApi<any>(`/api/leads/${id}`);
+    return fetchApi<ApiLead>(`/api/leads/${id}`);
   },
 
-  async create(data: any) {
-    return fetchApi<any>('/api/leads', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<ApiLead>('/api/leads', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, data: any) {
-    return fetchApi<any>(`/api/leads/${id}`, {
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<ApiLead>(`/api/leads/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
@@ -188,19 +444,19 @@ export const leadsApi = {
 
 export const tasksApi = {
   async list(params?: { status?: string; priority?: string }) {
-    const query = new URLSearchParams(params as any).toString();
-    return fetchApi<{ tasks: any[]; total: number }>(`/api/tasks${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ tasks: ApiTask[]; total: number }>(`/api/tasks${query ? `?${query}` : ''}`);
   },
 
-  async create(data: any) {
-    return fetchApi<any>('/api/tasks', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<ApiTask>('/api/tasks', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, data: any) {
-    return fetchApi<any>(`/api/tasks/${id}`, {
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<ApiTask>(`/api/tasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
@@ -213,23 +469,23 @@ export const tasksApi = {
 
 export const patientsApi = {
   async list(params?: { search?: string; page?: number; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
-    return fetchApi<{ patients: any[]; pagination: any }>(`/api/patients${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ patients: ApiPatient[]; pagination: ApiPagination }>(`/api/patients${query ? `?${query}` : ''}`);
   },
 
   async get(id: string) {
-    return fetchApi<{ patient: any }>(`/api/patients/${id}`);
+    return fetchApi<{ patient: ApiPatient }>(`/api/patients/${id}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ patient: any }>('/api/patients', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ patient: ApiPatient }>('/api/patients', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, data: any) {
-    return fetchApi<{ patient: any }>(`/api/patients/${id}`, {
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<{ patient: ApiPatient }>(`/api/patients/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -246,16 +502,16 @@ export const patientsApi = {
 
 export const appointmentsApi = {
   async list(params?: { date?: string; professionalId?: string; status?: string; page?: number; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
-    return fetchApi<{ appointments: any[]; pagination: any }>(`/api/appointments${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ appointments: ApiAppointment[]; pagination: ApiPagination }>(`/api/appointments${query ? `?${query}` : ''}`);
   },
 
   async get(id: string) {
-    return fetchApi<{ appointment: any }>(`/api/appointments/${id}`);
+    return fetchApi<{ appointment: ApiAppointment }>(`/api/appointments/${id}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ appointment: any }>('/api/appointments', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ appointment: ApiAppointment }>('/api/appointments', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -276,21 +532,21 @@ export const appointmentsApi = {
     date: string;
     patientInfo: { name: string; email: string; phone: string; password?: string };
   }) {
-    return fetchApi<{ appointment: any; patient: any }>('/api/public/booking', {
+    return fetchApi<{ appointment: ApiAppointment; patient: ApiPatient }>('/api/public/booking', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, data: any) {
-    return fetchApi<{ appointment: any }>(`/api/appointments/${id}`, {
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<{ appointment: ApiAppointment }>(`/api/appointments/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
   async updateStatus(id: string, status: string) {
-    return fetchApi<{ appointment: any }>(`/api/appointments/${id}/status`, {
+    return fetchApi<{ appointment: ApiAppointment }>(`/api/appointments/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
@@ -303,8 +559,8 @@ export const appointmentsApi = {
   async processPayment(id: string, paymentMethod: string, installments = 1) {
     return fetchApi<{
       success: boolean;
-      appointment: any;
-      transactions: { income: any; expense: any; installments?: any[] };
+      appointment: ApiAppointment;
+      transactions: { income: ApiTransaction; expense: ApiTransaction; installments?: ApiTransaction[] };
       summary: { revenue: number; cost: number; profit: number };
     }>(`/api/appointments/${id}/pay`, {
       method: 'POST',
@@ -319,41 +575,41 @@ export const appointmentsApi = {
 
 export const transactionsApi = {
   async list(params?: { startDate?: string; endDate?: string; type?: string; status?: string; page?: number; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
-    return fetchApi<{ transactions: any[]; summary: any; pagination: any }>(`/api/transactions${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ transactions: ApiTransaction[]; summary: ApiTransactionSummary; pagination: ApiPagination }>(`/api/transactions${query ? `?${query}` : ''}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ transaction: any }>('/api/transactions', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ transaction: ApiTransaction }>('/api/transactions', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async checkout(data: { appointmentId: string; paymentMethod: string; amount?: number; discount?: number }) {
-    return fetchApi<{ transaction: any; commission?: any }>('/api/transactions/checkout', {
+    return fetchApi<{ transaction: ApiTransaction; commission?: ApiTransaction }>('/api/transactions/checkout', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async backfillExpenses(forceRecreate = true) {
-    return fetchApi<{ success: boolean; message: string; results: any }>('/api/transactions/backfill-expenses', {
+    return fetchApi<{ success: boolean; message: string; results: { created: number; skipped: number } }>('/api/transactions/backfill-expenses', {
       method: 'POST',
       body: JSON.stringify({ forceRecreate }),
     });
   },
 
   async getMissingExpenses() {
-    return fetchApi<{ total: number; missingExpenses: number; appointments: any[] }>('/api/transactions/backfill-expenses');
+    return fetchApi<{ total: number; missingExpenses: number; appointments: ApiAppointment[] }>('/api/transactions/backfill-expenses');
   },
 
   async diagnoseExpenses() {
-    return fetchApi<any>('/api/transactions/diagnose');
+    return fetchApi<{ issues: string[]; details: Record<string, unknown> }>('/api/transactions/diagnose');
   },
 
   async resetExpenses() {
-    return fetchApi<{ success: boolean; deleted: number; created: number; details: any[] }>('/api/transactions/diagnose', {
+    return fetchApi<{ success: boolean; deleted: number; created: number; details: string[] }>('/api/transactions/diagnose', {
       method: 'DELETE',
     });
   },
@@ -366,23 +622,23 @@ export const transactionsApi = {
 
 export const proceduresApi = {
   async list(params?: { search?: string; isActive?: string; page?: number; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
-    return fetchApi<{ procedures: any[]; pagination: any }>(`/api/procedures${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ procedures: ApiProcedure[]; pagination: ApiPagination }>(`/api/procedures${query ? `?${query}` : ''}`);
   },
 
   async get(id: string) {
-    return fetchApi<{ procedure: any }>(`/api/procedures/${id}`);
+    return fetchApi<{ procedure: ApiProcedure }>(`/api/procedures/${id}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ procedure: any }>('/api/procedures', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ procedure: ApiProcedure }>('/api/procedures', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, data: any) {
-    return fetchApi<{ procedure: any }>(`/api/procedures/${id}`, {
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<{ procedure: ApiProcedure }>(`/api/procedures/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -401,19 +657,19 @@ export const proceduresApi = {
 
 export const inventoryApi = {
   async list(params?: { search?: string; lowStock?: string; page?: number; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
-    return fetchApi<{ items: any[]; summary: any; pagination: any }>(`/api/inventory${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ items: ApiInventoryItem[]; summary: { total: number; lowStock: number }; pagination: ApiPagination }>(`/api/inventory${query ? `?${query}` : ''}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ item: any }>('/api/inventory', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ item: ApiInventoryItem }>('/api/inventory', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async adjust(id: string, data: { quantity: number; type: string; reason: string }) {
-    return fetchApi<{ item: any; movement: any }>(`/api/inventory/${id}/adjust`, {
+    return fetchApi<{ item: ApiInventoryItem; movement: ApiInventoryMovement }>(`/api/inventory/${id}/adjust`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -426,11 +682,11 @@ export const inventoryApi = {
 
 export const productsApi = {
   async list() {
-    return fetchApi<{ products: any[] }>('/api/products');
+    return fetchApi<{ products: ApiProduct[] }>('/api/products');
   },
 
-  async create(data: any) {
-    return fetchApi<any>('/api/products', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<ApiProduct>('/api/products', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -473,12 +729,12 @@ export const dashboardApi = {
 
 export const unavailabilityApi = {
   async list(params?: { professionalId?: string; page?: number; limit?: number }) {
-    const query = params ? new URLSearchParams(params as any).toString() : '';
-    return fetchApi<{ rules: any[]; pagination: any }>(`/api/unavailability${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ rules: ApiUnavailabilityRule[]; pagination: ApiPagination }>(`/api/unavailability${query ? `?${query}` : ''}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ rule: any }>('/api/unavailability', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ rule: ApiUnavailabilityRule }>('/api/unavailability', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -495,15 +751,15 @@ export const unavailabilityApi = {
 
 export const notificationsApi = {
   async list() {
-    return fetchApi<{ notifications: any[] }>('/api/notifications');
+    return fetchApi<{ notifications: ApiNotification[] }>('/api/notifications');
   },
 
   async markAsRead(id: string) {
     return fetchApi(`/api/notifications/${id}/read`, { method: 'PATCH' });
   },
 
-  async create(data: any) {
-    return fetchApi<{ notification: any }>('/api/notifications', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ notification: ApiNotification }>('/api/notifications', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -516,12 +772,12 @@ export const notificationsApi = {
 
 export const photosApi = {
   async list(params?: { patientId?: string; groupId?: string; limit?: number }) {
-    const query = params ? new URLSearchParams(params as any).toString() : '';
-    return fetchApi<{ photos: any[] }>(`/api/photos${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ photos: ApiPhoto[] }>(`/api/photos${query ? `?${query}` : ''}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ photo: any }>('/api/photos', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ photo: ApiPhoto }>('/api/photos', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -538,26 +794,26 @@ export const photosApi = {
 
 export const ticketsApi = {
   async list(params?: { status?: string; limit?: number }) {
-    const query = params ? new URLSearchParams(params as any).toString() : '';
-    return fetchApi<{ tickets: any[] }>(`/api/tickets${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ tickets: ApiTicket[] }>(`/api/tickets${query ? `?${query}` : ''}`);
   },
 
   async create(data: { subject: string; message: string }) {
-    return fetchApi<{ ticket: any }>('/api/tickets', {
+    return fetchApi<{ ticket: ApiTicket }>('/api/tickets', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async reply(ticketId: string, message: string) {
-    return fetchApi<{ ticket: any }>('/api/tickets', {
+    return fetchApi<{ ticket: ApiTicket }>('/api/tickets', {
       method: 'PATCH',
       body: JSON.stringify({ ticketId, message }),
     });
   },
 
   async close(ticketId: string) {
-    return fetchApi<{ ticket: any }>('/api/tickets', {
+    return fetchApi<{ ticket: ApiTicket }>('/api/tickets', {
       method: 'PATCH',
       body: JSON.stringify({ ticketId, status: 'CLOSED' }),
     });
@@ -570,18 +826,18 @@ export const ticketsApi = {
 
 export const systemAlertsApi = {
   async list(activeOnly = true) {
-    return fetchApi<{ alerts: any[] }>(`/api/system-alerts?activeOnly=${activeOnly}`);
+    return fetchApi<{ alerts: ApiSystemAlert[] }>(`/api/system-alerts?activeOnly=${activeOnly}`);
   },
 
   async create(data: { title: string; message: string; type?: string; target?: string }) {
-    return fetchApi<{ alert: any }>('/api/system-alerts', {
+    return fetchApi<{ alert: ApiSystemAlert }>('/api/system-alerts', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async toggleStatus(id: string, status: string) {
-    return fetchApi<{ alert: any }>('/api/system-alerts', {
+    return fetchApi<{ alert: ApiSystemAlert }>('/api/system-alerts', {
       method: 'PATCH',
       body: JSON.stringify({ id, status }),
     });
@@ -604,16 +860,16 @@ export const healthApi = {
 
 export const companiesApi = {
   async list(params?: { limit?: number }) {
-    const query = params ? new URLSearchParams(params as any).toString() : '';
-    return fetchApi<{ companies: any[] }>(`/api/companies${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ companies: ApiCompany[] }>(`/api/companies${query ? `?${query}` : ''}`);
   },
 
   async get(id: string) {
-    return fetchApi<{ company: any }>(`/api/companies/${id}`);
+    return fetchApi<{ company: ApiCompany }>(`/api/companies/${id}`);
   },
 
-  async update(id: string, data: any) {
-    return fetchApi<{ company: any }>(`/api/companies/${id}`, {
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<{ company: ApiCompany }>(`/api/companies/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -627,13 +883,7 @@ export const companiesApi = {
 export const publicApi = {
   // Buscar empresa pelo slug (para página de booking)
   async getCompanyBySlug(slug: string) {
-    return fetchApi<{
-      company: any;
-      procedures: any[];
-      professionals: any[];
-      appointments: any[];
-      unavailabilityRules: any[];
-    }>(`/api/public/company/${slug}`);
+    return fetchApi<ApiPublicBookingData>(`/api/public/company/${slug}`);
   },
 };
 
@@ -643,12 +893,12 @@ export const publicApi = {
 
 export const usersApi = {
   async list(params?: { companyId?: string; role?: string; limit?: number }) {
-    const query = params ? new URLSearchParams(params as any).toString() : '';
-    return fetchApi<{ users: any[] }>(`/api/users${query ? `?${query}` : ''}`);
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return fetchApi<{ users: ApiUser_Extended[] }>(`/api/users${query ? `?${query}` : ''}`);
   },
 
-  async create(data: any) {
-    return fetchApi<{ user: any }>('/api/users', {
+  async create(data: Record<string, unknown>) {
+    return fetchApi<{ user: ApiUser_Extended }>('/api/users', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -702,7 +952,7 @@ export const kingApi = {
 
   // Leads de vendas (empresas FREE/TRIAL para conversão)
   leads: async () => {
-    return fetchApi<{ leads: any[] }>('/api/king/leads');
+    return fetchApi<{ leads: ApiKingLead[] }>('/api/king/leads');
   },
 
   // Atualizar status de lead (conversão)
@@ -866,8 +1116,9 @@ export interface SubscriptionPlan {
 
 export interface PatientSubscription {
   id: string;
-  status: 'ACTIVE' | 'PAUSED' | 'CANCELED' | 'OVERDUE';
-  startDate: string;
+  status: 'ACTIVE' | 'PAUSED' | 'CANCELED' | 'OVERDUE' | 'PENDING';
+  startDate: string | null;
+  createdAt: string;
   nextBillingDate: string;
   sessionsUsedThisCycle: Record<string, number>;
   lastCycleReset: string;
@@ -904,6 +1155,15 @@ export const subscriptionsApi = {
   },
   async cancel(subscriptionId: string) {
     return fetchApi<PatientSubscription>(`/api/subscriptions/patients/${subscriptionId}/cancel`, { method: 'PUT' });
+  },
+  async activate(subscriptionId: string) {
+    return fetchApi<PatientSubscription>(`/api/subscriptions/patients/${subscriptionId}/activate`, { method: 'PATCH' });
+  },
+  async listPending() {
+    return fetchApi<PatientSubscription[]>('/api/subscriptions/patients?status=PENDING');
+  },
+  async listForPatient(patientId: string) {
+    return fetchApi<PatientSubscription[]>(`/api/subscriptions/patients?patientId=${encodeURIComponent(patientId)}`);
   },
 };
 
@@ -1009,4 +1269,3 @@ export const api = {
 };
 
 export default api;
-
