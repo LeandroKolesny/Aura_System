@@ -14,7 +14,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user, checkModuleAccess, currentCompany, hasUnsavedChanges, setHasUnsavedChanges, setTriggerSave, setPendingNavigationPath } = useApp();
+  const { logout, user, checkModuleAccess, currentCompany, hasUnsavedChanges, setHasUnsavedChanges, setTriggerSave, setPendingNavigationPath, pendingSubscriptionsCount } = useApp();
   const [showExitModal, setShowExitModal] = useState(false);
   const [targetPath, setTargetPath] = useState<string | null>(null);
 
@@ -225,9 +225,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
                   <item.icon className={`w-4 h-4 lg:w-4 lg:h-4 flex-shrink-0 transition-colors ${
                     active
                       ? (isPatient ? '' : 'text-white')
-                      : (isPatient ? 'text-white/60 group-hover:text-white' : 'text-secondary-500 group-hover:text-secondary-300')
+                      : item.path === '/subscriptions' && pendingSubscriptionsCount > 0
+                        ? 'text-amber-400'
+                        : (isPatient ? 'text-white/60 group-hover:text-white' : 'text-secondary-500 group-hover:text-secondary-300')
                   }`} />
-                  <span className="tracking-wide text-[13px]">{item.label}</span>
+                  <span className={`tracking-wide text-[13px] flex-1 ${
+                    !active && item.path === '/subscriptions' && pendingSubscriptionsCount > 0
+                      ? 'text-amber-400'
+                      : ''
+                  }`}>{item.label}</span>
+                  {item.path === '/subscriptions' && pendingSubscriptionsCount > 0 && (
+                    <span className="ml-auto min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold px-1">
+                      {pendingSubscriptionsCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
