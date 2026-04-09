@@ -184,6 +184,8 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
   const isPatientUser = user?.role === UserRole.PATIENT;
   const [patientId, setPatientId] = useState(isPatientUser ? user.id : '');
   const [selectedProcId, setSelectedProcId] = useState(preSelectedProcedureId || '');
+  const [selectProcValue, setSelectProcValue] = useState(preSelectedProcedureId || '');
+  const [isPlanSelected, setIsPlanSelected] = useState(false);
   const [serviceName, setServiceName] = useState('');
   const medicalStaff = professionals.filter(p => p.role === UserRole.OWNER || p.role === UserRole.ADMIN || p.role === UserRole.ESTHETICIAN);
   const [professionalId, setProfessionalId] = useState(() => {
@@ -211,11 +213,12 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
   const [availablePlans, setAvailablePlans] = useState<SubscriptionPlan[]>([]);
 
   useEffect(() => {
+    if (isPlanSelected) return; // plan selected: handleProcedureChange already set serviceName
     if (selectedProcId) {
         const proc = procedures.find(p => p.id === selectedProcId);
         if (proc) { setServiceName(proc.name); setPrice(proc.price); setDuration(proc.durationMinutes); }
     }
-  }, [selectedProcId, procedures]);
+  }, [selectedProcId, procedures, isPlanSelected]);
 
   // Auto-check Google Calendar when professional + date + duration are all set
   useEffect(() => {
@@ -270,17 +273,22 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
 
   const handleProcedureChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
+    setSelectProcValue(val);
     if (val.startsWith('plan-')) {
       const planId = val.replace('plan-', '');
       const plan = availablePlans.find(p => p.id === planId);
       if (plan && plan.items.length > 0) {
         const firstProcId = plan.items[0].procedureId;
         setSelectedProcId(firstProcId);
+        setIsPlanSelected(true);
         const proc = procedures.find(p => p.id === firstProcId);
-        if (proc) { setServiceName(proc.name); setPrice(0); setDuration(proc.durationMinutes); }
+        setServiceName(`Promoção ${plan.name}`);
+        setPrice(0);
+        if (proc) setDuration(proc.durationMinutes);
       }
       return;
     }
+    setIsPlanSelected(false);
     setSelectedProcId(val);
     const proc = procedures.find(p => p.id === val);
     if (proc) { setServiceName(proc.name); setPrice(proc.price); setDuration(proc.durationMinutes); }
@@ -294,18 +302,17 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
     if (!selectedProcId) { setError("Selecione um procedimento."); return; }
     if (!date) { setError("Selecione data e hora."); return; }
 
-    // Para paciente logado, buscar o patientId pelo email
+    // Para paciente logado, o backend resolve o patientId pelo JWT
     let finalPatientId = patientId;
-    let patient;
+    let patientName = user.name || user.email;
     if (isPatientUser) {
-      // Buscar paciente pelo email do usuário logado
-      patient = patients.find(p => p.email === user.email);
-      if (!patient) { setError("Seu cadastro de paciente não foi encontrado. Entre em contato com a clínica."); return; }
-      finalPatientId = patient.id;
+      // PATIENT role: backend resolve pelo token, não precisamos buscar no array
+      finalPatientId = '';
     } else {
       if (!patientId) { setError("Selecione um paciente."); return; }
-      patient = patients.find(p => p.id === patientId);
+      const patient = patients.find(p => p.id === patientId);
       if (!patient) { setError("Paciente não encontrado."); return; }
+      patientName = patient.name;
     }
 
     const professional = professionals.find(p => p.id === professionalId);
@@ -317,7 +324,7 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
       const status = simulateClientRequest ? 'pending_approval' : 'confirmed';
       const result = await addAppointment({
         patientId: finalPatientId,
-        patientName: patient.name,
+        patientName: patientName,
         professionalId: professional.id,
         professionalName: professional.name,
         procedureId: selectedProcId,
@@ -344,7 +351,7 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento</label>
-          <select required className="w-full p-2 border rounded-lg" value={selectedProcId} onChange={handleProcedureChange}>
+          <select required className="w-full p-2 border rounded-lg" value={selectProcValue} onChange={handleProcedureChange}>
             <option value="">Selecione da lista...</option>
             {availablePlans.length > 0 && (
               <optgroup label="── Promoções ──">

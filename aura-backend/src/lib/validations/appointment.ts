@@ -3,7 +3,7 @@ import { z } from "zod";
 
 // Schema para criar agendamento
 export const createAppointmentSchema = z.object({
-  patientId: z.string().min(1, "Paciente é obrigatório"),
+  patientId: z.string().optional().default(''),
   professionalId: z.string().min(1, "Profissional é obrigatório"),
   procedureId: z.string().min(1, "Procedimento é obrigatório"),
   date: z
