@@ -23,6 +23,7 @@ export const createAppointmentSchema = z.object({
   price: z.number().min(0, "Preço não pode ser negativo"),
   notes: z.string().max(500, "Notas devem ter no máximo 500 caracteres").optional().nullable(),
   roomId: z.number().optional().nullable(),
+  subscriptionId: z.string().cuid().optional().nullable(),
 });
 
 // Schema para agendamento público (booking online)
