@@ -1165,6 +1165,12 @@ export const subscriptionsApi = {
   async listForPatient(patientId: string) {
     return fetchApi<PatientSubscription[]>(`/api/subscriptions/patients?patientId=${encodeURIComponent(patientId)}`);
   },
+  async requestSelf(planId: string) {
+    return fetchApi<{ id: string; status: string; planId: string }>(
+      '/api/subscriptions/patients/self',
+      { method: 'POST', body: JSON.stringify({ planId }) }
+    );
+  },
 };
 
 export const publicBookingApi = {
