@@ -322,6 +322,26 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
     try {
       const isoDate = new Date(date).toISOString();
       const status = simulateClientRequest ? 'pending_approval' : 'confirmed';
+
+      // Se paciente selecionou um plano, criar subscription PENDING primeiro
+      let appointmentSubscriptionId: string | undefined = undefined;
+      if (isPatientUser && isPlanSelected) {
+        const planId = selectProcValue.replace('plan-', '');
+        const subRes = await subscriptionsApi.requestSelf(planId);
+        if (!subRes.success) {
+          // "já possui este plano" pode retornar o id existente
+          if (subRes.data?.id) {
+            appointmentSubscriptionId = subRes.data.id;
+          } else {
+            setError(subRes.error || 'Erro ao solicitar plano. Tente novamente.');
+            setIsSubmitting(false);
+            return;
+          }
+        } else {
+          appointmentSubscriptionId = subRes.data?.id;
+        }
+      }
+
       const result = await addAppointment({
         patientId: finalPatientId,
         patientName: patientName,
@@ -333,9 +353,13 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
         durationMinutes: Number(duration) || 60,
         price: Number(price) || 0,
         status: status,
-        roomId: roomId
+        roomId: roomId,
+        ...(appointmentSubscriptionId ? { subscriptionId: appointmentSubscriptionId } : {}),
       }, false);
-      if (result.success) { onClose(); } else if (result.conflict) { setError("Este horário já está ocupado. Por favor, selecione outro horário ou sala."); setIsSubmitting(false); } else { setError(result.error || "Erro desconhecido ao agendar."); setIsSubmitting(false); }
+
+      if (result.success) { onClose(); }
+      else if (result.conflict) { setError("Este horário já está ocupado. Por favor, selecione outro horário ou sala."); setIsSubmitting(false); }
+      else { setError(result.error || "Erro desconhecido ao agendar."); setIsSubmitting(false); }
     } catch (error) { console.error(error); setError("Erro ao processar data. Verifique o campo Data/Hora."); setIsSubmitting(false); }
   };
   return (
