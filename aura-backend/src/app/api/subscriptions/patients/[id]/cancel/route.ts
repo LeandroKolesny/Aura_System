@@ -30,6 +30,29 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Assinatura já está cancelada" }, { status: 409 });
     }
 
+    // Restaurar preço normal nos appointments linkados (caso seja PENDING → cancelamento de solicitação)
+    if (subscription.status === "PENDING") {
+      const linkedAppointments = await prisma.appointment.findMany({
+        where: {
+          subscriptionId: id,
+          companyId: user.companyId!,
+          status: "PENDING_APPROVAL",
+        },
+        include: {
+          procedure: { select: { price: true } },
+        },
+      });
+
+      for (const appt of linkedAppointments) {
+        if (appt.procedure) {
+          await prisma.appointment.update({
+            where: { id: appt.id },
+            data: { price: Number(appt.procedure.price) },
+          });
+        }
+      }
+    }
+
     const updated = await prisma.patientSubscription.update({
       where: { id },
       data: { status: "CANCELED" },
