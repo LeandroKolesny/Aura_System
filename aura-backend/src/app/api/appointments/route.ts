@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let { patientId, professionalId, procedureId, date, durationMinutes, price, notes, roomId } = validation.data;
+    let { patientId, professionalId, procedureId, date, durationMinutes, price, notes, roomId, subscriptionId } = validation.data;
     const appointmentDate = new Date(date);
 
     // Buscar configurações da empresa (business hours + indisponibilidades)
@@ -365,6 +365,7 @@ export async function POST(request: NextRequest) {
         price,
         notes,
         roomId,
+        subscriptionId: subscriptionId ?? null,
         status: appointmentStatus,
       },
       include: {
