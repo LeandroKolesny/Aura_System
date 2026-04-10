@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       select: { id: true, status: true, planId: true },
     });
 
-    return NextResponse.json({ success: true, data: subscription }, { status: 201 });
+    return NextResponse.json({ id: subscription.id, status: subscription.status, planId: subscription.planId }, { status: 201 });
   } catch (error) {
     console.error("Erro ao criar assinatura:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

@@ -416,10 +416,16 @@ const ClinicDashboard: React.FC = () => {
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
-    subscriptionsApi.listPending().then(res => {
-      if (res.success && res.data) setPendingPlans(res.data);
-    });
-  }, []);
+    const fetchPending = () => {
+      subscriptionsApi.listPending().then(res => {
+        if (res.success && res.data) setPendingPlans(res.data as PatientSubscription[]);
+      });
+      loadAppointments();
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 30_000);
+    return () => clearInterval(interval);
+  }, [loadAppointments]);
 
   const handleActivatePlan = async (subscriptionId: string) => {
     setActivatingPlanId(subscriptionId);
