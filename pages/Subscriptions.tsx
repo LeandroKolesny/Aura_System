@@ -259,7 +259,7 @@ const Subscriptions: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 overflow-x-auto">
         {(['plans', 'subscribers', 'pending'] as const).map((tab) => (
           <button
             key={tab}
