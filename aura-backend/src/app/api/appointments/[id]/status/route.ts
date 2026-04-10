@@ -154,6 +154,30 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // ── Clube de Assinaturas: deduzir sessão ao aprovar agendamento pendente ──
+    if (status === "SCHEDULED" && oldStatus === "PENDING_APPROVAL" && appointment.subscriptionId) {
+      const sub = await prisma.patientSubscription.findFirst({
+        where: { id: appointment.subscriptionId, companyId: user.companyId!, status: "ACTIVE" },
+        include: { plan: { include: { items: true } } },
+      });
+      if (sub) {
+        const planItem = sub.plan.items.find((item) => item.procedureId === appointment.procedureId);
+        if (planItem) {
+          const current = sub.sessionsUsedThisCycle as Record<string, number>;
+          await prisma.patientSubscription.update({
+            where: { id: sub.id },
+            data: {
+              sessionsUsedThisCycle: {
+                ...current,
+                [appointment.procedureId]: (current[appointment.procedureId] ?? 0) + 1,
+              },
+            },
+          });
+        }
+      }
+    }
+    // ── fim deduction ──
+
     // Atualizar status
     const updated = await prisma.appointment.update({
       where: { id },

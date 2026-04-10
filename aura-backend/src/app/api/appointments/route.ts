@@ -316,35 +316,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Procedimento não encontrado" }, { status: 404 });
     }
 
-    const activeSubscription = await prisma.patientSubscription.findFirst({
-      where: { patientId: resolvedPatientId, companyId: user.companyId!, status: "ACTIVE" },
-      include: { plan: { include: { items: true } } },
-    });
+    // ── Clube de Assinaturas: para PATIENT, deduction acontece na aprovação (PENDING_APPROVAL→SCHEDULED)
+    // Se subscriptionId foi fornecido (paciente selecionou plano), definir price=0 mas NÃO deduzir agora
+    if (isPatient && subscriptionId) {
+      subscriptionCoverage = {
+        covered: true,
+        subscriptionId,
+        sessionsRemaining: 0, // real count calculado na aprovação
+      };
+      price = 0;
+    } else if (!isPatient) {
+      // Para staff: manter comportamento original de verificação por assinatura ativa
+      const activeSubscription = await prisma.patientSubscription.findFirst({
+        where: { patientId: resolvedPatientId, companyId: user.companyId!, status: "ACTIVE" },
+        include: { plan: { include: { items: true } } },
+      });
 
-    if (activeSubscription) {
-      const planItem = activeSubscription.plan.items.find(
-        (item) => item.procedureId === procedureId
-      );
+      if (activeSubscription) {
+        const planItem = activeSubscription.plan.items.find(
+          (item) => item.procedureId === procedureId
+        );
 
-      if (planItem) {
-        const sessionsUsed =
-          (activeSubscription.sessionsUsedThisCycle as Record<string, number>)[procedureId] ?? 0;
-        const sessionsRemaining = planItem.sessionsPerCycle - sessionsUsed;
+        if (planItem) {
+          const sessionsUsed =
+            (activeSubscription.sessionsUsedThisCycle as Record<string, number>)[procedureId] ?? 0;
+          const sessionsRemaining = planItem.sessionsPerCycle - sessionsUsed;
 
-        if (sessionsRemaining > 0) {
-          subscriptionCoverage = {
-            covered: true,
-            subscriptionId: activeSubscription.id,
-            sessionsRemaining: sessionsRemaining - 1,
-          };
-          price = 0;
-        } else {
-          subscriptionCoverage = {
-            covered: false,
-            subscriptionId: activeSubscription.id,
-            sessionsRemaining: 0,
-            warning: `Sessões do plano esgotadas para ${procedure.name} neste ciclo. Agendamento cobrado normalmente.`,
-          };
+          if (sessionsRemaining > 0) {
+            subscriptionCoverage = {
+              covered: true,
+              subscriptionId: activeSubscription.id,
+              sessionsRemaining: sessionsRemaining - 1,
+            };
+            price = 0;
+          } else {
+            subscriptionCoverage = {
+              covered: false,
+              subscriptionId: activeSubscription.id,
+              sessionsRemaining: 0,
+              warning: `Sessões do plano esgotadas para ${procedure.name} neste ciclo. Agendamento cobrado normalmente.`,
+            };
+          }
         }
       }
     }

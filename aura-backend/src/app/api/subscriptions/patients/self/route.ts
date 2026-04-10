@@ -38,9 +38,10 @@ export async function POST(request: NextRequest) {
       },
     });
     if (existing) {
+      // Retorna o existente com 200 — paciente pode agendar mesmo com plano já ativo/pendente
       return NextResponse.json(
-        { error: "Você já possui este plano", data: { subscriptionId: existing.id, status: existing.status } },
-        { status: 409 }
+        { id: existing.id, status: existing.status, planId: existing.planId },
+        { status: 200 }
       );
     }
 
