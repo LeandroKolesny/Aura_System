@@ -1,55 +1,59 @@
 
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { getClinicSlug } from './utils/subdomain';
-import PatientPortalApp from './apps/PatientPortalApp';
 import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import Patients from './pages/Patients';
-import PatientDetail from './pages/PatientDetail';
-import Schedule from './pages/Schedule';
-import Financial from './pages/Financial';
-import Procedures from './pages/Procedures';
-import Professionals from './pages/Professionals';
-import Login from './pages/Login';
-import KingLogin from './pages/KingLogin';
 import LandingPage from './pages/LandingPage';
-import AccessLink from './pages/AccessLink';
-import PublicBooking from './pages/PublicBooking';
-import Settings from './pages/Settings';
-import BusinessHoursSettings from './pages/BusinessHoursSettings';
-import Leads from './pages/Leads';
-import Support from './pages/Support';
-import Plans from './pages/Plans';
-import SystemAlerts from './pages/SystemAlerts';
-import Reports from './pages/Reports';
-import Subscriptions from './pages/Subscriptions';
-import Marketing from './pages/Marketing';
-import Inventory from './pages/Inventory';
-import PatientHistory from './pages/PatientHistory';
-import Onboarding from './pages/Onboarding';
-import Billing from './pages/admin/Billing';
-import BillingPending from './pages/admin/BillingPending';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import TermsOfUse from './pages/TermsOfUse';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-// King (Owner) Pages
-import KingLayout from './pages/king/KingLayout';
-import KingDashboard from './pages/king/KingDashboard';
-import KingCompanies from './pages/king/KingCompanies';
-import KingPatients from './pages/king/KingPatients';
-import KingAppointments from './pages/king/KingAppointments';
-import KingLeads from './pages/king/KingLeads';
-import KingAlerts from './pages/king/KingAlerts';
-import KingRevenue from './pages/king/KingRevenue';
-import KingSettings from './pages/king/KingSettings';
 import { AppProvider, useApp } from './context/AppContext';
+import { DialogProvider } from './context/DialogContext';
 import { UserRole } from './types';
 import { AlertTriangle, Menu, Loader2 } from 'lucide-react';
 import { SubscriptionModal } from './components/Modals';
 import AuraLogo from './components/AuraLogo';
+
+// Todas as páginas além da Landing são carregadas sob demanda (por rota),
+// para o visitante da landing não baixar o código do app inteiro.
+const PatientPortalApp = lazy(() => import('./apps/PatientPortalApp'));
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Patients = lazy(() => import('./pages/Patients'));
+const PatientDetail = lazy(() => import('./pages/PatientDetail'));
+const Schedule = lazy(() => import('./pages/Schedule'));
+const Financial = lazy(() => import('./pages/Financial'));
+const Procedures = lazy(() => import('./pages/Procedures'));
+const Professionals = lazy(() => import('./pages/Professionals'));
+const Login = lazy(() => import('./pages/Login'));
+const KingLogin = lazy(() => import('./pages/KingLogin'));
+const AccessLink = lazy(() => import('./pages/AccessLink'));
+const Settings = lazy(() => import('./pages/Settings'));
+const BusinessHoursSettings = lazy(() => import('./pages/BusinessHoursSettings'));
+const Leads = lazy(() => import('./pages/Leads'));
+const Support = lazy(() => import('./pages/Support'));
+const Plans = lazy(() => import('./pages/Plans'));
+const SystemAlerts = lazy(() => import('./pages/SystemAlerts'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Subscriptions = lazy(() => import('./pages/Subscriptions'));
+const Marketing = lazy(() => import('./pages/Marketing'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const PatientHistory = lazy(() => import('./pages/PatientHistory'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Billing = lazy(() => import('./pages/admin/Billing'));
+const BillingPending = lazy(() => import('./pages/admin/BillingPending'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const TermsOfUse = lazy(() => import('./pages/TermsOfUse'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+// King (Owner) Pages
+const KingLayout = lazy(() => import('./pages/king/KingLayout'));
+const KingDashboard = lazy(() => import('./pages/king/KingDashboard'));
+const KingCompanies = lazy(() => import('./pages/king/KingCompanies'));
+const KingPatients = lazy(() => import('./pages/king/KingPatients'));
+const KingAppointments = lazy(() => import('./pages/king/KingAppointments'));
+const KingLeads = lazy(() => import('./pages/king/KingLeads'));
+const KingAlerts = lazy(() => import('./pages/king/KingAlerts'));
+const KingRevenue = lazy(() => import('./pages/king/KingRevenue'));
+const KingSettings = lazy(() => import('./pages/king/KingSettings'));
 
 // Loading Screen enquanto valida sessão
 const InitializingScreen: React.FC = () => (
@@ -176,6 +180,7 @@ const AppRoutes: React.FC = () => {
   }
 
   return (
+    <Suspense fallback={<InitializingScreen />}>
     <Routes>
       {/* Rotas Públicas */}
       <Route path="/" element={<LandingPage />} />
@@ -234,6 +239,7 @@ const AppRoutes: React.FC = () => {
       {/* Fallback - redireciona rotas não encontradas para landing */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 
@@ -241,9 +247,11 @@ const AppRoutes: React.FC = () => {
 const AdminApp: React.FC = () => {
   return (
     <AppProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <DialogProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </DialogProvider>
     </AppProvider>
   );
 };
@@ -254,7 +262,11 @@ const App: React.FC = () => {
 
   // Se detectou um slug de clínica, carrega o Portal do Paciente
   if (clinicSlug) {
-    return <PatientPortalApp clinicSlug={clinicSlug} />;
+    return (
+      <Suspense fallback={<InitializingScreen />}>
+        <PatientPortalApp clinicSlug={clinicSlug} />
+      </Suspense>
+    );
   }
 
   // Caso contrário, carrega o Sistema Admin
