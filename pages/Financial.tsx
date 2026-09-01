@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Save, CreditCard, Loader2, Package, DollarSign, TrendingDown, Wallet } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, FileText, MinusCircle, Building, X, Calendar, Download, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Save, CreditCard, Package, DollarSign, TrendingDown, Wallet, Pencil, Trash2 } from 'lucide-react';
 import { UserRole, Transaction } from '../types';
 import { NewExpenseModal } from '../components/Modals';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
@@ -8,6 +8,9 @@ import StatusBadge from '../components/StatusBadge';
 import { PAYMENT_METHODS_LIST } from '../constants';
 import { FinancialSkeleton } from '../components/LoadingSkeleton';
 import { KPICard } from '../components/charts/KPICard';
+import ImportCSVModal from '../components/ImportCSVModal';
+import { transactionsApi } from '../services/api';
+import { useDialog } from '../context/DialogContext';
 
 interface TransactionDetailData {
   id: string;
@@ -79,14 +82,14 @@ const SaaSFinancial: React.FC = () => {
            <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm"><span className="text-sm text-slate-500 block">Saldo</span><span className={`text-xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(balance)}</span></div>
         </div>
       </div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><th className="px-6 py-3">Data Ref.</th><th className="px-6 py-3">Clínica</th><th className="px-6 py-3 text-right">Valor</th><th className="px-6 py-3 text-center">Status</th><th className="px-6 py-3 text-center">Ação</th></tr></thead><tbody className="divide-y divide-slate-100">{allRecords.map((item) => (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[520px] text-left"><thead><tr className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><th className="px-6 py-3">Data Ref.</th><th className="px-6 py-3">Clínica</th><th className="px-6 py-3 text-right">Valor</th><th className="px-6 py-3 text-center">Status</th><th className="px-6 py-3 text-center">Ação</th></tr></thead><tbody className="divide-y divide-slate-100">{allRecords.map((item) => (
           <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
             <td className="px-6 py-4 text-sm text-slate-600">{formatDate(item.date)}</td>
             <td className="px-6 py-4"><div className="flex items-center gap-3">{item.type === 'expense' ? <div className="p-2 bg-red-50 rounded-lg"><ArrowDownCircle className="w-4 h-4 text-red-500" /></div> : <div className="p-2 bg-green-50 rounded-lg"><Building className="w-4 h-4 text-green-500" /></div>}<div><span className="font-medium text-slate-800 text-sm block">{item.description}</span>{item.type !== 'expense' && <span className="text-xs text-slate-400 capitalize">Plano {item.plan}</span>}</div></div></td>
             <td className={`px-6 py-4 text-right text-sm font-bold ${item.type === 'expense' ? 'text-red-600' : 'text-green-600'}`}>{item.type === 'expense' ? '- ' : '+ '} {formatCurrency(item.amount)}</td>
             <td className="px-6 py-4 text-center"><StatusBadge status={item.status} type="financial" /></td>
             <td className="px-6 py-4 text-center"><button onClick={() => setSelectedTransaction(item)} className="text-slate-400 hover:text-primary-600"><FileText className="w-4 h-4 mx-auto" /></button></td>
-          </tr>))}</tbody></table></div>
+          </tr>))}</tbody></table></div></div>
       {isExpenseModalOpen && <NewExpenseModal onClose={() => setIsExpenseModalOpen(false)} />}
       {selectedTransaction && <TransactionDetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} />}
     </div>
@@ -96,8 +99,11 @@ const SaaSFinancial: React.FC = () => {
 const MONTHS_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 const ClinicFinancial: React.FC = () => {
-  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadProcedures, procedures, loadingStates, markInstallmentPaid } = useApp();
+  const { transactions, user, appointments, currentCompany, updateCompany, isReadOnly, loadTransactions, loadAppointments, loadProcedures, procedures, loadingStates, markInstallmentPaid, deleteTransaction } = useApp();
+  const { confirm, showAlert } = useDialog();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [isPaymentMethodsOpen, setIsPaymentMethodsOpen] = useState(false);
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
@@ -243,10 +249,16 @@ const ClinicFinancial: React.FC = () => {
           <p className="text-slate-500">Fluxo de caixa e lançamentos.</p>
         </div>
         {user?.role === UserRole.ADMIN && (
-          <button onClick={() => setIsExpenseModalOpen(true)} disabled={isReadOnly}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${isReadOnly ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' : 'bg-white text-red-600 hover:bg-red-50 border-red-200'}`}>
-            <MinusCircle className="w-4 h-4" /> Lançar Despesa
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setIsImportOpen(true)} disabled={isReadOnly}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${isReadOnly ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'}`}>
+              Importar
+            </button>
+            <button onClick={() => setIsExpenseModalOpen(true)} disabled={isReadOnly}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${isReadOnly ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' : 'bg-white text-red-600 hover:bg-red-50 border-red-200'}`}>
+              <MinusCircle className="w-4 h-4" /> Lançar Despesa
+            </button>
+          </div>
         )}
       </div>
 
@@ -281,7 +293,8 @@ const ClinicFinancial: React.FC = () => {
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
-        <table className="w-full text-left">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px] text-left">
           <thead>
             <tr className="border-b border-slate-100">
               <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">Data</th>
@@ -290,7 +303,7 @@ const ClinicFinancial: React.FC = () => {
               <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Custo</th>
               <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-right">Lucro</th>
               <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-center">Status</th>
-              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-center">Ação</th>
+              <th className="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 text-center">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -348,6 +361,27 @@ const ClinicFinancial: React.FC = () => {
                           onClick={async () => { await markInstallmentPaid(t.id); }}
                           className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                         >Receber</button>
+                      ) : !isFutureInstallment && !t.appointmentId && !isReadOnly ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => setEditingTransaction(t)}
+                            title="Editar"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          ><Pencil className="w-4 h-4" /></button>
+                          <button
+                            onClick={async () => {
+                              const ok = await confirm(
+                                `Excluir "${t.description}"? Esta ação não pode ser desfeita.`,
+                                { variant: 'danger', confirmLabel: 'Excluir' }
+                              );
+                              if (!ok) return;
+                              const result = await deleteTransaction(t.id);
+                              if (!result.success) showAlert(result.error ?? 'Erro ao excluir lançamento.', { variant: 'danger' });
+                            }}
+                            title="Excluir"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          ><Trash2 className="w-4 h-4" /></button>
+                        </div>
                       ) : (
                         <span className="text-slate-300 text-xs">—</span>
                       )}
@@ -421,6 +455,7 @@ const ClinicFinancial: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
         {/* Rodapé de navegação */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
           <button onClick={goToPrevMonth} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-sm font-medium text-slate-600 transition-colors">
@@ -433,6 +468,28 @@ const ClinicFinancial: React.FC = () => {
         </div>
       </div>
       {isExpenseModalOpen && !isReadOnly && <NewExpenseModal onClose={() => setIsExpenseModalOpen(false)} />}
+      {editingTransaction && !isReadOnly && (
+        <NewExpenseModal
+          initialData={editingTransaction}
+          onClose={() => setEditingTransaction(null)}
+        />
+      )}
+
+      {isImportOpen && !isReadOnly && (
+        <ImportCSVModal
+          title="Importar Lançamentos Financeiros"
+          templateFilename="template-financeiro.xlsx"
+          templateHeaders={['descricao', 'valor', 'tipo', 'data', 'categoria', 'status', 'formapagamento']}
+          templateSampleRows={[
+            ['Consulta Maria Silva', '150,00', 'receita', '23/04/2026', 'Consulta', 'pago', 'pix'],
+            ['Aluguel do espaço', '2000,00', 'despesa', '01/04/2026', 'Aluguel', 'pago', 'transferencia'],
+            ['Produto estético X', '350,00', 'despesa', '10/04/2026', 'Insumos', 'pendente', ''],
+          ]}
+          onImport={(file) => transactionsApi.importCSV(file)}
+          onClose={() => setIsImportOpen(false)}
+          onSuccess={() => loadTransactions(true)}
+        />
+      )}
     </div>
   );
 };

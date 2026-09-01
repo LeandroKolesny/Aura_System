@@ -5,11 +5,16 @@ import { InventoryModal } from '../components/Modals';
 import { InventoryItem } from '../types';
 import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Filter, Loader2, DollarSign } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
+import { useDialog } from '../context/DialogContext';
 import { KPICard } from '../components/charts/KPICard';
+import ImportCSVModal from '../components/ImportCSVModal';
+import { inventoryApi } from '../services/api';
 
 const Inventory: React.FC = () => {
   const { inventory, removeInventoryItem, isReadOnly, loadInventory, loadingStates } = useApp();
+  const { confirm } = useDialog();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
@@ -31,11 +36,10 @@ const Inventory: React.FC = () => {
       setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-      if (isReadOnly) return;
-      if (window.confirm('Tem certeza que deseja remover este item do estoque?')) {
-          removeInventoryItem(id);
-      }
+  const handleDelete = async (id: string) => {
+    if (isReadOnly) return;
+    const ok = await confirm('Tem certeza que deseja remover este item do estoque?', { title: 'Remover item' });
+    if (ok) removeInventoryItem(id);
   };
 
   const handleClose = () => {
@@ -69,19 +73,26 @@ const Inventory: React.FC = () => {
                 <p className="text-slate-500">Gerencie insumos, produtos e controle de baixa automática.</p>
             </div>
 
-            <button
-                onClick={() => setIsModalOpen(true)}
-                disabled={isReadOnly}
-                className={`bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm
-                    ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}
-                `}
-            >
-                <Plus className="w-4 h-4" /> Novo Item
-            </button>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => setIsImportOpen(true)}
+                    disabled={isReadOnly}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium border transition-colors ${isReadOnly ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'}`}
+                >
+                    Importar
+                </button>
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    disabled={isReadOnly}
+                    className={`bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                    <Plus className="w-4 h-4" /> Novo Item
+                </button>
+            </div>
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-3 gap-2 lg:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 lg:gap-4">
             <KPICard title="Total de Itens" value={totalItems} icon={Package} variant="default" size="sm" />
             <KPICard title="Estoque Crítico" value={lowStockItems} icon={AlertTriangle} variant={lowStockItems > 0 ? 'danger' : 'success'} size="sm" subtitle={lowStockItems > 0 ? 'abaixo do mínimo' : 'tudo OK'} />
             <KPICard title="Valor em Estoque" value={formatCurrency(totalValue)} icon={DollarSign} variant="primary" size="sm" />
@@ -164,6 +175,22 @@ const Inventory: React.FC = () => {
 
         {isModalOpen && !isReadOnly && (
             <InventoryModal onClose={handleClose} initialData={editingItem} />
+        )}
+
+        {isImportOpen && !isReadOnly && (
+            <ImportCSVModal
+                title="Importar Estoque"
+                templateFilename="template-estoque.xlsx"
+                templateHeaders={['nome', 'unidade', 'custo', 'estoque', 'estoqueminimo']}
+                templateSampleRows={[
+                    ['Ácido Hialurônico', 'ml', '45,00', '100', '20'],
+                    ['Luva Descartável M', 'cx', '35,00', '10', '3'],
+                    ['Sérum Vitamina C', 'un', '28,50', '50', '10'],
+                ]}
+                onImport={(file) => inventoryApi.importCSV(file)}
+                onClose={() => setIsImportOpen(false)}
+                onSuccess={() => loadInventory(true)}
+            />
         )}
     </div>
   );

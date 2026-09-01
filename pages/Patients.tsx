@@ -1,12 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, Phone, Mail, Building, Edit, Trash2, ChevronDown, ChevronUp, Loader2, Users, UserCheck, History } from 'lucide-react';
+import { Search, Plus, Phone, Mail, Building, Edit, Trash2, ChevronDown, ChevronUp, Users, UserCheck, History } from 'lucide-react';
 import { KPICard } from '../components/charts/KPICard';
 import { useApp } from '../context/AppContext';
 import { NewPatientModal } from '../components/Modals';
 import { UserRole, Patient } from '../types';
 import { PatientsSkeleton } from '../components/LoadingSkeleton';
+import ImportCSVModal from '../components/ImportCSVModal';
+import { patientsApi } from '../services/api';
+import { useDialog } from '../context/DialogContext';
+import { getAvatarConfig, getAvatarInitials } from '../utils/formatUtils';
 
 const Patients: React.FC = () => {
   const { patients, user, companies, removePatient, isReadOnly, loadPatients, loadingStates } = useApp();
@@ -17,6 +21,8 @@ const Patients: React.FC = () => {
   }, [loadPatients]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const { confirm, showAlert } = useDialog();
   // Alterado para rastrear seções ABERTAS. Inicialmente vazio = tudo fechado.
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const navigate = useNavigate();
@@ -34,10 +40,14 @@ const Patients: React.FC = () => {
     navigate(`/patients/${patient.id}`, { state: { editMode: !isReadOnly } });
   };
 
-  const handleDelete = (patientId: string) => {
+  const handleDelete = async (patientId: string) => {
     if (isReadOnly) return;
-    if (window.confirm("Tem certeza que deseja excluir este paciente?")) {
-      removePatient(patientId);
+    const ok = await confirm('Tem certeza que deseja excluir este paciente? Esta ação não pode ser desfeita.', { title: 'Excluir paciente' });
+    if (ok) {
+      const result = await removePatient(patientId);
+      if (result && !result.success) {
+        await showAlert(result.error ?? 'Erro inesperado ao excluir paciente.', { variant: 'danger', title: 'Erro ao excluir' });
+      }
     }
   };
 
@@ -47,17 +57,6 @@ const Patients: React.FC = () => {
     );
   };
 
-  const getAvatarColors = (name: string) => {
-    const palettes = [
-      { bg: 'from-primary-400 to-primary-600', text: 'text-white' },
-      { bg: 'from-rose-400 to-rose-600', text: 'text-white' },
-      { bg: 'from-violet-400 to-violet-600', text: 'text-white' },
-      { bg: 'from-sky-400 to-sky-600', text: 'text-white' },
-      { bg: 'from-emerald-400 to-emerald-600', text: 'text-white' },
-      { bg: 'from-amber-400 to-amber-600', text: 'text-white' },
-    ];
-    return palettes[(name.charCodeAt(0) || 0) % palettes.length];
-  };
 
   const getStatusBadge = (status: string) => {
     const map: Record<string, string> = {
@@ -84,14 +83,14 @@ const Patients: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {patientList.map((patient) => {
-                const avatar = getAvatarColors(patient.name);
+                const avatar = getAvatarConfig(patient.name);
                 const badge = getStatusBadge(patient.status);
                 return (
                   <tr key={patient.id} className="hover:bg-slate-50/60 transition-colors group">
                     <td className="px-6 py-4">
                       <Link to={`/patients/${patient.id}`} className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatar.bg} flex items-center justify-center font-bold text-xs ${avatar.text} flex-shrink-0 shadow-sm`}>
-                          {patient.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          {getAvatarInitials(patient.name)}
                         </div>
                         <div>
                           <div className="font-medium text-secondary-900 group-hover:text-primary-600 transition-colors text-sm">{patient.name}</div>
@@ -156,13 +155,22 @@ const Patients: React.FC = () => {
           </p>
         </div>
         {!isOwner && (
-          <button
-            onClick={() => setIsModalOpen(true)}
-            disabled={isReadOnly}
-            className={`hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all ${isReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 text-white hover:-translate-y-px'}`}
-          >
-            <Plus className="w-4 h-4" /> Novo Paciente
-          </button>
+          <div className="hidden sm:flex items-center gap-2">
+            <button
+              onClick={() => setIsImportOpen(true)}
+              disabled={isReadOnly}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all ${isReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+            >
+              Importar CSV
+            </button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              disabled={isReadOnly}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all ${isReadOnly ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700 text-white hover:-translate-y-px'}`}
+            >
+              <Plus className="w-4 h-4" /> Novo Paciente
+            </button>
+          </div>
         )}
       </div>
 
@@ -231,6 +239,21 @@ const Patients: React.FC = () => {
       )}
 
       {isModalOpen && !isReadOnly && <NewPatientModal onClose={() => setIsModalOpen(false)} />}
+
+      {isImportOpen && (
+        <ImportCSVModal
+          title="Importar Pacientes via CSV"
+          templateFilename="template-pacientes.xlsx"
+          templateHeaders={['nome', 'email', 'telefone', 'datanascimento', 'cpf', 'notas']}
+          templateSampleRows={[
+            ['Maria Silva', 'maria@email.com', '11999990000', '15/03/1990', '123.456.789-00', 'Pele sensível'],
+            ['João Souza', 'joao@email.com', '11988880000', '22/07/1985', '', ''],
+          ]}
+          onImport={(file) => patientsApi.importCSV(file)}
+          onClose={() => setIsImportOpen(false)}
+          onSuccess={() => loadPatients(true)}
+        />
+      )}
 
       {/* FAB mobile */}
       {!isOwner && !isReadOnly && (

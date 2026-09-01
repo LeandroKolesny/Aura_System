@@ -1,17 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Syringe, Clock, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Syringe, Clock, Trash2, Loader2, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NewProcedureModal } from '../components/Modals';
+import ImportCSVModal from '../components/ImportCSVModal';
 import { UserRole, Procedure } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatUtils';
 import { ProceduresSkeleton } from '../components/LoadingSkeleton';
 import { getPortalBasePath, isPatientPortal } from '../utils/subdomain';
+import { proceduresApi } from '../services/api';
+import { useDialog } from '../context/DialogContext';
 
 const Procedures: React.FC = () => {
   const { procedures, user, removeProcedure, isReadOnly, loadProcedures, loadInventory, loadingStates } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const { confirm, showAlert } = useDialog();
 
   // Lazy loading
   useEffect(() => {
@@ -42,10 +47,14 @@ const Procedures: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (window.confirm("Tem certeza que deseja excluir este procedimento?")) {
-        removeProcedure(id);
+    const ok = await confirm('Tem certeza que deseja excluir este procedimento? Esta ação não pode ser desfeita.', { title: 'Excluir procedimento' });
+    if (ok) {
+      const result = await removeProcedure(id);
+      if (result && !result.success) {
+        await showAlert(result.error ?? 'Erro inesperado ao excluir procedimento.', { variant: 'danger', title: 'Erro ao excluir' });
+      }
     }
   };
 
@@ -72,12 +81,20 @@ const Procedures: React.FC = () => {
         </div>
         
         {canEdit && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-secondary-600 hover:bg-secondary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> Novo Procedimento
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:border-secondary-300 hover:text-secondary-600 hover:bg-secondary-50 text-sm font-medium transition-colors"
+            >
+              <Upload className="w-4 h-4" /> Importar Planilha
+            </button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="bg-secondary-600 hover:bg-secondary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> Novo Procedimento
+            </button>
+          </div>
         )}
       </div>
 
@@ -169,9 +186,24 @@ const Procedures: React.FC = () => {
          </div>
       )}
 
+      {isImportOpen && canEdit && (
+        <ImportCSVModal
+          title="Importar Procedimentos via Planilha"
+          templateFilename="template-procedimentos.xlsx"
+          templateHeaders={['nome', 'preco', 'duracaominutos', 'custo', 'descricao']}
+          templateSampleRows={[
+            ['Limpeza de Pele', '150', '60', '20', 'Limpeza profunda com extração'],
+            ['Massagem Relaxante', '200', '90', '30', ''],
+            ['Peeling Químico', '350', '45', '50', ''],
+          ]}
+          onImport={(file) => proceduresApi.importCSV(file)}
+          onClose={() => setIsImportOpen(false)}
+          onSuccess={() => loadProcedures(true)}
+        />
+      )}
       {isModalOpen && canEdit && (
-        <NewProcedureModal 
-            onClose={handleCloseModal} 
+        <NewProcedureModal
+            onClose={handleCloseModal}
             initialData={editingProcedure}
         />
       )}
