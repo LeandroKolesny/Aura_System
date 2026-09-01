@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Calendar, FileText, Image as ImageIcon, Sparkles, Share2, CheckCircle, MessageCircle, Maximize2, Trash2, X, AlertTriangle, Clock, Plus, Edit, Save, PenTool, Shield, Info, Eye } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useDialog } from '../context/DialogContext';
 import { summarizeAnamnesis, generateFollowUpMessage } from '../services/geminiService';
 import { NewPhotoModal, SignatureModal } from '../components/Modals';
 import { PhotoRecord, Patient, Appointment } from '../types';
@@ -13,6 +14,7 @@ const PatientDetail: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { patients, updatePatient, toggleConsent, signConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos } = useApp();
+  const { showAlert } = useDialog();
   
   const [activeTab, setActiveTab] = useState<'overview' | 'anamnesis' | 'photos'>('overview');
   const [isEditing, setIsEditing] = useState(false);
@@ -151,7 +153,7 @@ const PatientDetail: React.FC = () => {
   const handleSaveEdit = () => {
       if (isReadOnly) return;
       if (editData.birthDate && !validateBirthDate(editData.birthDate)) {
-          alert("Data de nascimento inválida. Verifique o ano.");
+          showAlert("Data de nascimento inválida. Verifique o ano.", { variant: 'warning' });
           return;
       }
       updatePatient(patient.id, editData);
@@ -250,7 +252,7 @@ const PatientDetail: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" className="w-full p-2 border rounded-lg text-sm" placeholder="Nome" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
-                    <select className="w-full p-2 border rounded-lg text-sm bg-white" value={editData.status} onChange={e => setEditData({...editData, status: e.target.value as any})}>
+                    <select className="w-full p-2 border rounded-lg text-sm bg-white" value={editData.status} onChange={e => setEditData({...editData, status: e.target.value as Patient['status']})}>
                         <option value="active">Ativo</option><option value="lead">Lead</option><option value="inactive">Inativo</option>
                     </select>
                 </div>
@@ -286,8 +288,8 @@ const PatientDetail: React.FC = () => {
 
       <div className="border-b border-slate-200">
         <nav className="-mb-px flex gap-6">
-          {['overview', 'anamnesis', 'photos'].map((t) => (
-            <button key={t} onClick={() => setActiveTab(t as any)} className={`py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors ${activeTab === t ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          {(['overview', 'anamnesis', 'photos'] as const).map((t) => (
+            <button key={t} onClick={() => setActiveTab(t)} className={`py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors ${activeTab === t ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               {t === 'overview' ? 'Visão Geral' : t === 'anamnesis' ? 'Prontuário & IA' : 'Fotos Antes/Depois'}
             </button>
           ))}

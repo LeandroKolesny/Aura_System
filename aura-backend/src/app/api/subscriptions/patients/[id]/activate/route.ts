@@ -37,15 +37,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Confirm any linked pending_approval appointments
-    await prisma.appointment.updateMany({
-      where: {
-        subscriptionId: id,
-        companyId: user.companyId!,
-        status: "PENDING_APPROVAL",
-      },
-      data: { status: "SCHEDULED" },
-    });
+    // NÃO auto-aprovar agendamentos: o admin aprova cada agendamento separadamente
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {

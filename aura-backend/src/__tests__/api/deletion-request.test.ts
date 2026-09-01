@@ -56,6 +56,15 @@ describe('POST /api/account/deletion-request', () => {
     const res = await POST(makePostReq())
     expect(res.status).toBe(409)
   })
+
+  it('retorna 500 com mensagem clara quando o banco falha inesperadamente', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.deletionRequest.findFirst).mockRejectedValue(new Error('conexão perdida'))
+    const res = await POST(makePostReq())
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBeTruthy()
+  })
 })
 
 describe('GET /api/account/deletion-request', () => {

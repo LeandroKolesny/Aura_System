@@ -1,6 +1,7 @@
 // aura-backend/src/__tests__/lib/rateLimiter.test.ts
 // Comprehensive tests for getClientIP, checkRateLimit (fail-open), resetRateLimit, cleanupRateLimitStore
 
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   getClientIP,
   checkRateLimit,

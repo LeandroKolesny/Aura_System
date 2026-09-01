@@ -310,10 +310,12 @@ describe('createAppointmentSchema', () => {
       price: 150,
     }
 
-    it('missing patientId → fails', () => {
+    it('missing patientId → succeeds with empty default (resolved from JWT for PATIENT role)', () => {
+      // patientId is optional at schema level: patient-portal users omit it and
+      // the route resolves the real ID from their JWT session.
       const { patientId: _, ...input } = fullInput
       const result = createAppointmentSchema.safeParse(input)
-      expect(result.success).toBe(false)
+      expect(result.success).toBe(true)
     })
 
     it('missing professionalId → fails', () => {

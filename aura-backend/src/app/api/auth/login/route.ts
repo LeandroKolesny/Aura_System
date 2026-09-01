@@ -105,8 +105,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar se email foi confirmado (exceto OWNER que é criado diretamente)
-    if (user.role !== "OWNER" && !user.emailVerified) {
+    // Verificar se email foi confirmado (exceto OWNER e PATIENT — pacientes são criados via portal da clínica)
+    if (user.role !== "OWNER" && user.role !== "PATIENT" && !user.emailVerified) {
       logLoginFailure(email, "Email não verificado", request);
       return NextResponse.json(
         {

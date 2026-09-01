@@ -2,12 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { useDialog } from '../context/DialogContext';
 import { Syringe, Clock, Check, ChevronRight, ChevronLeft, Upload, Building, Palette, Image as ImageIcon, DollarSign } from 'lucide-react';
 import AuraLogo from '../components/AuraLogo';
-import { BusinessHours, DaySchedule } from '../types';
+import { BusinessHours, DaySchedule, PublicLayoutConfig } from '../types';
 
 const Onboarding: React.FC = () => {
   const { addProcedure, updateCompany, currentCompany, completeOnboarding, setupGoogleCompany } = useApp();
+  const { showAlert } = useDialog();
   const navigate = useNavigate();
   const needsCompany = !currentCompany;
   const [step, setStep] = useState(needsCompany ? 0 : 1);
@@ -58,11 +60,11 @@ const Onboarding: React.FC = () => {
           });
           setStep(2);
       } else {
-          alert('Por favor, preencha o nome e o valor do serviço.');
+          showAlert('Por favor, preencha o nome e o valor do serviço.', { variant: 'warning' });
       }
   };
 
-  const handleDayChange = (day: keyof BusinessHours, field: keyof DaySchedule, value: any) => {
+  const handleDayChange = (day: keyof BusinessHours, field: keyof DaySchedule, value: string | boolean) => {
       setBusinessHours(prev => ({
           ...prev,
           [day]: { ...prev[day], [field]: value }
@@ -95,7 +97,7 @@ const Onboarding: React.FC = () => {
                   backgroundColor: '#f8fafc',
                   fontFamily: 'inter',
                   baseFontSize: 'md'
-              } as any
+              } as PublicLayoutConfig
           });
           completeOnboarding();
           navigate('/dashboard');

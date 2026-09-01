@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
       resolvedProfessionalId = fallbackPro?.id ?? portalUser.id;
     }
 
-    // Find or create PatientSubscription (activates PENDING if exists)
+    // Find or create PatientSubscription — always PENDING until admin approves
     let subscription = await prisma.patientSubscription.findFirst({
       where: {
         patientId: patient.id,
@@ -151,6 +151,24 @@ export async function POST(request: NextRequest) {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    // Verificar limite de sessões se a assinatura já está ACTIVE
+    if (subscription && subscription.status === "ACTIVE") {
+      const used = (subscription.sessionsUsedThisCycle as Record<string, number>)[procedureId] ?? 0;
+      if (used >= planItem.sessionsPerCycle) {
+        return NextResponse.json(
+          {
+            error: `Você atingiu o limite de ${planItem.sessionsPerCycle} sessão(ões) para este plano. Para continuar agendando, contrate um novo plano.`,
+            code: "SESSION_LIMIT_REACHED",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Primeira assinatura do paciente para este plano → paga o valor do plano
+    // Assinatura já existente → sessões subsequentes são gratuitas (já pagas)
+    const isNewSubscription = !subscription;
 
     if (!subscription) {
       const sessionsUsedThisCycle: Record<string, number> = {};
@@ -162,27 +180,24 @@ export async function POST(request: NextRequest) {
           patientId: patient.id,
           planId,
           companyId,
-          status: "ACTIVE",
+          status: "PENDING",
           startDate: new Date(),
           nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           sessionsUsedThisCycle,
           lastCycleReset: new Date(),
         },
       });
-    } else if (subscription.status === "PENDING") {
-      // Activate PENDING subscription on first booking
-      subscription = await prisma.patientSubscription.update({
-        where: { id: subscription.id },
-        data: { status: "ACTIVE", startDate: new Date() },
-      });
     }
 
+    const appointmentPrice = isNewSubscription ? plan.price : 0;
+
+    // Appointment fica PENDING_APPROVAL para o admin aprovar
     const appointment = await prisma.appointment.create({
       data: {
         date: new Date(date),
         durationMinutes: procedure.durationMinutes,
-        status: "SCHEDULED",
-        price: 0,
+        status: "PENDING_APPROVAL",
+        price: appointmentPrice,
         patientId: patient.id,
         professionalId: resolvedProfessionalId,
         procedureId,

@@ -74,8 +74,8 @@ describe('GET /api/cron/data-retention', () => {
 
     await GET(makeReq())
 
-    const patientCall = vi.mocked(prisma.patient.updateMany).mock.calls[0][0]
-    expect(patientCall.where.companyId).toBe('c1')
+    const patientCall = vi.mocked(prisma.patient.updateMany).mock.calls[0]?.[0]
+    expect(patientCall?.where?.companyId).toBe('c1')
     expect(patientCall.data.name).toBe('Paciente Removido')
     expect(patientCall.data.cpf).toBeNull()
     expect(patientCall.data.birthDate).toBeNull()

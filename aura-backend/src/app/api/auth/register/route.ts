@@ -34,8 +34,21 @@ export async function POST(request: NextRequest) {
     const validation = registerSchema.safeParse(body);
 
     if (!validation.success) {
+      const fieldLabels: Record<string, string> = {
+        name: "Nome",
+        email: "E-mail",
+        password: "Senha",
+        companyName: "Nome da clínica",
+        state: "Estado",
+      };
+      const fieldErrors = validation.error.flatten().fieldErrors;
+      const messages = Object.entries(fieldErrors)
+        .flatMap(([field, errors]) =>
+          (errors ?? []).map((msg) => `${fieldLabels[field] ?? field}: ${msg}`)
+        )
+        .join(" | ");
       return NextResponse.json(
-        { error: "Dados inválidos", details: validation.error.flatten() },
+        { error: messages || "Dados inválidos", details: validation.error.flatten() },
         { status: 400 }
       );
     }

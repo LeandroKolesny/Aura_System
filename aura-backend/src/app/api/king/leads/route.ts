@@ -28,8 +28,6 @@ export async function GET(request: NextRequest) {
   if (!result.authorized) return result.response;
 
   try {
-    // Buscar empresas FREE ou TRIAL (potenciais conversões)
-    // Também incluir empresas que já estão no pipeline (salesStatus != NEW ou que foram perdidas)
     const companies = await prisma.company.findMany({
       where: {
         OR: [
@@ -52,7 +50,6 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Converter empresas para formato de Lead
     const leads = companies.map((c) => {
       const admin = c.users[0];
 
@@ -63,11 +60,17 @@ export async function GET(request: NextRequest) {
         phone: admin?.phone || "",
         email: admin?.email || "",
         status: salesStatusMap[c.salesStatus] || "new",
-        value: 197, // Valor potencial médio (Professional)
+        value: 197,
         createdAt: c.createdAt.toISOString(),
         companyId: c.id,
         plan: c.plan,
         subscriptionStatus: c.subscriptionStatus,
+        seenByOwner: c.seenByOwner,
+        movedAt: c.salesMovedAt?.toISOString() ?? null,
+        demoAt: c.demoAt?.toISOString() ?? null,
+        demoNotes: c.demoNotes ?? null,
+        lostReason: c.lostReason ?? null,
+        lostComment: c.lostComment ?? null,
       };
     });
 
@@ -88,7 +91,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { companyId, status, plan } = body;
+    const { companyId, status, plan, demoAt, demoNotes, lostReason, lostComment } = body;
 
     if (!companyId) {
       return NextResponse.json(
@@ -97,23 +100,25 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
 
-    // Sempre atualizar o salesStatus
     if (status) {
       const prismaStatus = reverseSalesStatusMap[status.toLowerCase()];
       if (prismaStatus) {
         updateData.salesStatus = prismaStatus;
+        updateData.salesMovedAt = new Date();
       }
     }
 
-    // Se marcou como ganho, atualiza plano e status de assinatura
+    if (demoAt !== undefined) updateData.demoAt = demoAt ? new Date(demoAt) : null;
+    if (demoNotes !== undefined) updateData.demoNotes = demoNotes;
+    if (lostReason !== undefined) updateData.lostReason = lostReason;
+    if (lostComment !== undefined) updateData.lostComment = lostComment;
+
     if (status === "won" && plan) {
       updateData.plan = plan;
       updateData.subscriptionStatus = "ACTIVE";
-    }
-    // Se marcou como perdido, muda para BASIC + CANCELED
-    else if (status === "lost") {
+    } else if (status === "lost") {
       updateData.plan = "BASIC";
       updateData.subscriptionStatus = "CANCELED";
     }

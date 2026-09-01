@@ -72,6 +72,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const procedureCost = Math.max(calculatedCost, Number(appointment.procedure.cost) || 0);
 
     // 1. Criar transações de RECEITA (uma por parcela)
+    // O price do agendamento já reflete o valor correto:
+    //   - primeira consulta do plano: price = plan.price
+    //   - consultas subsequentes do plano: price = 0
+    //   - agendamentos avulsos: price = valor do procedimento
     const installmentGroupId = numInstallments > 1 ? randomUUID() : null;
     const installmentAmount = Number((Number(appointment.price) / numInstallments).toFixed(2));
     const now = new Date();
@@ -104,9 +108,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       });
       incomeTransactions.push(tx);
     }
-    const incomeTransaction = incomeTransactions[0];
+    const incomeTransaction = incomeTransactions[0] ?? null;
 
-    // 2. Criar transação de DESPESA para custo dos insumos (se houver)
+    // 3. Criar transação de DESPESA para custo dos insumos (se houver)
     let expenseTransaction = null;
 
     if (procedureCost > 0) {

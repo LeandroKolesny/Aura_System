@@ -66,7 +66,7 @@ function makeRequest(body: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true })
+  vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 9 })
   vi.mocked(prisma.systemSettings.findUnique).mockResolvedValue(null)
 })
 
@@ -92,7 +92,7 @@ describe('SECURITY: timing attack prevention', () => {
     const body1 = await res1.json()
 
     vi.clearAllMocks()
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true })
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 9 })
     vi.mocked(prisma.systemSettings.findUnique).mockResolvedValue(null)
 
     vi.mocked(prisma.user.findUnique).mockResolvedValue(MOCK_USER as unknown as User)
@@ -111,19 +111,19 @@ describe('SECURITY: timing attack prevention', () => {
 // ---------------------------------------------------------------------------
 describe('SECURITY: rate limiting', () => {
   it('retorna 429 quando limite de tentativas excedido', async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfter: 300 })
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, retryAfter: 300 })
     const res = await POST(makeRequest({ email: 'a@b.com', password: 'pass' }))
     expect(res.status).toBe(429)
   })
 
   it('inclui header Retry-After no 429', async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfter: 300 })
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, retryAfter: 300 })
     const res = await POST(makeRequest({ email: 'a@b.com', password: 'pass' }))
     expect(res.headers.get('Retry-After')).toBe('300')
   })
 
   it('não consulta o banco quando rate limit excedido', async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfter: 60 })
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, retryAfter: 60 })
     await POST(makeRequest({ email: 'a@b.com', password: 'pass' }))
     expect(prisma.user.findUnique).not.toHaveBeenCalled()
   })

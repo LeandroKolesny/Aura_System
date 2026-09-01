@@ -97,6 +97,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const validation = updateStatusSchema.safeParse(body);
 
     if (!validation.success) {
+      console.error("❌ [status] Validation failed:", JSON.stringify(validation.error.flatten()), "body received:", JSON.stringify(body));
       return NextResponse.json(
         { error: "Dados inválidos", details: validation.error.flatten() },
         { status: 400 }
@@ -116,6 +117,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     };
 
     if (!validTransitions[oldStatus]?.includes(status)) {
+      console.error(`❌ [status] Transição inválida: ${oldStatus} → ${status} | apptId=${id}`);
       return NextResponse.json(
         { error: `Transição de ${oldStatus} para ${status} não permitida` },
         { status: 400 }
@@ -155,6 +157,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // ── Clube de Assinaturas: deduzir sessão ao aprovar agendamento pendente ──
+    // Só desconta se o plano já está ACTIVE (admin ativa o plano separadamente)
     if (status === "SCHEDULED" && oldStatus === "PENDING_APPROVAL" && appointment.subscriptionId) {
       const sub = await prisma.patientSubscription.findFirst({
         where: { id: appointment.subscriptionId, companyId: user.companyId!, status: "ACTIVE" },
@@ -164,12 +167,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         const planItem = sub.plan.items.find((item) => item.procedureId === appointment.procedureId);
         if (planItem) {
           const current = sub.sessionsUsedThisCycle as Record<string, number>;
+          const used = current[appointment.procedureId] ?? 0;
+          if (used >= planItem.sessionsPerCycle) {
+            return NextResponse.json(
+              { error: `Limite de ${planItem.sessionsPerCycle} sessão(ões) do plano já atingido para este paciente.` },
+              { status: 400 }
+            );
+          }
           await prisma.patientSubscription.update({
             where: { id: sub.id },
             data: {
               sessionsUsedThisCycle: {
                 ...current,
-                [appointment.procedureId]: (current[appointment.procedureId] ?? 0) + 1,
+                [appointment.procedureId]: used + 1,
               },
             },
           });

@@ -1,6 +1,7 @@
 // aura-backend/src/__tests__/lib/crypto.test.ts
 // Comprehensive tests for AES-256-GCM encrypt/decrypt
 
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { encrypt, decrypt } from '@/lib/crypto';
 
 const VALID_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Loader2, Upload } from 'lucide-react';
 import { subscriptionsApi, SubscriptionPlan } from '../services/api';
+import { useDialog } from '../context/DialogContext';
 
 interface Procedure {
   id: string;
@@ -22,6 +23,7 @@ interface Props {
 
 const SubscriptionPlanModal: React.FC<Props> = ({ plan, procedures, onClose, onSaved }) => {
   const isEditing = !!plan;
+  const { showAlert } = useDialog();
 
   const [name, setName] = useState(plan?.name ?? '');
   const [price, setPrice] = useState(plan?.price != null ? String(plan.price) : '');
@@ -153,7 +155,7 @@ const SubscriptionPlanModal: React.FC<Props> = ({ plan, procedures, onClose, onS
                 <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  if (file.size > 2 * 1024 * 1024) { alert('Imagem muito grande. Máximo 2MB.'); return; }
+                  if (file.size > 2 * 1024 * 1024) { showAlert('Imagem muito grande. Máximo 2MB.', { variant: 'warning' }); return; }
                   const reader = new FileReader();
                   reader.onload = (event) => {
                     const img = new window.Image();

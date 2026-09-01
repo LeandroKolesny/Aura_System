@@ -1,19 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
+import { useDialog } from '../context/DialogContext';
 import {
   CreditCard, Plus, Users, DollarSign, ToggleLeft, ToggleRight,
   Loader2, AlertTriangle, Edit2, UserX, CheckCircle, Clock
 } from 'lucide-react';
 import { subscriptionsApi, SubscriptionPlan, PatientSubscription } from '../services/api';
 import SubscriptionPlanModal from '../components/SubscriptionPlanModal';
-
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
+import { formatCurrency } from '../utils/formatUtils';
 
 const STATUS_CONFIG: Record<PatientSubscription['status'], { label: string; badge: string }> = {
   ACTIVE:   { label: 'Ativa',      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -147,6 +141,7 @@ const EnrollModal: React.FC<EnrollModalProps> = ({ plans, patients, onClose, onE
 
 const Subscriptions: React.FC = () => {
   const { patients, procedures, loadPatients, loadProcedures } = useApp();
+  const { confirm, showAlert } = useDialog();
 
   const [activeTab, setActiveTab] = useState<'plans' | 'subscribers' | 'pending'>('plans');
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -183,16 +178,26 @@ const Subscriptions: React.FC = () => {
   }, [loadData, loadPatients, loadProcedures]);
 
   const handleCancelSubscription = async (id: string) => {
-    if (!confirm('Cancelar a assinatura desta paciente?')) return;
+    const confirmed = await confirm('Cancelar a assinatura desta paciente?');
+    if (!confirmed) return;
     setCancellingId(id);
-    await subscriptionsApi.cancel(id);
+    const res = await subscriptionsApi.cancel(id);
     setCancellingId(null);
+    if (!res.success) {
+      await showAlert(res.error ?? 'Erro ao cancelar assinatura.', { variant: 'danger' });
+      return;
+    }
     loadData();
   };
 
   const handleDeactivatePlan = async (planId: string) => {
-    if (!confirm('Desativar este plano? Assinantes existentes não serão afetados.')) return;
-    await subscriptionsApi.deactivatePlan(planId);
+    const confirmed = await confirm('Desativar este plano? Assinantes existentes não serão afetados.');
+    if (!confirmed) return;
+    const res = await subscriptionsApi.deactivatePlan(planId);
+    if (!res.success) {
+      await showAlert(res.error ?? 'Erro ao desativar plano.', { variant: 'danger' });
+      return;
+    }
     loadData();
   };
 
@@ -492,7 +497,7 @@ const Subscriptions: React.FC = () => {
                         <button
                           onClick={async () => {
                             await subscriptionsApi.cancel(sub.id);
-                            setPendingSubscriptions(prev => prev.filter(s => s.id !== sub.id));
+                            loadData(); // recarrega tudo
                           }}
                           className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
                         >
@@ -502,7 +507,7 @@ const Subscriptions: React.FC = () => {
                           onClick={async () => {
                             setActivatingId(sub.id);
                             const res = await subscriptionsApi.activate(sub.id);
-                            if (res.success) setPendingSubscriptions(prev => prev.filter(s => s.id !== sub.id));
+                            if (res.success) loadData(); // recarrega tudo para aparecer em Assinantes
                             setActivatingId(null);
                           }}
                           disabled={activatingId === sub.id}

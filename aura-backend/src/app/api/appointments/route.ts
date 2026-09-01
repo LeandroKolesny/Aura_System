@@ -11,6 +11,15 @@ import {
 } from "@/lib/validations/appointment";
 import { pushAppointmentToCalendar } from "@/lib/calendarSync";
 
+// Sentinel lançado dentro da transação quando a re-checagem encontra conflito
+class ScheduleConflictError extends Error {
+  conflictingAppointment?: { id: string; date: Date; durationMinutes: number; patient: { name: string } };
+  constructor(conflictingAppointment?: { id: string; date: Date; durationMinutes: number; patient: { name: string } }) {
+    super("Conflito de horário");
+    this.conflictingAppointment = conflictingAppointment;
+  }
+}
+
 // Cache headers helper para GET requests
 function createCachedResponse(data: unknown, cacheSeconds: number = 15) {
   const response = NextResponse.json(data);
@@ -26,6 +35,7 @@ function createCachedResponse(data: unknown, cacheSeconds: number = 15) {
  * LÓGICA DE NEGÓCIO CRÍTICA - EXECUTADA NO SERVIDOR
  */
 async function checkScheduleConflict(
+  client: Prisma.TransactionClient | typeof prisma,
   companyId: string,
   professionalId: string,
   date: Date,
@@ -41,12 +51,12 @@ async function checkScheduleConflict(
   const dayEnd = new Date(date);
   dayEnd.setHours(23, 59, 59, 999);
 
-  const existingAppointments = await prisma.appointment.findMany({
+  const existingAppointments = await client.appointment.findMany({
     where: {
       companyId,
       professionalId,
       date: { gte: dayStart, lte: dayEnd },
-      status: { in: ["SCHEDULED", "CONFIRMED"] },
+      status: { in: ["SCHEDULED", "CONFIRMED", "PENDING_APPROVAL"] },
       ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
     },
     select: {
@@ -263,8 +273,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // VALIDAÇÃO CRÍTICA: Verificar conflito de horário
+    // VALIDAÇÃO CRÍTICA: Verificar conflito de horário (checagem rápida — a garantia real vem da transação abaixo)
     const { hasConflict, conflictingAppointment } = await checkScheduleConflict(
+      prisma,
       user.companyId,
       professionalId,
       appointmentDate,
@@ -366,26 +377,50 @@ export async function POST(request: NextRequest) {
     // Pacientes criam com status PENDING_APPROVAL, staff cria com SCHEDULED
     const appointmentStatus = isPatient ? "PENDING_APPROVAL" : "SCHEDULED";
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        companyId: user.companyId,
-        patientId: resolvedPatientId,
-        professionalId,
-        procedureId,
-        date: appointmentDate,
-        durationMinutes,
-        price,
-        notes,
-        roomId,
-        subscriptionId: subscriptionId ?? null,
-        status: appointmentStatus,
-      },
-      include: {
-        patient: { select: { id: true, name: true } },
-        professional: { select: { id: true, name: true } },
-        procedure: { select: { id: true, name: true } },
-      },
-    });
+    // Transação serializável: re-checa o conflito e cria de forma atômica, para que
+    // duas requisições simultâneas para o mesmo horário não criem os dois agendamentos.
+    let appointment;
+    try {
+      appointment = await prisma.$transaction(async (tx) => {
+        const recheck = await checkScheduleConflict(tx, user.companyId!, professionalId, appointmentDate, durationMinutes);
+        if (recheck.hasConflict) {
+          throw new ScheduleConflictError(recheck.conflictingAppointment);
+        }
+        return tx.appointment.create({
+          data: {
+            companyId: user.companyId!,
+            patientId: resolvedPatientId,
+            professionalId,
+            procedureId,
+            date: appointmentDate,
+            durationMinutes,
+            price,
+            notes,
+            roomId,
+            subscriptionId: subscriptionId ?? null,
+            status: appointmentStatus,
+          },
+          include: {
+            patient: { select: { id: true, name: true } },
+            professional: { select: { id: true, name: true } },
+            procedure: { select: { id: true, name: true } },
+          },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (err) {
+      const isSerializationConflict = typeof err === "object" && err !== null && "code" in err && err.code === "P2034";
+      if (err instanceof ScheduleConflictError || isSerializationConflict) {
+        return NextResponse.json(
+          {
+            error: "Conflito de horário",
+            message: "Já existe um agendamento neste horário",
+            conflict: err instanceof ScheduleConflictError ? err.conflictingAppointment : undefined,
+          },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
 
     // Decrementar sessão da assinatura se coberta
     if (subscriptionCoverage.covered && subscriptionCoverage.subscriptionId) {

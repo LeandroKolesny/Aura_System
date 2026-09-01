@@ -1,14 +1,34 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useDialog } from '../context/DialogContext';
 import { Sparkles, Zap, MessageCircle, RefreshCw, DollarSign, Filter, Search, Share2, Check, Crown, AlertTriangle, XCircle, TrendingUp, Building, ArrowRight, ArrowUpRight, Copy, X, Loader2, Cake, Gift } from 'lucide-react';
 import { generateReturnMessage, generateRetentionMessage, generateBirthdayMessage } from '../services/geminiService';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
 import { UserRole } from '../types';
 import { UpgradeOverlay } from '../components/UpgradeOverlay';
 
+interface MarketingOpportunity {
+  id: string;
+  name: string;
+  phone: string;
+  birthDate?: Date;
+  daysUntilBirthday?: number;
+  isToday?: boolean;
+  age?: number;
+  lastVisit: Date | null;
+  lastProcedure: string;
+  lastValue: number;
+  totalValue: number;
+  lastMarketingMessageSentAt?: string | null;
+  type: 'birthday' | 'recovery' | 'maintenance' | 'generic';
+  daysAgo?: number;
+  maintenanceInterval?: number;
+}
+
 // --- COMPONENTE 1: VISÃO DA CLÍNICA (Admin/Staff) ---
 const ClinicMarketing: React.FC = () => {
   const { patients, appointments, currentCompany, isReadOnly, procedures, updatePatient, loadPatients, loadAppointments, loadProcedures, loadingStates } = useApp();
+  const { showAlert } = useDialog();
 
   // Carregar dados quando o componente monta
   useEffect(() => {
@@ -23,12 +43,12 @@ const ClinicMarketing: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedMsg, setGeneratedMsg] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [selectedPatientData, setSelectedPatientData] = useState<any>(null); // Guardar dados para regenerar
+  const [selectedPatientData, setSelectedPatientData] = useState<MarketingOpportunity | null>(null); // Guardar dados para regenerar
   const [daysFilter, setDaysFilter] = useState(90);
 
   const opportunities = useMemo(() => {
       const today = new Date();
-      const list: any[] = [];
+      const list: MarketingOpportunity[] = [];
 
       patients.forEach(patient => {
           const patientAppts = appointments
@@ -137,7 +157,7 @@ const ClinicMarketing: React.FC = () => {
       return opportunities.reduce((acc, curr) => acc + curr.lastValue, 0);
   }, [opportunities]);
 
-  const handleGenerateMessage = async (patient: any) => {
+  const handleGenerateMessage = async (patient: MarketingOpportunity) => {
       if (isReadOnly) return;
       setIsGenerating(true);
       setSelectedPatientId(patient.id);
@@ -470,7 +490,7 @@ const ClinicMarketing: React.FC = () => {
                         <button
                             onClick={() => {
                                 navigator.clipboard.writeText(generatedMsg);
-                                alert("Mensagem copiada!");
+                                showAlert("Mensagem copiada!", { variant: 'success' });
                             }}
                             className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
                         >
@@ -492,19 +512,34 @@ const ClinicMarketing: React.FC = () => {
   );
 };
 
+interface CompanyOpportunity {
+  id: string;
+  name: string;
+  contact: string;
+  plan: string;
+  lastPlan?: string | null;
+  lastPlanName: string;
+  mrr: number;
+  daysLeft: number;
+  status: string;
+  lastMarketingSentAt?: string | null;
+  type: 'churn' | 'upsell' | 'winback';
+}
+
 // --- COMPONENTE 2: VISÃO SAAS (Owner) ---
 const SaaSMarketing: React.FC = () => {
     const { companies, saasPlans, updateCompany } = useApp();
+    const { showAlert } = useDialog();
     const [activeTab, setActiveTab] = useState<'churn' | 'upsell'>('churn');
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-    const [selectedCompanyData, setSelectedCompanyData] = useState<any>(null); // Guardar dados para regenerar
+    const [selectedCompanyData, setSelectedCompanyData] = useState<CompanyOpportunity | null>(null); // Guardar dados para regenerar
     const [generatedMsg, setGeneratedMsg] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
     // Mapeamento de Oportunidades
     const opportunities = useMemo(() => {
         const today = new Date();
-        const list: any[] = [];
+        const list: CompanyOpportunity[] = [];
 
         companies.forEach(company => {
             const expires = new Date(company.subscriptionExpiresAt);
@@ -567,7 +602,7 @@ const SaaSMarketing: React.FC = () => {
         return 0;
     }, [opportunities, activeTab]);
 
-    const handleGenerateMessage = async (company: any) => {
+    const handleGenerateMessage = async (company: CompanyOpportunity) => {
         setIsGenerating(true);
         setSelectedCompanyId(company.id);
         setSelectedCompanyData(company); // Guardar dados para regenerar
@@ -606,7 +641,7 @@ const SaaSMarketing: React.FC = () => {
     const handleCopyMessage = () => {
         if (generatedMsg) {
             navigator.clipboard.writeText(generatedMsg);
-            alert("Mensagem copiada para a área de transferência!");
+            showAlert("Mensagem copiada para a área de transferência!", { variant: 'success' });
         }
     };
 
@@ -623,7 +658,7 @@ const SaaSMarketing: React.FC = () => {
                 setGeneratedMsg(null);
                 setSelectedCompanyId(null);
             } else {
-                alert("Esta empresa não possui um telefone cadastrado válido para WhatsApp.");
+                showAlert("Esta empresa não possui um telefone cadastrado válido para WhatsApp.", { variant: 'warning' });
             }
         }
     };

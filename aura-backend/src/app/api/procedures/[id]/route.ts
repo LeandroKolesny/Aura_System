@@ -152,12 +152,28 @@ export async function DELETE(
       return NextResponse.json({ error: "Procedimento não encontrado" }, { status: 404 });
     }
 
+    const linkedAppointments = await prisma.appointment.count({ where: { procedureId: id } });
+    if (linkedAppointments > 0) {
+      return NextResponse.json(
+        { error: `Não é possível excluir: este procedimento possui ${linkedAppointments} agendamento(s) vinculado(s).` },
+        { status: 409 }
+      );
+    }
+
+    const linkedPlanItems = await prisma.subscriptionPlanItem.count({ where: { procedureId: id } });
+    if (linkedPlanItems > 0) {
+      return NextResponse.json(
+        { error: "Não é possível excluir: este procedimento está vinculado a um plano de assinatura." },
+        { status: 409 }
+      );
+    }
+
     await prisma.procedure.delete({ where: { id } });
 
     return NextResponse.json({ success: true, message: "Procedimento removido" });
   } catch (error) {
     console.error("Erro ao remover procedimento:", error);
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+    return NextResponse.json({ error: "Erro inesperado ao excluir procedimento." }, { status: 500 });
   }
 }
 

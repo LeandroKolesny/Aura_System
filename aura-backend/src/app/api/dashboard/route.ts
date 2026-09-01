@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
 // Cache headers helper
-function createCachedResponse(data: any, cacheSeconds: number = 30) {
+function createCachedResponse(data: Record<string, unknown>, cacheSeconds: number = 30) {
   const response = NextResponse.json(data);
   // Cache por 30 segundos, stale-while-revalidate por 60 segundos
   response.headers.set(
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       periodTransactions,
       periodAppointments,
       completedAppointments,
+      completedCount,
       canceledAppointments,
 
       // Estoque baixo
@@ -81,6 +82,16 @@ export async function GET(request: NextRequest) {
         },
         select: { patientId: true },
         distinct: ["patientId"],
+      }),
+
+      // Agendamentos realizados (concluídos e pagos)
+      prisma.appointment.count({
+        where: {
+          companyId: user.companyId,
+          date: { gte: startDate },
+          status: "COMPLETED",
+          paid: true,
+        },
       }),
 
       // Agendamentos cancelados
@@ -182,6 +193,7 @@ export async function GET(request: NextRequest) {
         cancelRate: Math.round(cancelRate * 10) / 10,
         appointmentsTotal: periodAppointments,
         appointmentsConfirmed: periodAppointments - canceledAppointments,
+        appointmentsCompleted: completedCount,
         appointmentsCanceled: canceledAppointments,
       },
       charts: {

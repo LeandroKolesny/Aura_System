@@ -18,6 +18,7 @@ vi.mock('@/lib/rateLimiter', () => ({
 vi.mock('@/lib/email', () => ({
   sendVerificationEmail: vi.fn().mockResolvedValue(undefined),
   TERMS_VERSION: '1.0',
+  TERMS_TEXT_HASH: 'sha256-mock-hash-abc123',
 }))
 vi.mock('bcryptjs', () => ({
   default: { hash: vi.fn().mockResolvedValue('$2b$12$hashed') },
@@ -66,7 +67,7 @@ function makeRequest(body: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true })
+  vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 9 })
   vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
   vi.mocked(prisma.company.findUnique).mockResolvedValue(null)
   vi.mocked(prisma.company.create).mockResolvedValue(MOCK_COMPANY as unknown as Company)
@@ -99,7 +100,7 @@ describe('POST /api/auth/register', () => {
   })
 
   it('retorna 429 quando rate limit excedido', async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfter: 900 })
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, retryAfter: 900 })
     const res = await POST(makeRequest(VALID_BODY))
     expect(res.status).toBe(429)
   })
@@ -144,5 +145,54 @@ describe('POST /api/auth/register', () => {
     const userStr = JSON.stringify(body.user)
     expect(userStr).not.toContain('password')
     expect(userStr).not.toContain('hashed')
+  })
+
+  // ── LGPD ──────────────────────────────────────────────────────────────────
+
+  it('LGPD: salva IP, user-agent e hash dos termos quando acceptedTerms=true', async () => {
+    await POST(makeRequest({ ...VALID_BODY, acceptedTerms: true }))
+    const createCall = vi.mocked(prisma.user.create).mock.calls[0][0]
+    const data = createCall.data as Record<string, unknown>
+    expect(data.acceptedTermsAt).toBeInstanceOf(Date)
+    expect(data.acceptedTermsVersion).toBe('1.0')
+    expect(data.acceptedTermsHash).toBe('sha256-mock-hash-abc123')
+    expect(data.acceptedTermsIp).toBeDefined()
+    expect(data.acceptedTermsAgent).toBeDefined()
+  })
+
+  it('LGPD: não salva dados de termos quando acceptedTerms=false', async () => {
+    await POST(makeRequest({ ...VALID_BODY, acceptedTerms: false }))
+    const createCall = vi.mocked(prisma.user.create).mock.calls[0][0]
+    const data = createCall.data as Record<string, unknown>
+    expect(data.acceptedTermsAt).toBeNull()
+    expect(data.acceptedTermsVersion).toBeNull()
+    expect(data.acceptedTermsHash).toBeNull()
+  })
+
+  it('LGPD: salva IP e data de consentimento de marketing quando marketingConsent=true', async () => {
+    await POST(makeRequest({ ...VALID_BODY, marketingConsent: true }))
+    const createCall = vi.mocked(prisma.user.create).mock.calls[0][0]
+    const data = createCall.data as Record<string, unknown>
+    expect(data.marketingConsent).toBe(true)
+    expect(data.marketingConsentAt).toBeInstanceOf(Date)
+    expect(data.marketingConsentIp).toBeDefined()
+  })
+
+  it('LGPD: marketingConsent=false não salva data nem IP', async () => {
+    await POST(makeRequest({ ...VALID_BODY, marketingConsent: false }))
+    const createCall = vi.mocked(prisma.user.create).mock.calls[0][0]
+    const data = createCall.data as Record<string, unknown>
+    expect(data.marketingConsent).toBe(false)
+    expect(data.marketingConsentAt).toBeNull()
+    expect(data.marketingConsentIp).toBeNull()
+  })
+
+  it('cria usuário com role ESTHETICIAN quando companyName não informado', async () => {
+    const { companyName: _, ...withoutCompany } = VALID_BODY
+    await POST(makeRequest(withoutCompany))
+    const createCall = vi.mocked(prisma.user.create).mock.calls[0][0]
+    const data = createCall.data as Record<string, unknown>
+    expect(data.role).toBe('ESTHETICIAN')
+    expect(data.companyId).toBeUndefined()
   })
 })

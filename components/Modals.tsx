@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool, Loader2 } from 'lucide-react';
-import { Patient, Appointment, UserRole, User, Procedure, Supply, PhotoRecord, SystemAlert, BusinessHours, InventoryItem } from '../types';
+import { Patient, Appointment, UserRole, User, Procedure, Supply, PhotoRecord, SystemAlert, BusinessHours, InventoryItem, Transaction } from '../types';
 import { useApp } from '../context/AppContext';
 import { maskCpf, maskPhone, validateCPF, validateBirthDate } from '../utils/maskUtils';
 import { formatCurrency, formatDateTime, formatDate } from '../utils/formatUtils';
 import { PAYMENT_LABELS, PAYMENT_METHODS_LIST } from '../constants';
 import { BusinessHoursEditor } from './BusinessHoursEditor';
 import { appointmentsApi, subscriptionsApi, SubscriptionPlan } from '../services/api';
+import { useDialog } from '../context/DialogContext';
 
 interface ModalProps {
   onClose: () => void;
@@ -34,6 +35,7 @@ const BaseModal: React.FC<ModalProps> = ({ onClose, children, title, subtitle })
 
 export const SubscriptionModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { currentCompany, saasPlans } = useApp();
+    const { showAlert } = useDialog();
     if (!currentCompany) return null;
     const calculateDaysRemaining = () => {
         if (!currentCompany?.subscriptionExpiresAt) return 0;
@@ -106,7 +108,7 @@ export const SubscriptionModal: React.FC<{ onClose: () => void }> = ({ onClose }
                                             if (isCurrent) e.preventDefault();
                                             else if (!plan.stripePaymentLink) {
                                                 e.preventDefault();
-                                                alert("Link de pagamento indisponível no modo demo.");
+                                                showAlert("Link de pagamento indisponível no modo demo.", { title: 'Modo demo' });
                                             }
                                         }}
                                     >
@@ -607,41 +609,129 @@ export const PatientAppointmentViewModal: React.FC<{ appointment: Appointment; o
     );
 };
 
-export const NewExpenseModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { addTransaction } = useApp();
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+export const NewExpenseModal: React.FC<{ onClose: () => void; initialData?: Transaction; onSuccess?: () => void }> = ({ onClose, initialData, onSuccess }) => {
+  const { addTransaction, updateTransaction } = useApp();
+  const isEditing = !!initialData;
+  const [type, setType] = useState<'expense' | 'income'>(initialData?.type === 'income' ? 'income' : 'expense');
+  const [description, setDescription] = useState(initialData?.description || '');
+  const [amount, setAmount] = useState(initialData?.amount ? String(initialData.amount) : '');
+  const [date, setDate] = useState(
+    initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+  );
+  const [category, setCategory] = useState(initialData?.category || '');
+  const [status, setStatus] = useState<'paid' | 'pending'>(
+    (initialData?.status === 'pending' ? 'pending' : 'paid') as 'paid' | 'pending'
+  );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!description.trim() || !amount) { setError("Preencha a descrição e o valor."); return; }
+    if (Number(amount) <= 0) { setError("O valor deve ser positivo."); return; }
+    setIsSubmitting(true);
     try {
-        if (!description || !amount) { throw new Error("Preencha a descrição e o valor."); }
-        if (Number(amount) <= 0) { throw new Error("O valor deve ser positivo."); }
-        setIsSubmitting(true);
-        await addTransaction({ date: new Date(date).toISOString(), description, amount: Number(amount), type: 'expense', category: 'Despesas', status: 'paid' });
-        onClose();
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : "Erro ao registrar despesa."); setIsSubmitting(false); }
+      if (isEditing) {
+        const result = await updateTransaction(initialData.id, {
+          description: description.trim(),
+          amount: Number(amount),
+          date,
+          type,
+          category: category || undefined,
+          status,
+        });
+        if (!result.success) throw new Error(result.error ?? 'Erro ao editar lançamento.');
+      } else {
+        await addTransaction({
+          date: new Date(date).toISOString(),
+          description: description.trim(),
+          amount: Number(amount),
+          type,
+          category: category || (type === 'expense' ? 'Despesas' : 'Receitas'),
+          status,
+        });
+      }
+      onSuccess?.();
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro inesperado.');
+      setIsSubmitting(false);
+    }
   };
+
+  const isExpense = type === 'expense';
+  const title = isEditing ? 'Editar Lançamento' : (isExpense ? 'Registrar Despesa' : 'Registrar Receita');
+  const submitLabel = isEditing ? 'Salvar Alterações' : (isExpense ? 'Registrar Despesa' : 'Registrar Receita');
+
   return (
-    <BaseModal title="Registrar Despesa" onClose={onClose}>
-       <form onSubmit={handleSubmit} className="space-y-4">
-         <div><label className="block text-sm font-medium text-slate-700 mb-1">Descrição da Despesa</label><input required type="text" className="w-full p-2 border rounded-lg" placeholder="Ex: Conta de Luz..." value={description} onChange={e => setDescription(e.target.value)} /></div>
-         <div className="grid grid-cols-2 gap-4">
-           <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label><div className="relative"><DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input required type="number" step="0.01" className="w-full pl-9 p-2 border rounded-lg" value={amount} onChange={e => setAmount(e.target.value)} /></div></div>
-           <div><label className="block text-sm font-medium text-slate-700 mb-1">Data</label><input required type="date" className="w-full p-2 border rounded-lg" value={date} onChange={e => { if (e.target.value && e.target.value.split('-')[0].length > 4) return; setDate(e.target.value); }} max="9999-12-31" /></div>
-         </div>
-         {error && ( <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2 border border-red-200"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div> )}
-         <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Registrando...</>) : 'Registrar Despesa'}</button></div>
-       </form>
+    <BaseModal title={title} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Tipo */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Tipo</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setType('expense')}
+              className={`py-2 rounded-lg text-sm font-medium border transition-colors ${isExpense ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+              Despesa
+            </button>
+            <button type="button" onClick={() => setType('income')}
+              className={`py-2 rounded-lg text-sm font-medium border transition-colors ${!isExpense ? 'bg-green-50 text-green-700 border-green-300' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+              Receita
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
+          <input required type="text" className="w-full p-2 border rounded-lg" placeholder="Ex: Conta de Luz..." value={description} onChange={e => setDescription(e.target.value)} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
+            <div className="relative">
+              <DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input required type="number" step="0.01" min="0.01" className="w-full pl-9 p-2 border rounded-lg" value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+            <input required type="date" className="w-full p-2 border rounded-lg" value={date} onChange={e => { if (e.target.value && e.target.value.split('-')[0].length > 4) return; setDate(e.target.value); }} max="9999-12-31" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Categoria <span className="text-slate-400 font-normal">(opcional)</span></label>
+            <input type="text" className="w-full p-2 border rounded-lg" placeholder="Ex: Aluguel, Insumos..." value={category} onChange={e => setCategory(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+            <select className="w-full p-2 border rounded-lg bg-white" value={status} onChange={e => setStatus(e.target.value as 'paid' | 'pending')}>
+              <option value="paid">Pago</option>
+              <option value="pending">Pendente</option>
+            </select>
+          </div>
+        </div>
+
+        {error && <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2 border border-red-200"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div>}
+
+        <div className="pt-4 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button>
+          <button type="submit" disabled={isSubmitting}
+            className={`px-4 py-2 text-white rounded-lg disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all ${isExpense ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>
+            {isSubmitting ? <><RefreshCw className="w-4 h-4 animate-spin" /> Salvando...</> : submitLabel}
+          </button>
+        </div>
+      </form>
     </BaseModal>
   );
 };
 
 export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Procedure }> = ({ onClose, initialData }) => {
   const { addProcedure, updateProcedure, inventory } = useApp();
+  const { showAlert: showDialogAlert } = useDialog();
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || '');
@@ -731,7 +821,7 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
               <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 2 * 1024 * 1024) { alert('Imagem muito grande. Máximo 2MB.'); return; }
+                if (file.size > 2 * 1024 * 1024) { showDialogAlert('Imagem muito grande. Máximo 2MB.', { variant: 'warning', title: 'Arquivo inválido' }); return; }
                 const reader = new FileReader();
                 reader.onload = (event) => {
                   const img = new window.Image();
@@ -800,6 +890,7 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
 
 export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: User }> = ({ onClose, initialData }) => {
   const { addProfessional, updateProfessional, currentCompany, resetUserPassword } = useApp();
+  const { showAlert: showProfAlert } = useDialog();
   const [formData, setFormData] = useState<Partial<User>>({
     name: initialData?.name || '',
     email: initialData?.email || '',
@@ -839,10 +930,10 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
       if (result.success) {
         setNewPassword(tempPassword);
       } else {
-        alert('Erro ao redefinir senha: ' + result.error);
+        showProfAlert('Erro ao redefinir senha: ' + result.error, { variant: 'danger', title: 'Erro' });
       }
     } catch (error) {
-      alert('Erro ao redefinir senha');
+      showProfAlert('Erro ao redefinir senha', { variant: 'danger', title: 'Erro' });
     }
     setIsResetting(false);
   };
@@ -850,7 +941,7 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!initialData && !formData.password) {
-      alert('Senha é obrigatória para novos usuários');
+      showProfAlert('Senha é obrigatória para novos usuários', { variant: 'warning', title: 'Campo obrigatório' });
       return;
     }
     if (initialData) {

@@ -40,7 +40,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       include: {
         procedure: { select: { id: true, name: true } },
         professional: { select: { id: true, name: true } },
-        photos: { select: { id: true, url: true, type: true, takenAt: true } },
       },
       orderBy: { date: "desc" },
     });
@@ -51,7 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       status: apt.status,
       procedureName: apt.procedure.name,
       professionalName: apt.professional.name,
-      photos: apt.photos,
+      photos: [] as { id: string; url: string; type: string; takenAt: string }[],
     }));
 
     return NextResponse.json({ success: true, data: result });

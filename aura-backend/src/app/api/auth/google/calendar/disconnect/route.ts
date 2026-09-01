@@ -4,54 +4,59 @@ import prisma from '@/lib/prisma';
 import { decrypt } from '@/lib/crypto';
 
 export async function POST(request: NextRequest) {
-  const user = await getAuthUser(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const user = await getAuthUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Stop the Google webhook channel if one exists
-  const watch = await prisma.googleCalendarWatch.findUnique({
-    where: { userId: user.id },
-  });
-
-  if (watch) {
-    // Get current access token for the stop request
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { googleAccessToken: true },
+    // Stop the Google webhook channel if one exists
+    const watch = await prisma.googleCalendarWatch.findUnique({
+      where: { userId: user.id },
     });
 
-    if (!dbUser?.googleAccessToken) {
-      return NextResponse.json({ error: 'No Google Calendar connection found' }, { status: 400 });
+    if (watch) {
+      // Get current access token for the stop request
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { googleAccessToken: true },
+      });
+
+      if (!dbUser?.googleAccessToken) {
+        return NextResponse.json({ error: 'No Google Calendar connection found' }, { status: 400 });
+      }
+
+      if (dbUser.googleAccessToken && watch.resourceId) {
+        // Best-effort: stop the Google push channel
+        fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${decrypt(dbUser.googleAccessToken)}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: watch.channelId,
+            resourceId: watch.resourceId,
+          }),
+        }).catch(console.error); // fire-and-forget
+      }
+
+      await prisma.googleCalendarWatch.delete({ where: { userId: user.id } });
     }
 
-    if (dbUser.googleAccessToken && watch.resourceId) {
-      // Best-effort: stop the Google push channel
-      fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${decrypt(dbUser.googleAccessToken)}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: watch.channelId,
-          resourceId: watch.resourceId,
-        }),
-      }).catch(console.error); // fire-and-forget
-    }
+    // Clear all Google credentials from the user
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        googleAccessToken: null,
+        googleRefreshToken: null,
+        googleCalendarId: null,
+        googleCalendarConnected: false,
+        googleTokenExpiresAt: null,
+      },
+    });
 
-    await prisma.googleCalendarWatch.delete({ where: { userId: user.id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[GoogleCalendar] Erro ao desconectar:', error);
+    return NextResponse.json({ error: 'Erro inesperado.' }, { status: 500 });
   }
-
-  // Clear all Google credentials from the user
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      googleAccessToken: null,
-      googleRefreshToken: null,
-      googleCalendarId: null,
-      googleCalendarConnected: false,
-      googleTokenExpiresAt: null,
-    },
-  });
-
-  return NextResponse.json({ success: true });
 }
