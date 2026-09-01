@@ -5,9 +5,12 @@ import { KPICard } from '../components/charts/KPICard';
 import { useApp } from '../context/AppContext';
 import { ProfessionalModal } from '../components/Modals';
 import { User, UserRole, BusinessHours } from '../types';
+import { useDialog } from '../context/DialogContext';
+import { getAvatarConfig, getAvatarInitials } from '../utils/formatUtils';
 
 const Professionals: React.FC = () => {
   const { professionals, removeProfessional, user, companies, isReadOnly, currentCompany } = useApp();
+  const { confirm } = useDialog();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProfessional, setEditingProfessional] = useState<User | undefined>(undefined);
   // Alterado para rastrear seções ABERTAS. Inicialmente vazio = tudo fechado.
@@ -20,11 +23,10 @@ const Professionals: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-      if (isReadOnly) return;
-      if (window.confirm("Tem certeza que deseja remover este profissional?")) {
-          removeProfessional(id);
-      }
+  const handleDelete = async (id: string) => {
+    if (isReadOnly) return;
+    const ok = await confirm('Tem certeza que deseja remover este profissional?', { title: 'Remover profissional' });
+    if (ok) removeProfessional(id);
   };
 
   const handleClose = () => {
@@ -72,16 +74,6 @@ const Professionals: React.FC = () => {
     { key: 'sunday', label: 'D' },
   ];
 
-  const getAvatarColors = (name: string) => {
-    const palettes = [
-      'from-secondary-400 to-secondary-600',
-      'from-primary-400 to-primary-600',
-      'from-violet-400 to-violet-600',
-      'from-sky-400 to-sky-600',
-      'from-teal-400 to-teal-600',
-    ];
-    return palettes[(name.charCodeAt(0) || 0) % palettes.length];
-  };
 
   const getContractBadge = (type?: string) => {
     const map: Record<string, string> = {
@@ -110,7 +102,7 @@ const Professionals: React.FC = () => {
             <tbody className="divide-y divide-slate-50">
               {profList.map((prof) => {
                 const availabilitySource = prof.businessHours || (isOwner && companyData ? companyData.businessHours : currentCompany?.businessHours);
-                const avatarGradient = getAvatarColors(prof.name);
+                const avatarGradient = getAvatarConfig(prof.name).bg;
                 const contractCls = getContractBadge(prof.contractType);
 
                 return (
@@ -118,7 +110,7 @@ const Professionals: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center font-bold text-xs text-white flex-shrink-0 shadow-sm`}>
-                        {prof.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        {getAvatarInitials(prof.name)}
                       </div>
                       <div>
                         <div className="font-medium text-secondary-900 text-sm">{prof.name}</div>
