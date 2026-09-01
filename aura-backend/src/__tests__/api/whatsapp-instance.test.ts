@@ -22,11 +22,13 @@ vi.mock('@/lib/whatsapp', () => ({
   getInstanceStatus: vi.fn().mockResolvedValue('DISCONNECTED'),
   deleteInstance: vi.fn().mockResolvedValue(undefined),
   getInstanceName: vi.fn().mockReturnValue('aura-c1'),
+  setWebhook: vi.fn().mockResolvedValue(true),
 }))
 
-import { GET, POST, DELETE } from '../../app/api/whatsapp/instance/route'
+import { GET, POST, DELETE, PATCH } from '../../app/api/whatsapp/instance/route'
 import { getAuthUser } from '@/lib/auth'
 import { hasModuleAccess } from '@/lib/planPermissions'
+import { setWebhook } from '@/lib/whatsapp'
 import prisma from '@/lib/prisma'
 
 const MOCK_USER = { id: 'u1', companyId: 'c1', role: 'ADMIN', email: 'a@b.com', name: 'A' }
@@ -38,6 +40,7 @@ function makeReq(method = 'GET') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  process.env.EVOLUTION_API_URL = 'https://evo.test'
   vi.mocked(getAuthUser).mockResolvedValue(MOCK_USER as never)
   vi.mocked(prisma.company.findUnique).mockResolvedValue(MOCK_COMPANY as never)
   vi.mocked(hasModuleAccess).mockResolvedValue(true)
@@ -108,6 +111,33 @@ describe('POST /api/whatsapp/instance', () => {
     expect(res.status).toBe(403)
   })
 
+  it('retorna 503 com mensagem clara quando EVOLUTION_API_URL não está configurado', async () => {
+    delete process.env.EVOLUTION_API_URL
+    const req = new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'POST',
+      body: JSON.stringify({ acceptTerms: true }),
+      headers: { 'content-type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.error).toBeTruthy()
+  })
+
+  it('retorna 500 quando createInstance falha inesperadamente, sem quebrar a resposta', async () => {
+    const { createInstance } = await import('@/lib/whatsapp')
+    vi.mocked(createInstance).mockRejectedValueOnce(new Error('Falha inesperada de rede'))
+    const req = new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'POST',
+      body: JSON.stringify({ acceptTerms: true }),
+      headers: { 'content-type': 'application/json' },
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBeTruthy()
+  })
+
   it('cria instância e retorna QR code quando termos aceitos', async () => {
     vi.mocked(prisma.whatsappInstance.upsert).mockResolvedValue({} as WhatsappInstance)
     const req = new NextRequest('http://localhost/api/whatsapp/instance', {
@@ -123,6 +153,23 @@ describe('POST /api/whatsapp/instance', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.qrCode).toBe('data:image/png;base64,qr')
+  })
+
+  it('registra o webhook do Evolution API apontando pro backend com o secret configurado', async () => {
+    process.env.EVOLUTION_WEBHOOK_SECRET = 'my-webhook-secret'
+    vi.mocked(prisma.whatsappInstance.upsert).mockResolvedValue({} as WhatsappInstance)
+    const req = new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'POST',
+      body: JSON.stringify({ acceptTerms: true }),
+      headers: { 'content-type': 'application/json' },
+    })
+    await POST(req)
+    expect(setWebhook).toHaveBeenCalledWith(
+      'c1',
+      expect.stringContaining('/api/webhooks/whatsapp'),
+      'my-webhook-secret'
+    )
+    delete process.env.EVOLUTION_WEBHOOK_SECRET
   })
 
   it('grava IP, email do usuário e hash dos termos no upsert', async () => {
@@ -161,5 +208,47 @@ describe('DELETE /api/whatsapp/instance', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.success).toBe(true)
+  })
+})
+
+describe('PATCH /api/whatsapp/instance', () => {
+  function makePatchReq(chatbotEnabled: boolean) {
+    return new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'PATCH',
+      body: JSON.stringify({ chatbotEnabled }),
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+
+  it('retorna 403 se plano não tem módulo whatsapp_notifications', async () => {
+    vi.mocked(hasModuleAccess).mockResolvedValue(false)
+    const res = await PATCH(makePatchReq(true))
+    expect(res.status).toBe(403)
+  })
+
+  it('retorna 404 se a empresa ainda não conectou nenhum WhatsApp', async () => {
+    vi.mocked(prisma.whatsappInstance.findUnique).mockResolvedValue(null)
+    const res = await PATCH(makePatchReq(true))
+    expect(res.status).toBe(404)
+  })
+
+  it('ativa o chatbot quando a instância existe', async () => {
+    vi.mocked(prisma.whatsappInstance.findUnique).mockResolvedValue({ id: 'wi1' } as WhatsappInstance)
+    vi.mocked(prisma.whatsappInstance.update).mockResolvedValue({ chatbotEnabled: true } as WhatsappInstance)
+    const res = await PATCH(makePatchReq(true))
+    expect(res.status).toBe(200)
+    expect(prisma.whatsappInstance.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { companyId: 'c1' }, data: { chatbotEnabled: true } })
+    )
+    const body = await res.json()
+    expect(body.chatbotEnabled).toBe(true)
+  })
+
+  it('desativa o chatbot', async () => {
+    vi.mocked(prisma.whatsappInstance.findUnique).mockResolvedValue({ id: 'wi1' } as WhatsappInstance)
+    vi.mocked(prisma.whatsappInstance.update).mockResolvedValue({ chatbotEnabled: false } as WhatsappInstance)
+    const res = await PATCH(makePatchReq(false))
+    const body = await res.json()
+    expect(body.chatbotEnabled).toBe(false)
   })
 })

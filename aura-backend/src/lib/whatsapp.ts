@@ -105,3 +105,30 @@ export async function sendTextMessage(
     console.warn("[WhatsApp] Erro de rede ao enviar mensagem:", err)
   }
 }
+
+/** Configura o webhook de recebimento de mensagens para uma instância */
+export async function setWebhook(
+  companyId: string,
+  url: string,
+  secret: string
+): Promise<boolean> {
+  try {
+    const instanceName = getInstanceName(companyId)
+    const res = await fetch(`${getBaseUrl()}/webhook/set/${instanceName}`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({
+        webhook: {
+          enabled: true,
+          url,
+          headers: { "x-webhook-secret": secret },
+          events: ["MESSAGES_UPSERT"],
+        },
+      }),
+    })
+    return res.ok
+  } catch (err) {
+    console.warn("[WhatsApp] Erro ao configurar webhook:", err)
+    return false
+  }
+}

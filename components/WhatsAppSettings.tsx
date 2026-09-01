@@ -2,18 +2,22 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { MessageCircle, CheckCircle, XCircle, Loader2, RefreshCw, LogOut, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { whatsappApi } from '../services/api'
 import { useApp } from '../context/AppContext'
+import { useDialog } from '../context/DialogContext'
 import { UserRole } from '../types'
 
 type WaStatus = 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING'
 
 const WhatsAppSettings: React.FC = () => {
   const { user, currentCompany } = useApp()
+  const { confirm, showAlert } = useDialog()
   const [isOpen, setIsOpen] = useState(false)
   const [status, setStatus] = useState<WaStatus>('DISCONNECTED')
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null)
   const [termsChecked, setTermsChecked] = useState(false)
   const [qrCode, setQrCode] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [chatbotEnabled, setChatbotEnabled] = useState(false)
+  const [chatbotLoading, setChatbotLoading] = useState(false)
 
   const canManage = user?.role === UserRole.ADMIN || user?.role === UserRole.OWNER
 
@@ -22,10 +26,23 @@ const WhatsAppSettings: React.FC = () => {
     if (res.success && res.data) {
       setStatus(res.data.status)
       setPhoneNumber(res.data.phoneNumber ?? null)
+      setChatbotEnabled(res.data.chatbotEnabled ?? false)
       if (res.data.qrCode) setQrCode(res.data.qrCode)
       if (res.data.status === 'CONNECTED') setQrCode(null)
     }
   }, [])
+
+  const handleToggleChatbot = async () => {
+    setChatbotLoading(true)
+    const next = !chatbotEnabled
+    const res = await whatsappApi.setChatbotEnabled(next)
+    if (res.success && res.data) {
+      setChatbotEnabled(res.data.chatbotEnabled)
+    } else {
+      await showAlert(res.error ?? 'Erro ao atualizar o chatbot.', { variant: 'danger' })
+    }
+    setChatbotLoading(false)
+  }
 
   useEffect(() => {
     if (isOpen) loadStatus()
@@ -44,18 +61,25 @@ const WhatsAppSettings: React.FC = () => {
     if (res.success && res.data) {
       setStatus('CONNECTING')
       setQrCode(res.data.qrCode)
+    } else {
+      await showAlert(res.error ?? 'Erro ao conectar o WhatsApp.', { variant: 'danger' })
     }
     setLoading(false)
   }
 
   const handleDisconnect = async () => {
-    if (!confirm('Desconectar o WhatsApp? As confirmações automáticas serão pausadas.')) return
+    const confirmed = await confirm('Desconectar o WhatsApp? As confirmações automáticas serão pausadas.')
+    if (!confirmed) return
     setLoading(true)
-    await whatsappApi.disconnect()
-    setStatus('DISCONNECTED')
-    setQrCode(null)
-    setPhoneNumber(null)
-    setTermsChecked(false)
+    const res = await whatsappApi.disconnect()
+    if (res.success) {
+      setStatus('DISCONNECTED')
+      setQrCode(null)
+      setPhoneNumber(null)
+      setTermsChecked(false)
+    } else {
+      await showAlert(res.error ?? 'Erro ao desconectar o WhatsApp.', { variant: 'danger' })
+    }
     setLoading(false)
   }
 
@@ -103,6 +127,30 @@ const WhatsAppSettings: React.FC = () => {
                 <p>Confirmação imediata ao confirmar agendamento</p>
                 <p>Lembrete 24h antes do horário</p>
               </div>
+
+              {canManage && (
+                <div className="p-3 bg-secondary-50 rounded-xl flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-secondary-800">Chatbot de agendamento</p>
+                    <p className="text-xs text-secondary-500">
+                      {chatbotEnabled
+                        ? 'Ativo — respostas automáticas para quem mandar mensagem neste número'
+                        : 'Desativado — mensagens recebidas não têm resposta automática'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleChatbot}
+                    disabled={chatbotLoading}
+                    role="switch"
+                    aria-checked={chatbotEnabled}
+                    className={`relative w-11 h-6 rounded-full shrink-0 transition-colors disabled:opacity-50 ${chatbotEnabled ? 'bg-green-600' : 'bg-secondary-300'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${chatbotEnabled ? 'translate-x-5' : ''}`} />
+                  </button>
+                </div>
+              )}
+
               {canManage && (
                 <button onClick={handleDisconnect} disabled={loading}
                   className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 transition-colors disabled:opacity-50">

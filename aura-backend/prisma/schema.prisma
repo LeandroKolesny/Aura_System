@@ -136,6 +136,12 @@ model Company {
 
   // Status de vendas (CRM do OWNER)
   salesStatus             SalesStatus @default(NEW)
+  salesMovedAt            DateTime?
+  demoAt                  DateTime?
+  demoNotes               String?
+  lostReason              String?
+  lostComment             String?
+  seenByOwner             Boolean     @default(false)
 
   // Configurações de negócio
   businessHours           Json?    // BusinessHours object
@@ -175,6 +181,7 @@ model Company {
   subscriptionPlans    SubscriptionPlan[]
   patientSubscriptions PatientSubscription[]
   whatsappInstance     WhatsappInstance?
+  whatsappConversations WhatsAppConversation[]
 
   @@map("companies")
 }
@@ -853,6 +860,7 @@ model WhatsappInstance {
   termsAcceptedIp       String?                  // IP no momento do aceite
   termsAcceptedAgent    String?                  // User-agent do navegador
   termsTextHash         String?                  // SHA-256 do texto exibido (prova do conteúdo aceito)
+  chatbotEnabled        Boolean                  @default(false) // Chatbot de agendamento via WhatsApp
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
 
@@ -883,4 +891,34 @@ model DeletionRequest {
   @@index([userId])
   @@index([status, scheduledFor])
   @@map("deletion_requests")
+}
+
+// ============================================
+// MÓDULO: CHATBOT WHATSAPP (AGENDAMENTO)
+// ============================================
+
+enum WhatsAppConversationState {
+  START
+  MENU_INICIAL
+  ESCOLHENDO_PROCEDIMENTO
+  ESCOLHENDO_DATA
+  ESCOLHENDO_HORA
+  CONFIRMANDO
+  CONCLUIDO
+  HUMANO
+}
+
+model WhatsAppConversation {
+  id            String                     @id @default(cuid())
+  companyId     String
+  company       Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  patientPhone  String
+  state         WhatsAppConversationState  @default(START)
+  context       Json?                      // { procedureId?, date?, time?, invalidAttempts? }
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  @@unique([companyId, patientPhone])
+  @@index([companyId])
+  @@map("whatsapp_conversations")
 }

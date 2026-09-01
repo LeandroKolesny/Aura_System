@@ -10,6 +10,7 @@ import {
   getInstanceStatus,
   deleteInstance,
   sendTextMessage,
+  setWebhook,
 } from '../../lib/whatsapp'
 
 beforeEach(() => {
@@ -101,5 +102,30 @@ describe('sendTextMessage', () => {
   it('não lança erro se API falhar (fire-and-forget seguro)', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, json: async () => ({}) })
     await expect(sendTextMessage('c1', '11999990000', 'Olá!')).resolves.not.toThrow()
+  })
+})
+
+describe('setWebhook', () => {
+  it('chama POST /webhook/set/{instance} com url, secret e evento MESSAGES_UPSERT', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ enabled: true }) })
+    await setWebhook('c1', 'https://backend.test/api/webhooks/whatsapp', 'my-secret')
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://evo.test/webhook/set/aura-c1',
+      expect.objectContaining({ method: 'POST' })
+    )
+    const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toEqual({
+      webhook: {
+        enabled: true,
+        url: 'https://backend.test/api/webhooks/whatsapp',
+        headers: { 'x-webhook-secret': 'my-secret' },
+        events: ['MESSAGES_UPSERT'],
+      },
+    })
+  })
+
+  it('retorna false sem lançar erro se a API falhar', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, json: async () => ({}) })
+    await expect(setWebhook('c1', 'https://backend.test/x', 'secret')).resolves.toBe(false)
   })
 })
