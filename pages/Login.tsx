@@ -55,6 +55,10 @@ const Login: React.FC = () => {
     acceptedTerms: false,
     marketingConsent: false,
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) =>
+    setFieldErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
 
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessingToken, setIsProcessingToken] = useState(false);
@@ -149,20 +153,32 @@ const Login: React.FC = () => {
     e.preventDefault();
     setLoginError('');
 
-    if (!regData.name || !regData.companyName || !regData.email || !regData.phone || !regData.password) {
-        setLoginError('Por favor, preencha todos os campos obrigatórios.');
-        return;
-    }
+    // Validação por campo
+    const errors: Record<string, string> = {};
+    if (!regData.name.trim()) errors.name = 'Informe seu nome completo.';
+    else if (regData.name.trim().length < 2) errors.name = 'Nome deve ter pelo menos 2 caracteres.';
 
-    if (regData.password !== regData.confirmPassword) {
-        setLoginError('As senhas não coincidem.');
-        return;
-    }
+    if (!regData.companyName.trim()) errors.companyName = 'Informe o nome da clínica.';
+    else if (regData.companyName.trim().length < 2) errors.companyName = 'Nome da clínica deve ter pelo menos 2 caracteres.';
 
-    if (!regData.acceptedTerms) {
-        setLoginError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para continuar.');
-        return;
+    if (!regData.email.trim()) errors.email = 'Informe seu e-mail.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regData.email)) errors.email = 'E-mail inválido.';
+
+    if (!regData.phone.trim()) errors.phone = 'Informe seu celular.';
+
+    if (!regData.password) errors.password = 'Informe uma senha.';
+    else if (regData.password.length < 8) errors.password = 'A senha deve ter pelo menos 8 caracteres.';
+
+    if (!regData.confirmPassword) errors.confirmPassword = 'Confirme sua senha.';
+    else if (regData.password !== regData.confirmPassword) errors.confirmPassword = 'As senhas não coincidem.';
+
+    if (!regData.acceptedTerms) errors.acceptedTerms = 'Você precisa aceitar os Termos de Uso para continuar.';
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
     }
+    setFieldErrors({});
 
     if (regData.email && regData.password && regData.companyName && regData.name) {
       setIsRegistering2(true);
@@ -306,9 +322,10 @@ const Login: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
                     placeholder="Ex: Dra. Ana Silva"
                     value={regData.name}
-                    onChange={(e) => setRegData({...regData,name: e.target.value})}
+                    onChange={(e) => { setRegData({...regData,name: e.target.value}); clearFieldError('name'); }}
                   />
                 </div>
+                {fieldErrors.name && <p className="mt-1 text-xs text-red-500">{fieldErrors.name}</p>}
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -322,9 +339,10 @@ const Login: React.FC = () => {
                       className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
                       placeholder="Nome da sua clínica"
                       value={regData.companyName}
-                      onChange={(e) => setRegData({...regData, companyName: e.target.value})}
+                      onChange={(e) => { setRegData({...regData, companyName: e.target.value}); clearFieldError('companyName'); }}
                     />
                   </div>
+                  {fieldErrors.companyName && <p className="mt-1 text-xs text-red-500">{fieldErrors.companyName}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Estado</label>
@@ -378,9 +396,10 @@ const Login: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
                     placeholder="Digite seu melhor e-mail"
                     value={regData.email}
-                    onChange={(e) => setRegData({...regData, email: e.target.value})}
+                    onChange={(e) => { setRegData({...regData, email: e.target.value}); clearFieldError('email'); }}
                   />
                 </div>
+                {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -394,10 +413,11 @@ const Login: React.FC = () => {
                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
                        placeholder="(99) 99999-9999"
                        value={regData.phone}
-                       onChange={(e) => setRegData({...regData, phone: maskPhone(e.target.value)})}
+                       onChange={(e) => { setRegData({...regData, phone: maskPhone(e.target.value)}); clearFieldError('phone'); }}
                        maxLength={15}
                      />
                    </div>
+                   {fieldErrors.phone && <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>}
                 </div>
                 <div>
                    <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Profissionais</label>
@@ -433,24 +453,29 @@ const Login: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
                     placeholder="Escolha uma senha segura"
                     value={regData.password}
-                    onChange={(e) => setRegData({...regData, password: e.target.value})}
+                    onChange={(e) => { setRegData({...regData, password: e.target.value}); clearFieldError('password'); }}
                   />
                 </div>
+                {fieldErrors.password
+                  ? <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
+                  : <p className="mt-1 text-xs text-secondary-400">Mínimo 8 caracteres</p>
+                }
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-secondary-500 uppercase tracking-wider mb-1">Confirmar Senha</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-secondary-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     required
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-secondary-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all bg-secondary-50/50 text-sm"
                     placeholder="Repita a senha"
                     value={regData.confirmPassword}
-                    onChange={(e) => setRegData({...regData, confirmPassword: e.target.value})}
+                    onChange={(e) => { setRegData({...regData, confirmPassword: e.target.value}); clearFieldError('confirmPassword'); }}
                   />
                 </div>
+                {fieldErrors.confirmPassword && <p className="mt-1 text-xs text-red-500">{fieldErrors.confirmPassword}</p>}
               </div>
 
               {/* LGPD - Aceite de Termos */}
@@ -460,7 +485,7 @@ const Login: React.FC = () => {
                     type="checkbox"
                     className="sr-only"
                     checked={regData.acceptedTerms}
-                    onChange={e => setRegData({ ...regData, acceptedTerms: e.target.checked })}
+                    onChange={e => { setRegData({ ...regData, acceptedTerms: e.target.checked }); clearFieldError('acceptedTerms'); }}
                   />
                   <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${regData.acceptedTerms ? 'bg-primary-500 border-primary-500' : 'border-secondary-300 group-hover:border-primary-400'}`}>
                     {regData.acceptedTerms && (
@@ -482,6 +507,7 @@ const Login: React.FC = () => {
                   , incluindo o tratamento dos meus dados pessoais conforme a LGPD.
                 </span>
               </label>
+              {fieldErrors.acceptedTerms && <p className="text-xs text-red-500 -mt-1">{fieldErrors.acceptedTerms}</p>}
 
               {/* Marketing opt-in — separado dos Termos (LGPD) */}
               <label className="flex items-start gap-3 cursor-pointer group">

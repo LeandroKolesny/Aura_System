@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { X, CheckCircle, MessageCircle } from 'lucide-react';
 import { PlanForCard } from './PlanCard';
+import { formatCurrency } from '../../utils/formatUtils';
 
 interface PlanContractModalProps {
   plan: PlanForCard;
@@ -12,9 +13,6 @@ interface PlanContractModalProps {
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }
-
-const formatCurrency = (v: number) =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export const PlanContractModal: React.FC<PlanContractModalProps> = ({
   plan, primaryColor, cardBg, cardText, borderColor, onClose, onConfirm,

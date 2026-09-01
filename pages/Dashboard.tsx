@@ -353,7 +353,7 @@ const DashboardSkeleton: React.FC = () => (
 );
 
 const ClinicDashboard: React.FC = () => {
-  const { appointments, user, systemAlerts, currentCompany, dismissedAlertIds, dismissAlert, updateAppointmentStatus, addNotification, loadAppointments } = useApp();
+  const { appointments, user, systemAlerts, currentCompany, dismissedAlertIds, dismissAlert, updateAppointmentStatus, addNotification, loadAppointments, changeAppointmentStatus } = useApp();
   const [selectedAlert, setSelectedAlert] = useState<SystemAlert | null>(null);
   const [revenueRange, setRevenueRange] = useState<'7d' | '30d'>('7d');
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -393,11 +393,10 @@ const ClinicDashboard: React.FC = () => {
     }
   }, [revenueRange, dashboardData, lastFetchTime]);
 
-  // Carregar dados do dashboard e agendamentos (para mostrar pendentes)
+  // Ao montar o Dashboard, sempre força reload para garantir dados frescos ao trocar de aba
   useEffect(() => {
     loadDashboardData();
-    // Carregar agendamentos apenas se não tiver dados ou cache expirado
-    loadAppointments();
+    loadAppointments(true);
   }, [loadDashboardData, loadAppointments]);
 
   // Recarregar quando mudar o range de tempo
@@ -420,7 +419,7 @@ const ClinicDashboard: React.FC = () => {
       subscriptionsApi.listPending().then(res => {
         if (res.success && res.data) setPendingPlans(res.data as PatientSubscription[]);
       });
-      loadAppointments();
+      loadAppointments(true); // forceReload para ignorar cache
     };
     fetchPending();
     const interval = setInterval(fetchPending, 30_000);
@@ -454,18 +453,22 @@ const ClinicDashboard: React.FC = () => {
     return [...invAlerts, ...dbAlerts].filter(a => !dismissedAlertIds.includes(a.id)).slice(0, 5);
   }, [systemAlerts, user, dashboardData, dismissedAlertIds]);
 
-  const handleQuickApprove = (appt: Appointment) => {
+  const handleQuickApprove = async (appt: Appointment) => {
     setApprovingId(appt.id);
-    setTimeout(() => {
-      updateAppointmentStatus(appt.id, 'confirmed');
+    const res = await changeAppointmentStatus(appt.id, 'SCHEDULED');
+    if (res.success) {
       addNotification({
         companyId: appt.companyId,
         recipientId: appt.patientId,
         message: `Olá ${appt.patientName}, seu agendamento para ${appt.service} em ${formatDate(appt.date)} foi APROVADO!`,
         type: 'success'
       });
-      setApprovingId(null);
-    }, 600);
+    }
+    setApprovingId(null);
+  };
+
+  const handleRejectApproval = async (apptId: string) => {
+    await changeAppointmentStatus(apptId, 'CANCELED');
   };
 
   // Trend: compara primeira metade vs segunda metade do histórico de receita
@@ -526,7 +529,7 @@ const ClinicDashboard: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                               <button
-                                  onClick={() => updateAppointmentStatus(appt.id, 'canceled')}
+                                  onClick={() => handleRejectApproval(appt.id)}
                                   className="min-h-[44px] px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 hover:border-red-200 transition-colors"
                               >
                                   Recusar
@@ -612,7 +615,7 @@ const ClinicDashboard: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100">
+        <div className="grid grid-cols-2 lg:grid-cols-5 divide-x divide-y lg:divide-y-0 divide-slate-100">
           <div className="p-4 lg:p-5 flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 shrink-0 border border-slate-100">
               <History className="w-4 h-4" />
@@ -623,12 +626,21 @@ const ClinicDashboard: React.FC = () => {
             </div>
           </div>
           <div className="p-4 lg:p-5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 border border-emerald-100">
-              <CheckCircle className="w-4 h-4 text-emerald-500" />
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0 border border-amber-100">
+              <CheckCircle className="w-4 h-4 text-amber-500" />
             </div>
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-400">Confirmadas</p>
-              <p className="text-2xl font-serif font-bold text-emerald-600 leading-none">{kpis.appointmentsConfirmed}</p>
+              <p className="text-2xl font-serif font-bold text-amber-600 leading-none">{kpis.appointmentsConfirmed}</p>
+            </div>
+          </div>
+          <div className="p-4 lg:p-5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0 border border-green-100">
+              <DollarSign className="w-4 h-4 text-green-600" />
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-400">Realizadas</p>
+              <p className="text-2xl font-serif font-bold text-green-600 leading-none">{kpis.appointmentsCompleted}</p>
             </div>
           </div>
           <div className="p-4 lg:p-5 flex items-center gap-3">

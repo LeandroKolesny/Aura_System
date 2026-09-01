@@ -75,8 +75,8 @@ const BusinessHoursSettings: React.FC = () => {
           setHasUnsavedChanges(false);
           setTimeout(() => setSuccessMsg(''), 3000);
           return true;
-      } catch (err: any) {
-          setErrorMsg(err.message || 'Erro ao salvar horários.');
+      } catch (err) {
+          setErrorMsg(err instanceof Error ? err.message : 'Erro ao salvar horários.');
           return false;
       }
   };
@@ -132,17 +132,17 @@ const BusinessHoursSettings: React.FC = () => {
 
       // Validações
       if (!unavStart || !unavEnd) {
-          alert("Por favor, preencha o horário de início e término.");
+          setErrorMsg("Preencha o horário de início e término.");
           return;
       }
 
       if (effectiveDates.length === 0) {
-          alert("Por favor, selecione pelo menos uma data para o bloqueio.");
+          setErrorMsg("Selecione pelo menos uma data para o bloqueio.");
           return;
       }
 
       if (effectiveProfs.length === 0) {
-          alert("Por favor, selecione 'Toda a Equipe' ou funcionários específicos.");
+          setErrorMsg("Selecione 'Toda a Equipe' ou funcionários específicos.");
           return;
       }
 

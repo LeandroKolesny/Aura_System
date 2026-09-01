@@ -26,10 +26,11 @@ interface PlanHistoryDrawerProps {
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  SCHEDULED:  { label: 'Agendado',  color: '#3b82f6' },
-  COMPLETED:  { label: 'Concluído', color: '#10b981' },
-  CANCELED:   { label: 'Cancelado', color: '#ef4444' },
-  NO_SHOW:    { label: 'Falta',     color: '#f59e0b' },
+  SCHEDULED:        { label: 'Agendado',    color: '#3b82f6' },
+  CONFIRMED:        { label: 'Confirmado',  color: '#6366f1' },
+  COMPLETED:        { label: 'Concluído',   color: '#10b981' },
+  CANCELED:         { label: 'Cancelado',   color: '#ef4444' },
+  PENDING_APPROVAL: { label: 'Pendente',    color: '#f59e0b' },
 };
 
 export const PlanHistoryDrawer: React.FC<PlanHistoryDrawerProps> = ({

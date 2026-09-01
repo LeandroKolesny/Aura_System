@@ -29,9 +29,10 @@ async function fetchApi<T>(
 ): Promise<ApiResponse<T>> {
   const url = `${API_BASE_URL}${endpoint}`;
 
-  const defaultHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
+  // Não definir Content-Type para FormData — o browser define automaticamente com o boundary correto
+  const defaultHeaders: HeadersInit = options.body instanceof FormData
+    ? {}
+    : { 'Content-Type': 'application/json' };
 
   // Adiciona token de autenticação se existir (in-memory — não localStorage)
   const token = getAuthToken();
@@ -494,6 +495,15 @@ export const patientsApi = {
   async delete(id: string) {
     return fetchApi(`/api/patients/${id}`, { method: 'DELETE' });
   },
+
+  async importCSV(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetchApi<{ imported: number; updated: number; errors: { row: number; name: string; reason: string }[] }>(
+      '/api/patients/import',
+      { method: 'POST', body: formData }
+    );
+  },
 };
 
 // ============================================
@@ -614,6 +624,28 @@ export const transactionsApi = {
     });
   },
 
+  async importCSV(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetchApi<{ imported: number; updated: number; errors: { row: number; name: string; reason: string }[] }>('/api/transactions/import', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<{ transaction: ApiTransaction }>(`/api/transactions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(id: string) {
+    return fetchApi<{ success: boolean }>(`/api/transactions/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
 };
 
 // ============================================
@@ -649,6 +681,15 @@ export const proceduresApi = {
       method: 'DELETE',
     });
   },
+
+  async importCSV(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetchApi<{ imported: number; updated: number; errors: { row: number; name: string; reason: string }[] }>(
+      '/api/procedures/import',
+      { method: 'POST', body: formData }
+    );
+  },
 };
 
 // ============================================
@@ -672,6 +713,15 @@ export const inventoryApi = {
     return fetchApi<{ item: ApiInventoryItem; movement: ApiInventoryMovement }>(`/api/inventory/${id}/adjust`, {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async importCSV(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetchApi<{ imported: number; updated: number; errors: { row: number; name: string; reason: string }[] }>('/api/inventory/import', {
+      method: 'POST',
+      body: formData,
     });
   },
 };
@@ -705,6 +755,7 @@ export interface DashboardData {
     cancelRate: number;
     appointmentsTotal: number;
     appointmentsConfirmed: number;
+    appointmentsCompleted: number;
     appointmentsCanceled: number;
   };
   charts: {
@@ -956,11 +1007,23 @@ export const kingApi = {
   },
 
   // Atualizar status de lead (conversão)
-  updateLead: async (companyId: string, data: { status?: string; plan?: string }) => {
+  updateLead: async (companyId: string, data: {
+    status?: string;
+    plan?: string;
+    demoAt?: string;
+    demoNotes?: string;
+    lostReason?: string;
+    lostComment?: string;
+  }) => {
     return fetchApi('/api/king/leads', {
       method: 'PATCH',
       body: JSON.stringify({ companyId, ...data }),
     });
+  },
+
+  // Marcar todos os leads como vistos pelo owner
+  markLeadsSeen: async () => {
+    return fetchApi('/api/king/leads/mark-seen', { method: 'PATCH' });
   },
 };
 
@@ -1230,6 +1293,7 @@ export const whatsappApi = {
     status: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING'
     phoneNumber?: string
     termsAccepted: boolean
+    chatbotEnabled?: boolean
     qrCode?: string | null
   }>('/api/whatsapp/instance'),
 
@@ -1241,6 +1305,12 @@ export const whatsappApi = {
 
   disconnect: () =>
     fetchApi<{ success: boolean }>('/api/whatsapp/instance', { method: 'DELETE' }),
+
+  setChatbotEnabled: (chatbotEnabled: boolean) =>
+    fetchApi<{ chatbotEnabled: boolean }>('/api/whatsapp/instance', {
+      method: 'PATCH',
+      body: JSON.stringify({ chatbotEnabled }),
+    }),
 };
 
 // Export all APIs

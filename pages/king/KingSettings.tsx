@@ -8,6 +8,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { SaasPlan, Company } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatUtils';
+import { useDialog } from '../../context/DialogContext';
 import { systemApi } from '../../services/api';
 
 const KingSettings: React.FC = () => {
@@ -15,6 +16,7 @@ const KingSettings: React.FC = () => {
     saasPlans, addPlan, updatePlan, removePlan, loadPlans,
     companies, updateCompany
   } = useApp();
+  const { confirm, showAlert } = useDialog();
 
   // Carregar planos da API ao montar
   useEffect(() => {
@@ -103,9 +105,9 @@ const KingSettings: React.FC = () => {
       if (response.success) {
         setMaintenanceMode(enabled);
         if (enabled) {
-          alert('Modo manutencao ATIVADO! Usuarios serao impedidos de fazer login.');
+          showAlert('Modo manutenção ATIVADO. Usuários serão impedidos de fazer login.', { title: 'Manutenção ativa', variant: 'warning' });
         } else {
-          alert('Modo manutencao DESATIVADO! Sistema voltou ao normal.');
+          showAlert('Modo manutenção DESATIVADO. Sistema voltou ao normal.', { title: 'Sistema online', variant: 'success' });
         }
       } else {
         setMaintenanceError(response.error || 'Erro ao alterar modo manutencao');
@@ -248,10 +250,11 @@ const KingSettings: React.FC = () => {
   };
 
   const handleDeletePlan = async (id: string) => {
-    if (window.confirm("Tem certeza que deseja excluir este plano?")) {
+    const ok = await confirm('Tem certeza que deseja excluir este plano?', { title: 'Excluir plano' });
+    if (ok) {
       const result = await removePlan(id);
       if (!result.success) {
-        alert("Erro ao excluir plano: " + (result.error || "Erro desconhecido"));
+        await showAlert('Erro ao excluir plano: ' + (result.error || 'Erro desconhecido'), { variant: 'danger', title: 'Erro' });
       }
     }
   };
@@ -259,7 +262,7 @@ const KingSettings: React.FC = () => {
   const togglePlanVisibility = async (plan: SaasPlan) => {
     const result = await updatePlan(plan.id, { active: !plan.active });
     if (!result.success) {
-      alert("Erro ao alterar visibilidade: " + (result.error || "Erro desconhecido"));
+      await showAlert('Erro ao alterar visibilidade: ' + (result.error || 'Erro desconhecido'), { variant: 'danger', title: 'Erro' });
     }
   };
 
@@ -274,7 +277,7 @@ const KingSettings: React.FC = () => {
     setTimeout(() => setSaved(false), 3000);
   };
 
-  const tabs = [
+  const tabs: { id: 'plans' | 'notifications' | 'system' | 'appearance'; label: string; icon: React.ElementType }[] = [
     { id: 'plans', label: 'Planos & Precos', icon: DollarSign },
     { id: 'notifications', label: 'Notificacoes/Email', icon: Bell },
     { id: 'system', label: 'Sistema', icon: Database },
@@ -317,7 +320,7 @@ const KingSettings: React.FC = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-slate-50 text-slate-900 border-b-2 border-slate-900'
@@ -349,7 +352,8 @@ const KingSettings: React.FC = () => {
                 </div>
 
                 <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
-                  <table className="w-full text-left">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-left">
                     <thead>
                       <tr className="bg-slate-100 text-slate-500 text-[10px] uppercase font-bold tracking-wider border-b border-slate-200">
                         <th className="px-4 py-3">Clinica</th>
@@ -422,6 +426,7 @@ const KingSettings: React.FC = () => {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </section>
 

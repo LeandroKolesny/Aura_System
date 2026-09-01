@@ -4,9 +4,11 @@ import { useApp } from '../context/AppContext';
 import { CheckCircle, Save, Tag, DollarSign, Plus, X, Edit, AlertTriangle, Link as LinkIcon, Trash2, Building, Calendar, Clock, PlusCircle, ChevronRight, RefreshCw } from 'lucide-react';
 import { SaasPlan, Company } from '../types';
 import { formatDate, formatCurrency } from '../utils/formatUtils';
+import { useDialog } from '../context/DialogContext';
 
 const Plans: React.FC = () => {
   const { saasPlans, updatePlan, addPlan, removePlan, companies, updateCompany } = useApp();
+  const { confirm } = useDialog();
   
   // Estado para Modal de Adicionar Tempo
   const [timeModal, setTimeModal] = useState<{ isOpen: boolean; company: Company | null }>({
@@ -153,10 +155,9 @@ const Plans: React.FC = () => {
       }
   };
 
-  const handleDeletePlan = (id: string) => {
-      if (window.confirm("Tem certeza que deseja excluir este plano?")) {
-          removePlan(id);
-      }
+  const handleDeletePlan = async (id: string) => {
+    const ok = await confirm('Tem certeza que deseja excluir este plano?', { title: 'Excluir plano' });
+    if (ok) removePlan(id);
   };
 
   const togglePlanVisibility = (plan: SaasPlan) => {

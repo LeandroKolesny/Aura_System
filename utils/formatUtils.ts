@@ -1,4 +1,19 @@
-// Utilitários de Formatação Global
+// Utilitários de Formatação Global — importar daqui, nunca redefinir localmente
+
+const AVATAR_PALETTES = [
+  { bg: 'from-primary-400 to-primary-600', text: 'text-white' },
+  { bg: 'from-rose-400 to-rose-600', text: 'text-white' },
+  { bg: 'from-violet-400 to-violet-600', text: 'text-white' },
+  { bg: 'from-sky-400 to-sky-600', text: 'text-white' },
+  { bg: 'from-emerald-400 to-emerald-600', text: 'text-white' },
+  { bg: 'from-amber-400 to-amber-600', text: 'text-white' },
+];
+
+export const getAvatarConfig = (name: string): { bg: string; text: string } =>
+  AVATAR_PALETTES[(name.charCodeAt(0) || 0) % AVATAR_PALETTES.length];
+
+export const getAvatarInitials = (name: string): string =>
+  name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
 export const formatCurrency = (value: number | string | undefined): string => {
   if (value === undefined || value === null) return 'R$ 0,00';

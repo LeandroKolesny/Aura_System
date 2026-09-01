@@ -1,6 +1,7 @@
 // components/patient-portal/PlanCard.tsx
 import React from 'react';
 import { Sparkles, CheckCircle, Clock } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatUtils';
 
 export interface PlanForCard {
   id: string;
@@ -23,9 +24,6 @@ interface PlanCardProps {
   onContract: () => void;
   onViewHistory: () => void;
 }
-
-const formatCurrency = (v: number) =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export const PlanCard: React.FC<PlanCardProps> = ({
   plan, status, primaryColor, cardBg, cardText, borderColor, onContract, onViewHistory,

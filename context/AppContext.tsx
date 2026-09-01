@@ -71,6 +71,8 @@ interface AppContextType {
   
   transactions: Transaction[];
   addTransaction: (transaction: Omit<Transaction, 'id' | 'companyId'>) => void;
+  updateTransaction: (id: string, data: Partial<Transaction>) => Promise<{ success: boolean; error?: string }>;
+  deleteTransaction: (id: string) => Promise<{ success: boolean; error?: string }>;
   processPayment: (appointment: Appointment, method: string) => void;
   markInstallmentPaid: (transactionId: string) => Promise<{ success: boolean; error?: string }>;
 
@@ -154,6 +156,8 @@ interface AppContextType {
   loadUnavailabilityRules: (forceReload?: boolean) => Promise<void>;
   pendingSubscriptionsCount: number;
   loadPendingSubscriptions: () => Promise<void>;
+  newLeadsCount: number;
+  changeAppointmentStatus: (id: string, status: string) => Promise<{ success: boolean; error?: string }>;
 
   // Estados de loading individuais
   loadingStates: {
@@ -398,8 +402,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     unavailabilityRules: false,
   });
 
-  const loadPatients = useCallback(async () => {
-    if (loadedRef.current.patients || loadingRef.current.patients) return;
+  const loadPatients = useCallback(async (forceReload?: boolean) => {
+    if (!forceReload && (loadedRef.current.patients || loadingRef.current.patients)) return;
+    if (forceReload) loadedRef.current.patients = false;
     loadingRef.current.patients = true;
     setLoading('patients', true);
     try {
@@ -507,8 +512,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const loadProcedures = useCallback(async () => {
-    if (loadedRef.current.procedures || loadingRef.current.procedures) return;
+  const loadProcedures = useCallback(async (forceReload?: boolean) => {
+    if (!forceReload && (loadedRef.current.procedures || loadingRef.current.procedures)) return;
+    if (forceReload) loadedRef.current.procedures = false;
     loadingRef.current.procedures = true;
     setLoading('procedures', true);
     try {
@@ -572,8 +578,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const loadInventory = useCallback(async () => {
-    if (loadedRef.current.inventory || loadingRef.current.inventory) return;
+  const loadInventory = useCallback(async (forceReload?: boolean) => {
+    if (!forceReload && (loadedRef.current.inventory || loadingRef.current.inventory)) return;
+    if (forceReload) loadedRef.current.inventory = false;
     loadingRef.current.inventory = true;
     setLoading('inventory', true);
     try {
@@ -1282,6 +1289,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  const changeAppointmentStatus = useCallback(async (id: string, status: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await appointmentsApi.updateStatus(id, status);
+    await loadAppointments(true);
+    return { success: !!res.success, error: res.error };
+  }, [loadAppointments]);
+
   const signAppointmentConsent = (id: string, signatureBase64: string) => {
     checkWriteAccess();
     const metadata: SignatureMetadata = {
@@ -1319,6 +1332,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro de conexão ao criar transação:', error);
         return { success: false, error: 'Erro de conexão' };
       }
+  };
+
+  const updateTransaction = async (id: string, data: Partial<Transaction>) => {
+    checkWriteAccess();
+    try {
+      const response = await transactionsApi.update(id, data as Record<string, unknown>);
+      if (response.success && response.data?.transaction) {
+        const updated = {
+          ...response.data.transaction,
+          amount: Number(response.data.transaction.amount),
+          type: response.data.transaction.type?.toLowerCase(),
+          status: response.data.transaction.status?.toLowerCase(),
+        };
+        setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updated } : t));
+        return { success: true };
+      }
+      return { success: false, error: response.error };
+    } catch {
+      return { success: false, error: 'Erro de conexão' };
+    }
+  };
+
+  const deleteTransaction = async (id: string) => {
+    checkWriteAccess();
+    try {
+      const response = await transactionsApi.delete(id);
+      if (response.success) {
+        setTransactions(prev => prev.filter(t => t.id !== id));
+        return { success: true };
+      }
+      return { success: false, error: response.error };
+    } catch {
+      return { success: false, error: 'Erro de conexão' };
+    }
   };
 
   const processPayment = async (appointment: Appointment, method: string, installments = 1) => {
@@ -2086,9 +2133,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addAppointment,
       updateAppointment,
       updateAppointmentStatus,
-      signAppointmentConsent, 
+      changeAppointmentStatus,
+      signAppointmentConsent,
       transactions: user?.role === UserRole.OWNER ? transactions : transactions.filter(t => t.companyId === user?.companyId),
       addTransaction,
+      updateTransaction,
+      deleteTransaction,
       processPayment,
       markInstallmentPaid,
       procedures: user?.role === UserRole.OWNER ? procedures : procedures.filter(p => p.companyId === user?.companyId),
@@ -2158,6 +2208,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       loadedStates,
       pendingSubscriptionsCount,
       loadPendingSubscriptions,
+      newLeadsCount: leads.filter(l => !l.seenByOwner).length,
     }}>
       {children}
     </AppContext.Provider>

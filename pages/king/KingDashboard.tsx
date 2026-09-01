@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building, Users, CalendarCheck, DollarSign, TrendingUp,
-  RefreshCw, AlertTriangle, CheckCircle, Clock
+  RefreshCw, AlertTriangle, CheckCircle, Clock, Target
 } from 'lucide-react';
 import { kingApi } from '../../services/api';
+import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../utils/formatUtils';
+import { useNavigate } from 'react-router-dom';
 
 interface GlobalStats {
   totalCompanies: number;
@@ -59,6 +61,8 @@ const KingDashboard: React.FC = () => {
   const [stats, setStats] = useState<GlobalStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { leads, newLeadsCount } = useApp();
+  const navigate = useNavigate();
 
   const loadStats = async () => {
     setLoading(true);
@@ -163,6 +167,32 @@ const KingDashboard: React.FC = () => {
           subtitle={`${(stats.totalAppointments || 0).toLocaleString('pt-BR')} total`}
         />
       </div>
+
+      {/* Widget Novos Leads */}
+      {newLeadsCount > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-red-500 rounded-xl">
+              <Target className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="font-bold text-red-800">
+                {newLeadsCount} {newLeadsCount === 1 ? 'novo lead' : 'novos leads'} aguardando
+              </p>
+              <p className="text-sm text-red-600">
+                {leads.filter(l => !l.seenByOwner).slice(0, 3).map(l => l.clinicName).join(', ')}
+                {newLeadsCount > 3 ? ` e mais ${newLeadsCount - 3}...` : ''}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/king/leads')}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm"
+          >
+            Ver CRM
+          </button>
+        </div>
+      )}
 
       {/* Detalhes */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

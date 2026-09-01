@@ -268,6 +268,13 @@ export interface Lead {
   createdAt: string;
   notes?: string;
   companyId?: string;
+  seenByOwner?: boolean;
+  movedAt?: string;
+  demoAt?: string;
+  demoNotes?: string;
+  lostReason?: string;
+  lostComment?: string;
+  wonPlan?: string;
 }
 
 export interface TicketMessage {
