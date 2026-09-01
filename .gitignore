@@ -20,6 +20,7 @@ dist-ssr
 .env.test.local
 .env.production
 .env.production.local
+.env.vercel.*
 
 # Editor directories and files
 .vscode/*
@@ -44,3 +45,14 @@ client_secret_*.json
 
 # Imagens e screenshots de debug
 google\ calendar\ key.png
+
+# Pasta com chaves e credenciais (NUNCA commitar!)
+APi_Key/
+
+# Ambiente local de teste do Evolution API (tem chave embutida)
+evolution-api-local/
+
+# Artefatos de teste/debug (não versionar)
+.playwright-cli/
+test-results/
+playwright-report/
