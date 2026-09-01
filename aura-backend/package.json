@@ -14,7 +14,7 @@
     "test": "vitest",
     "test:ci": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "deploy": "npm run test:ci && vercel --prod --yes"
+    "deploy": "bash ../scripts/verify-ci-green.sh && npm run test:ci && vercel --prod --yes"
   },
   "dependencies": {
     "@google/genai": "^1.35.0",

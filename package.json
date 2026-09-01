@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "type-check": "tsc",
-    "deploy:frontend": "npm run type-check && vercel --prod --yes",
+    "deploy:frontend": "bash scripts/verify-ci-green.sh && npm run type-check && vercel --prod --yes",
     "deploy:backend": "npm --prefix aura-backend run deploy",
     "deploy:all": "npm run deploy:backend && npm run deploy:frontend",
     "test:unit": "npm --prefix aura-backend run test:ci",
