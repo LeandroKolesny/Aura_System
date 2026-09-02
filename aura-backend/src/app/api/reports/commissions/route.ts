@@ -5,11 +5,14 @@ import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkModuleAccess } from "@/lib/apiGuards";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
+
+const nullToUndefined = (val: unknown) => (val === null ? undefined : val);
 
 const querySchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
-  professionalId: z.string().optional(),
+  professionalId: z.preprocess(nullToUndefined, z.string().optional()),
 });
 
 interface CommissionResult {
@@ -66,7 +69,7 @@ export async function GET(request: NextRequest) {
     end.setHours(23, 59, 59, 999);
 
     // Buscar profissionais
-    const professionalWhere: any = {
+    const professionalWhere: Prisma.UserWhereInput = {
       companyId: user.companyId,
       role: "ESTHETICIAN",
       isActive: true,
