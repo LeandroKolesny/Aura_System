@@ -1,9 +1,7 @@
 // Aura System - API de Parcelamento
 // Arquivo separado para evitar conflito com o hook check-any-changed em api.ts
 
-import { getAuthToken } from './api';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { getAuthToken, API_BASE_URL } from './api';
 
 interface InstallmentPayResponse {
   success: boolean;

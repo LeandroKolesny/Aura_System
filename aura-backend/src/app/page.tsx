@@ -1,9 +1,11 @@
+import { SAAS_COMPANY_NAME } from "@/lib/constants";
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center">
       <div className="text-center text-white">
         <h1 className="text-6xl font-bold mb-4">
-          🌟 Aura System
+          🌟 {SAAS_COMPANY_NAME}
         </h1>
         <p className="text-xl text-purple-200 mb-8">
           Backend API - Sistema de Gestão Inteligente

@@ -89,7 +89,7 @@ const Patients: React.FC = () => {
                   <tr key={patient.id} className="hover:bg-slate-50/60 transition-colors group">
                     <td className="px-6 py-4">
                       <Link to={`/patients/${patient.id}`} className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatar.bg} flex items-center justify-center font-bold text-xs ${avatar.text} flex-shrink-0 shadow-sm`}>
+                        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatar.bg} flex items-center justify-center font-bold text-xs ${avatar.text} shrink-0 shadow-sm`}>
                           {getAvatarInitials(patient.name)}
                         </div>
                         <div>
@@ -175,7 +175,7 @@ const Patients: React.FC = () => {
       </div>
 
       {!isOwner && (
-        <div className="grid grid-cols-3 gap-2 lg:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-4">
           <KPICard title="Total de Pacientes" value={totalPatients} icon={Users} variant="default" size="sm" />
           <KPICard title="Pacientes Ativos" value={activePatients} icon={UserCheck} variant="success" size="sm" />
           <KPICard title="Com Visita Registrada" value={withVisitPatients} icon={History} variant="primary" size="sm" subtitle={`${totalPatients > 0 ? Math.round((withVisitPatients / totalPatients) * 100) : 0}% do total`} />

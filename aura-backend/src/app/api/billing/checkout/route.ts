@@ -8,6 +8,7 @@ import {
   createSubscription,
   getSubscriptionPayments,
 } from '@/lib/asaas';
+import { SAAS_COMPANY_NAME } from '@/lib/constants';
 
 // Mapa SaasPlan.name → Company.plan enum
 const PLAN_NAME_MAP: Record<string, string> = {
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
       billingType: 'UNDEFINED',
       value: Number(saasPlan.price),
       nextDueDate: nextDueDateStr,
-      description: `Aura System — Plano ${saasPlan.displayName ?? saasPlan.name}`,
+      description: `${SAAS_COMPANY_NAME} — Plano ${saasPlan.displayName ?? saasPlan.name}`,
       externalReference: planEnum,
     });
 

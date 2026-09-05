@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { GoogleGenAI } from "@google/genai";
+import { SAAS_COMPANY_NAME } from "@/lib/constants";
 
 // Lazy initialization
 let ai: GoogleGenAI | null = null;
@@ -177,7 +178,7 @@ export async function POST(request: NextRequest) {
         const scenario = sanitizeInput(data.scenario);
 
         if (!aiInstance) {
-          message = `Olá equipe ${clinicName}, entre em contato conosco sobre o plano ${planName}. - Aura System`;
+          message = `Olá equipe ${clinicName}, entre em contato conosco sobre o plano ${planName}. - ${SAAS_COMPANY_NAME}`;
         } else {
           let promptContext = "";
           switch (scenario) {
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest) {
           }
 
           const prompt = `
-            Aja como um Gerente de Contas do software "Aura System".
+            Aja como um Gerente de Contas do software "${SAAS_COMPANY_NAME}".
             Gere APENAS o texto de uma mensagem curta de WhatsApp.
 
             Dados:

@@ -4,12 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, RefreshCw, Clock, CheckCircle } from 'lucide-react';
 import { useClinic } from '../../context/ClinicContext';
 import { getPortalBasePath, getClinicSlug } from '../../utils/subdomain';
-import { getAuthToken } from '../../services/api';
+import { getAuthToken, API_BASE_URL } from '../../services/api';
 import { PlanCard, PlanForCard, PlanStatus } from '../../components/patient-portal/PlanCard';
 import { PlanContractModal } from '../../components/patient-portal/PlanContractModal';
 import { PlanHistoryDrawer } from '../../components/patient-portal/PlanHistoryDrawer';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface SubscriptionItem {
   procedureId: string;

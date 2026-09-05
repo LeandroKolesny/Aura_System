@@ -6,6 +6,7 @@ import {
 import { kingApi } from '../../services/api';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../utils/formatUtils';
+import { SAAS_COMPANY_NAME } from '../../constants';
 import { useNavigate } from 'react-router-dom';
 
 interface GlobalStats {
@@ -126,7 +127,7 @@ const KingDashboard: React.FC = () => {
           <h1 className="font-serif text-3xl font-bold text-slate-900">
             King Dashboard
           </h1>
-          <p className="text-slate-500 mt-1">Visão global do Aura System</p>
+          <p className="text-slate-500 mt-1">Visão global do {SAAS_COMPANY_NAME}</p>
         </div>
         <button
           onClick={loadStats}

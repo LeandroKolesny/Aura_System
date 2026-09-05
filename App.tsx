@@ -10,6 +10,7 @@ import { UserRole } from './types';
 import { AlertTriangle, Menu, Loader2 } from 'lucide-react';
 import { SubscriptionModal } from './components/Modals';
 import AuraLogo from './components/AuraLogo';
+import { SAAS_COMPANY_NAME } from './constants';
 
 // Todas as páginas além da Landing são carregadas sob demanda (por rota),
 // para o visitante da landing não baixar o código do app inteiro.
@@ -116,7 +117,7 @@ const PrivateLayout: React.FC = () => {
           >
             <Menu className="w-5 h-5 text-slate-700" />
           </button>
-          <span className="font-semibold text-sm text-slate-800 truncate max-w-[160px]">{currentCompany?.name || 'Aura System'}</span>
+          <span className="font-semibold text-sm text-slate-800 truncate max-w-[160px]">{currentCompany?.name || SAAS_COMPANY_NAME}</span>
           {/* Avatar do usuário */}
           <div className="min-h-[44px] min-w-[44px] flex items-center justify-center">
             <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">

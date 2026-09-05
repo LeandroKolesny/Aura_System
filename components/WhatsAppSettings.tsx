@@ -4,6 +4,7 @@ import { whatsappApi } from '../services/api'
 import { useApp } from '../context/AppContext'
 import { useDialog } from '../context/DialogContext'
 import { UserRole } from '../types'
+import { SAAS_COMPANY_NAME } from '../constants'
 
 type WaStatus = 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING'
 
@@ -193,7 +194,7 @@ const WhatsAppSettings: React.FC = () => {
                   <div className="text-xs text-amber-800 space-y-1">
                     <p className="font-semibold">Use um número dedicado exclusivo para esta função.</p>
                     <p>Não utilize seu número pessoal ou comercial principal.</p>
-                    <p>O Aura System <strong>não se responsabiliza</strong> por eventual bloqueio do WhatsApp neste número.</p>
+                    <p>O {SAAS_COMPANY_NAME} <strong>não se responsabiliza</strong> por eventual bloqueio do WhatsApp neste número.</p>
                   </div>
                 </div>
               </div>

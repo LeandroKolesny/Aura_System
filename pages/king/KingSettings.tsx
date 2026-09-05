@@ -8,6 +8,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { SaasPlan, Company } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatUtils';
+import { SAAS_COMPANY_NAME } from '../../constants';
 import { useDialog } from '../../context/DialogContext';
 import { systemApi } from '../../services/api';
 
@@ -293,7 +294,7 @@ const KingSettings: React.FC = () => {
             <Settings className="w-8 h-8 text-slate-500" />
             Configuracoes do Sistema
           </h1>
-          <p className="text-slate-500 mt-1">Gerencie as configuracoes globais do Aura System</p>
+          <p className="text-slate-500 mt-1">Gerencie as configuracoes globais do {SAAS_COMPANY_NAME}</p>
         </div>
         {activeTab !== 'plans' && (
           <button
@@ -451,7 +452,7 @@ const KingSettings: React.FC = () => {
                 </div>
 
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-amber-700">
-                  <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                  <AlertTriangle className="w-5 h-5 shrink-0" />
                   <span className="text-sm">Alteracoes nos precos afetarao apenas novas assinaturas. Clientes existentes manterao os valores atuais.</span>
                 </div>
 
@@ -494,7 +495,7 @@ const KingSettings: React.FC = () => {
                       <ul className="space-y-2 mb-4">
                         {plan.features.slice(0, 4).map((feat, i) => (
                           <li key={i} className="flex items-center gap-2 text-sm text-slate-600">
-                            <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                             <span className="truncate">{feat}</span>
                           </li>
                         ))}
@@ -691,7 +692,7 @@ const KingSettings: React.FC = () => {
           {/* ============ ABA APARENCIA ============ */}
           {activeTab === 'appearance' && (
             <div className="space-y-6">
-              <p className="text-sm text-slate-600">Personalize a aparencia global do Aura System.</p>
+              <p className="text-sm text-slate-600">Personalize a aparencia global do {SAAS_COMPANY_NAME}.</p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -731,7 +732,7 @@ const KingSettings: React.FC = () => {
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg"></div>
                     <div>
-                      <p className="font-bold text-slate-800">Aura System</p>
+                      <p className="font-bold text-slate-800">{SAAS_COMPANY_NAME}</p>
                       <p className="text-xs text-slate-500">Gestao para clinicas de estetica</p>
                     </div>
                   </div>
@@ -772,7 +773,7 @@ const KingSettings: React.FC = () => {
                   onClick={() => handleChangePlan(plan.id)}
                   className={`w-full p-4 border rounded-xl flex items-center justify-between group transition-all text-left ${
                     planChangeModal.company?.plan === plan.id
-                      ? 'border-amber-500 bg-white ring-2 ring-amber-500 ring-opacity-20'
+                      ? 'border-amber-500 bg-white ring-2 ring-amber-500/20'
                       : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/30'
                   }`}
                 >

@@ -327,7 +327,7 @@ const Plans: React.FC = () => {
                               onClick={() => handleChangePlan(plan.id)}
                               className={`w-full p-4 border rounded-xl flex items-center justify-between group transition-all text-left
                                   ${planChangeModal.company?.plan === plan.id 
-                                      ? 'border-primary-500 bg-white ring-2 ring-primary-500 ring-opacity-10' 
+                                      ? 'border-primary-500 bg-white ring-2 ring-primary-500/10'
                                       : 'border-slate-200 bg-white hover:border-primary-300 hover:bg-primary-50/30'}
                               `}
                           >

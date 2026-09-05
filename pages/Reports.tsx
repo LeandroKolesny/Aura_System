@@ -47,7 +47,7 @@ const ModernRankingCard: React.FC<{
   <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
     <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
       <div className="flex items-center gap-2.5">
-        <div className={`p-2 rounded-lg ${accentColor} bg-opacity-10`}>
+        <div className={`p-2 rounded-lg ${accentColor}/10`}>
           <Icon className={`w-4 h-4 ${accentColor.replace('bg-', 'text-')}`} />
         </div>
         <h3 className="font-semibold text-slate-800">{title}</h3>

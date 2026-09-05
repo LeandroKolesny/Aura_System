@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { kingApi, plansApi } from '../../services/api';
 import { formatCurrency } from '../../utils/formatUtils';
+import { SAAS_COMPANY_NAME } from '../../constants';
 
 interface Company {
   id: string;
@@ -156,7 +157,7 @@ const KingRevenue: React.FC = () => {
       // Planos vêm como array direto ou dentro de data
       const plansData = plansRes.data as unknown as SaasPlan[] | { plans: SaasPlan[] };
       if (plansRes.success && plansData) {
-        const plans = Array.isArray(plansData) ? plansData : (plansData as any).plans || [];
+        const plans = Array.isArray(plansData) ? plansData : (plansData as { plans: SaasPlan[] }).plans || [];
         setSaasPlans(plans);
         console.log('✅ Planos carregados do banco:', plans.length);
       }
@@ -244,7 +245,7 @@ const KingRevenue: React.FC = () => {
             <DollarSign className="w-8 h-8 text-emerald-500" />
             Receita e Assinaturas
           </h1>
-          <p className="text-slate-500 mt-1">Visão financeira das assinaturas do Aura System</p>
+          <p className="text-slate-500 mt-1">Visão financeira das assinaturas do {SAAS_COMPANY_NAME}</p>
         </div>
         <button
           onClick={loadData}

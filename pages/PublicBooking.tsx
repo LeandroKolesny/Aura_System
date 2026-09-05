@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight, CheckCircle, Star, LogOut, Clock, Calendar a
 type CSSWithVars = React.CSSProperties & Record<string, string | number | undefined>;
 import { maskPhone } from '../utils/maskUtils';
 import { formatCurrency } from '../utils/formatUtils';
-import { publicApi, appointmentsApi, publicBookingApi, getAuthToken } from '../services/api';
+import { publicApi, appointmentsApi, publicBookingApi, getAuthToken, API_BASE_URL } from '../services/api';
 import { PlanProcedurePickerModal } from '../components/patient-portal/PlanProcedurePickerModal';
 import { PlanContractModal } from '../components/patient-portal/PlanContractModal';
 
@@ -147,7 +147,6 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
       // Fetch patient's own subscriptions if logged in as patient
       if (user?.role === UserRole.PATIENT) {
         const token = getAuthToken();
-        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         try {
           const r = await fetch(`${API_BASE_URL}/api/subscriptions/patients/my`, {
             headers: { Authorization: token ? `Bearer ${token}` : '' },
@@ -395,7 +394,6 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
 
   const handleContractAndBook = async (plan: PlanForBooking) => {
     const token = getAuthToken();
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     const res = await fetch(`${API_BASE_URL}/api/subscriptions/patients/self`, {
       method: 'POST',
       headers: {

@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { createHash } from 'crypto';
+import { SAAS_COMPANY_NAME } from './constants';
 
 // Lazy initialization — avoids build-time error when RESEND_API_KEY is not set
 function getResend(): Resend {
@@ -8,14 +9,14 @@ function getResend(): Resend {
   return new Resend(key);
 }
 
-const FROM = 'Aura System <noreply@aura-system.com.br>';
+const FROM = `${SAAS_COMPANY_NAME} <noreply@aura-system.com.br>`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://aura-system-mu.vercel.app';
 const TERMS_VERSION = '1.0';
 
 // Texto exibido ao usuário no momento do aceite dos Termos de Uso
 // SHA-256 grava a prova de qual conteúdo estava vigente quando a pessoa aceitou
 const TERMS_TEXT =
-  `Termos de Uso e Política de Privacidade do Aura System versão ${TERMS_VERSION}. ` +
+  `Termos de Uso e Política de Privacidade do ${SAAS_COMPANY_NAME} versão ${TERMS_VERSION}. ` +
   'Ao se cadastrar, você concorda com o tratamento dos seus dados conforme a LGPD ' +
   'e com os Termos de Uso disponíveis em /terms-of-use.';
 const TERMS_TEXT_HASH = createHash('sha256').update(TERMS_TEXT).digest('hex');
@@ -38,7 +39,7 @@ function baseTemplate(title: string, body: string): string {
         <!-- Header -->
         <tr>
           <td style="background:linear-gradient(135deg,#bd7b65,#8b5a47);padding:32px 40px;text-align:center;">
-            <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">✦ Aura System</h1>
+            <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">✦ ${SAAS_COMPANY_NAME}</h1>
             <p style="margin:6px 0 0;color:rgba(255,255,255,0.75);font-size:13px;">Gestão Premium para Clínicas de Estética</p>
           </td>
         </tr>
@@ -52,7 +53,7 @@ function baseTemplate(title: string, body: string): string {
         <tr>
           <td style="background:#fdfcfb;padding:24px 40px;border-top:1px solid #f0e8e0;text-align:center;">
             <p style="margin:0;color:#a09890;font-size:12px;">
-              © ${new Date().getFullYear()} Aura System · Todos os direitos reservados<br/>
+              © ${new Date().getFullYear()} ${SAAS_COMPANY_NAME} · Todos os direitos reservados<br/>
               <a href="${APP_URL}/termos-de-uso" style="color:#bd7b65;text-decoration:none;">Termos de Uso</a> ·
               <a href="${APP_URL}/politica-de-privacidade" style="color:#bd7b65;text-decoration:none;">Política de Privacidade</a>
             </p>
@@ -74,10 +75,10 @@ function btn(href: string, text: string): string {
 // ── Email: verificação de conta ─────────────────────────────────────────────
 export async function sendVerificationEmail(to: string, name: string, token: string) {
   const link = `${APP_URL}/verificar-email?token=${token}`;
-  const html = baseTemplate('Confirme seu email — Aura System', `
+  const html = baseTemplate(`Confirme seu email — ${SAAS_COMPANY_NAME}`, `
     <h2 style="margin:0 0 8px;color:#1c1917;font-size:22px;">Olá, ${name}! 👋</h2>
     <p style="margin:0 0 16px;color:#57534e;font-size:15px;line-height:1.6;">
-      Sua conta no <strong>Aura System</strong> foi criada com sucesso.<br/>
+      Sua conta no <strong>${SAAS_COMPANY_NAME}</strong> foi criada com sucesso.<br/>
       Para ativar o acesso, confirme seu email clicando no botão abaixo:
     </p>
     ${btn(link, 'Confirmar meu email →')}
@@ -92,17 +93,17 @@ export async function sendVerificationEmail(to: string, name: string, token: str
     </p>
   `);
 
-  return getResend().emails.send({ from: FROM, to, subject: '✦ Confirme seu email — Aura System', html });
+  return getResend().emails.send({ from: FROM, to, subject: `✦ Confirme seu email — ${SAAS_COMPANY_NAME}`, html });
 }
 
 // ── Email: reset de senha ────────────────────────────────────────────────────
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
   const link = `${APP_URL}/redefinir-senha?token=${token}`;
-  const html = baseTemplate('Redefinição de senha — Aura System', `
+  const html = baseTemplate(`Redefinição de senha — ${SAAS_COMPANY_NAME}`, `
     <h2 style="margin:0 0 8px;color:#1c1917;font-size:22px;">Redefinir senha</h2>
     <p style="margin:0 0 16px;color:#57534e;font-size:15px;line-height:1.6;">
       Olá, <strong>${name}</strong>.<br/>
-      Recebemos uma solicitação para redefinir a senha da sua conta Aura System.<br/>
+      Recebemos uma solicitação para redefinir a senha da sua conta ${SAAS_COMPANY_NAME}.<br/>
       Clique no botão abaixo para criar uma nova senha:
     </p>
     ${btn(link, 'Redefinir minha senha →')}
@@ -119,7 +120,7 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
     </p>
   `);
 
-  return getResend().emails.send({ from: FROM, to, subject: '🔑 Redefinição de senha — Aura System', html });
+  return getResend().emails.send({ from: FROM, to, subject: `🔑 Redefinição de senha — ${SAAS_COMPANY_NAME}`, html });
 }
 
 // ── Email: novo agendamento (para o admin) ──────────────────────────────────
@@ -133,7 +134,7 @@ export async function sendNewAppointmentEmail(
   clinicSlug: string,
 ) {
   const link = `${APP_URL}/dashboard`;
-  const html = baseTemplate('Novo agendamento solicitado — Aura System', `
+  const html = baseTemplate(`Novo agendamento solicitado — ${SAAS_COMPANY_NAME}`, `
     <h2 style="margin:0 0 8px;color:#1c1917;font-size:22px;">Novo agendamento! 📅</h2>
     <p style="margin:0 0 20px;color:#57534e;font-size:15px;line-height:1.6;">
       Olá, <strong>${adminName}</strong>! Um novo agendamento foi solicitado e aguarda sua aprovação.
@@ -175,7 +176,7 @@ export async function sendAppointmentConfirmedEmail(
   dateStr: string,
   timeStr: string,
 ) {
-  const html = baseTemplate('Agendamento confirmado — Aura System', `
+  const html = baseTemplate(`Agendamento confirmado — ${SAAS_COMPANY_NAME}`, `
     <div style="text-align:center;margin-bottom:24px;">
       <div style="display:inline-block;background:#dcfce7;border-radius:50%;width:64px;height:64px;line-height:64px;font-size:32px;">✅</div>
     </div>

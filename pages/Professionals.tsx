@@ -109,7 +109,7 @@ const Professionals: React.FC = () => {
                 <tr key={prof.id} className="hover:bg-slate-50/60 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center font-bold text-xs text-white flex-shrink-0 shadow-sm`}>
+                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-sm`}>
                         {getAvatarInitials(prof.name)}
                       </div>
                       <div>
@@ -202,7 +202,7 @@ const Professionals: React.FC = () => {
       </div>
 
       {!isOwner && (
-        <div className="grid grid-cols-3 gap-2 lg:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-4">
           <KPICard title="Total da Equipe" value={totalTeam} icon={Users} variant="default" size="sm" />
           <KPICard title="Esteticistas" value={estheticians} icon={UserCheck} variant="primary" size="sm" />
           <KPICard title="Comissão Média" value={`${avgCommission}%`} icon={TrendingUp} variant="success" size="sm" subtitle={`${commissionBased.length} por comissão`} />

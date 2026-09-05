@@ -10,12 +10,13 @@ import {
   deleteInstance,
   setWebhook,
 } from "@/lib/whatsapp"
+import { SAAS_COMPANY_NAME } from "@/lib/constants"
 
 // Texto exibido ao usuário no momento do aceite — hash SHA-256 grava a prova do conteúdo
 const TERMS_TEXT =
   "Use um número dedicado exclusivo para esta função. " +
   "Não utilize seu número pessoal ou comercial principal. " +
-  "O Aura System não se responsabiliza por eventual bloqueio do WhatsApp neste número."
+  `O ${SAAS_COMPANY_NAME} não se responsabiliza por eventual bloqueio do WhatsApp neste número.`
 
 const TERMS_HASH = createHash("sha256").update(TERMS_TEXT).digest("hex")
 

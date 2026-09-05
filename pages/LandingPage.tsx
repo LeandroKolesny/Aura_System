@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, useMotionValue, useTransform, animate, useInView } from 'framer-motion';
 import AuraLogo from '../components/AuraLogo';
+import { SAAS_COMPANY_NAME } from '../constants';
 
 const LandingDemoPlayer = React.lazy(() => import('../components/LandingDemoPlayer'));
 const demoPlayerFallback = (
@@ -336,7 +337,12 @@ const LandingPage: React.FC = () => {
                 <Link to="/login" className="lp-btn-solid" style={{ padding: '0.75rem 1.75rem' }}>Teste Grátis</Link>
               </div>
               <div className="md:hidden">
-                <button onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ color: S.ink, background: 'none', border: 'none', cursor: 'pointer' }}>
+                <button
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  style={{ color: S.ink, background: 'none', border: 'none', cursor: 'pointer' }}
+                  aria-label={isMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+                >
                   {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
               </div>
@@ -344,13 +350,13 @@ const LandingPage: React.FC = () => {
           </div>
           {isMenuOpen && (
             <div className="md:hidden absolute w-full shadow-2xl p-8" style={{ background: S.cream, borderTop: `1px solid ${S.border}` }}>
-              <div className="flex flex-col gap-6 text-center">
+              <div className="flex flex-col gap-2 text-center">
                 {[['Funcionalidades', 'features'], ['Calculadora', 'roi'], ['Planos', 'plans'], ['Dúvidas', 'faq']].map(([label, id]) => (
-                  <button key={id} onClick={() => scrollToSection(id)} className="lp-nav-link">{label}</button>
+                  <button key={id} onClick={() => scrollToSection(id)} className="lp-nav-link min-h-[44px] flex items-center justify-center">{label}</button>
                 ))}
-                <div className="flex flex-col gap-4 pt-6" style={{ borderTop: `1px solid ${S.border}` }}>
-                  <Link to="/login" className="lp-nav-link" style={{ fontWeight: 600 }}>Entrar</Link>
-                  <Link to="/login" className="lp-btn-solid" style={{ justifyContent: 'center' }}>Criar Conta Grátis</Link>
+                <div className="flex flex-col gap-3 pt-4" style={{ borderTop: `1px solid ${S.border}` }}>
+                  <Link to="/login" className="lp-nav-link min-h-[44px] flex items-center justify-center" style={{ fontWeight: 600 }}>Entrar</Link>
+                  <Link to="/login" className="lp-btn-solid min-h-[44px]" style={{ justifyContent: 'center' }}>Criar Conta Grátis</Link>
                 </div>
               </div>
             </div>
@@ -661,7 +667,7 @@ const LandingPage: React.FC = () => {
             <div className="text-center mb-16 reveal">
               <span className="sec-label">Realidade vs Transformação</span>
               <h2 style={{ ...serif('clamp(2rem,4vw,3.2rem)', 700), color: S.ink, lineHeight: 1.2 }}>
-                Antes vs Depois do <em style={{ color: S.rose }}>Aura System</em>
+                Antes vs Depois do <em style={{ color: S.rose }}>{SAAS_COMPANY_NAME}</em>
               </h2>
               <p style={{ ...sans('0.92rem', 300), color: S.muted, marginTop: '0.9rem' }}>
                 Veja a diferença clara na rotina de quem profissionalizou a gestão.
@@ -694,7 +700,7 @@ const LandingPage: React.FC = () => {
                 </div>
                 <div className="p-9 md:p-12 relative" style={{ background: S.white }}>
                   <div style={{ position: 'absolute', top: 0, right: 0, background: S.rose, color: S.white, fontSize: '0.52rem', fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', padding: '0.3rem 0.85rem' }}>
-                    Aura System
+                    {SAAS_COMPANY_NAME}
                   </div>
                   <h3 className="flex items-center gap-2 mb-8" style={{ ...sans('0.62rem', 700), letterSpacing: '0.22em', textTransform: 'uppercase', color: S.rose }}>
                     <CheckCircle className="w-4 h-4" /> Depois — Com Aura
@@ -917,7 +923,7 @@ const LandingPage: React.FC = () => {
               ))}
             </div>
             <div className="pt-12 border-t" style={{ borderColor: '#2a2420', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '2rem' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.85rem', color: S.darkFaint }}>© 2026 Aura System. Todos os direitos reservados.</p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.85rem', color: S.darkFaint }}>© 2026 {SAAS_COMPANY_NAME}. Todos os direitos reservados.</p>
               <div className="flex items-center gap-2">
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2b9e5e' }} />
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.85rem', color: S.darkFaint }}>Sistemas Operacionais</span>

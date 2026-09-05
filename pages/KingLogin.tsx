@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ArrowRight, Lock, User, ArrowLeft, Crown, AlertTriangle } from 'lucide-react';
 import AuraLogo from '../components/AuraLogo';
+import { SAAS_COMPANY_NAME } from '../constants';
 import { UserRole } from '../types';
 
 const KingLogin: React.FC = () => {
@@ -73,7 +74,7 @@ const KingLogin: React.FC = () => {
              Acesso King
            </h1>
            <p className="text-slate-400 text-sm">
-             Painel Administrativo Master do Aura System.
+             Painel Administrativo Master do {SAAS_COMPANY_NAME}.
            </p>
         </div>
 

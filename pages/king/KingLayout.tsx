@@ -1,24 +1,23 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import {
   Crown, LayoutDashboard, Building, Users, CalendarCheck,
   DollarSign, Settings, LogOut, Bell, ChevronRight, Target, Megaphone, Menu, X
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
+import { SAAS_COMPANY_NAME } from '../../constants';
 
 const KingLayout: React.FC = () => {
-  const { user, logout, newLeadsCount } = useApp();
+  const { user, logout, newLeadsCount, isInitializing } = useApp();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  React.useEffect(() => {
-    if (user && user.role !== UserRole.OWNER) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
-
-  if (!user || user.role !== UserRole.OWNER) {
+  // Enquanto a sessão ainda está sendo restaurada (ex: logo após um F5), mostra
+  // o loading. Uma vez resolvido, decide de forma definitiva — nunca fica preso
+  // aqui pra sempre: sem sessão vai pro login do King, sessão de outro role vai
+  // pro dashboard normal.
+  if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -27,6 +26,14 @@ const KingLayout: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return <Navigate to="/king" replace />;
+  }
+
+  if (user.role !== UserRole.OWNER) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleLogout = async () => {
@@ -167,7 +174,7 @@ const KingLayout: React.FC = () => {
         <header className="hidden lg:block bg-[#FDFBF8] border-b border-amber-100/60 px-8 py-4 sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-amber-600/70 uppercase tracking-[0.2em] font-medium">Aura System</p>
+              <p className="text-[10px] text-amber-600/70 uppercase tracking-[0.2em] font-medium">{SAAS_COMPANY_NAME}</p>
               <h2 className="font-serif text-xl font-bold text-slate-900">Painel Administrativo Master</h2>
             </div>
             <div className="flex items-center gap-4">

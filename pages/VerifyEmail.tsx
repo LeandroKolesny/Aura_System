@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-react';
 import AuraLogo from '../components/AuraLogo';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { SAAS_COMPANY_NAME } from '../constants';
+import { API_BASE_URL as API_URL } from '../services/api';
 
 type Status = 'loading' | 'success' | 'error' | 'idle';
 
@@ -65,7 +65,7 @@ const VerifyEmail: React.FC = () => {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <AuraLogo className="w-8 h-8" />
-            <span className="text-xl font-bold text-[#1c1917]">Aura System</span>
+            <span className="text-xl font-bold text-[#1c1917]">{SAAS_COMPANY_NAME}</span>
           </div>
           <p className="text-sm text-[#a09890]">Gestão Premium para Clínicas de Estética</p>
         </div>

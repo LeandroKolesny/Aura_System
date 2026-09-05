@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Shield, Lock, CreditCard, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import AuraLogo from '../components/AuraLogo';
+import { SAAS_COMPANY_NAME } from '../constants';
 
 const StripeCheckoutMock: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
@@ -59,7 +60,7 @@ const StripeCheckoutMock: React.FC = () => {
 
              <div className="flex items-center gap-3 mb-6 text-slate-400">
                  <AuraLogo className="w-8 h-8 opacity-50 grayscale" /> 
-                 <span className="font-semibold">Aura System Inc.</span>
+                 <span className="font-semibold">{SAAS_COMPANY_NAME} Inc.</span>
              </div>
 
              <div className="mb-8">

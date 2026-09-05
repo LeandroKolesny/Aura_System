@@ -192,7 +192,7 @@ const Schedule: React.FC = () => {
                     <div className={`bg-white/90 px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5 border ${isGoogleBlock ? 'border-blue-200' : 'border-red-100'}`}>
                       {isGoogleBlock ? (
                         <>
-                          <svg className="w-3 h-3 flex-shrink-0 text-blue-600" viewBox="0 0 24 24" fill="none">
+                          <svg className="w-3 h-3 shrink-0 text-blue-600" viewBox="0 0 24 24" fill="none">
                             <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
                             <path d="M3 9h18" stroke="currentColor" strokeWidth="1.5"/>
                             <path d="M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -342,12 +342,12 @@ const Schedule: React.FC = () => {
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
-                <button onClick={() => changeDate(-1)} className="p-2 hover:bg-slate-100 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-600" /></button>
+                <button onClick={() => changeDate(-1)} className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-600" /></button>
                 <div className="relative group cursor-pointer">
                     <div className="flex items-center gap-2 text-slate-800 font-bold text-lg"><CalendarIcon className="w-5 h-5 text-primary-600" /><span className="capitalize">{selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' })}</span></div>
                     <input type="date" className="custom-date-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleDateSelect} value={dateInputValue} />
                 </div>
-                <button onClick={() => changeDate(1)} className="p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="w-5 h-5 text-slate-600" /></button>
+                <button onClick={() => changeDate(1)} className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-slate-100 rounded-full"><ChevronRight className="w-5 h-5 text-slate-600" /></button>
                 <button onClick={() => setSelectedDate(new Date())} className="text-xs font-medium text-primary-600 hover:underline ml-2">Hoje</button>
             </div>
             {!isPatient && (

@@ -4,6 +4,7 @@
 import prisma from '@/lib/prisma';
 import { refreshAccessToken } from '@/lib/google';
 import { encrypt, decrypt } from '@/lib/crypto';
+import { SAAS_COMPANY_NAME } from '@/lib/constants';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 export const AURA_SOURCE_TAG = 'aura-system';
@@ -64,7 +65,7 @@ function buildEventBody(appointment: {
       `Procedimento: ${appointment.procedureName}`,
       appointment.notes ? `Observações: ${appointment.notes}` : null,
       '---',
-      'Agendamento via Aura System',
+      `Agendamento via ${SAAS_COMPANY_NAME}`,
     ].filter(Boolean).join('\n'),
     start: { dateTime: start.toISOString() },
     end: { dateTime: end.toISOString() },

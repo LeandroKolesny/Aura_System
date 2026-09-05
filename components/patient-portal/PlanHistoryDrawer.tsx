@@ -1,9 +1,7 @@
 // components/patient-portal/PlanHistoryDrawer.tsx
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, User, CheckCircle, Clock, ImageIcon } from 'lucide-react';
-import { getAuthToken } from '../../services/api';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { getAuthToken, API_BASE_URL } from '../../services/api';
 
 interface AppointmentHistory {
   id: string;

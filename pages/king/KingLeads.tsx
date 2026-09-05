@@ -10,6 +10,7 @@ import { maskPhone } from '../../utils/maskUtils';
 import { formatCurrency } from '../../utils/formatUtils';
 import { companiesApi, kingApi } from '../../services/api';
 import { useDialog } from '../../context/DialogContext';
+import { SAAS_COMPANY_NAME } from '../../constants';
 
 interface Column {
   id: LeadStatus;
@@ -44,7 +45,7 @@ const LOST_REASONS = [
 function buildWhatsAppUrl(lead: Lead): string {
   const digits = lead.phone.replace(/\D/g, '');
   const phone = digits.startsWith('55') ? digits : `55${digits}`;
-  const text = `Olá, ${lead.contactName}! 👋\nAqui é da equipe Aura System. Vi que ${lead.clinicName} se cadastrou na nossa plataforma.\nGostaria de entender melhor as suas necessidades e mostrar como podemos ajudar a gestão da sua empresa. Tem um minutinho para conversar?`;
+  const text = `Olá, ${lead.contactName}! 👋\nAqui é da equipe ${SAAS_COMPANY_NAME}. Vi que ${lead.clinicName} se cadastrou na nossa plataforma.\nGostaria de entender melhor as suas necessidades e mostrar como podemos ajudar a gestão da sua empresa. Tem um minutinho para conversar?`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 

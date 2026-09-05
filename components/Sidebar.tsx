@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, Calendar, DollarSign, Settings, LogOut, Syringe
 import { useApp } from '../context/AppContext';
 import { UserRole, SystemModule } from '../types';
 import AuraLogo from './AuraLogo';
+import { SAAS_COMPANY_NAME } from '../constants';
 
 interface SidebarProps {
   isMobileOpen?: boolean;
@@ -106,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
                         user?.role === UserRole.ESTHETICIAN ? 'Profissional' : '';
 
   const isPatient = user?.role === UserRole.PATIENT;
-  const brandingName = isPatient ? (currentCompany?.name || "Minha Clínica") : "Aura System";
+  const brandingName = isPatient ? (currentCompany?.name || "Minha Clínica") : SAAS_COMPANY_NAME;
   const patientPrimaryColor = currentCompany?.layoutConfig?.primaryColor || '#bd7b65';
   const sidebarStyle = isPatient ? { backgroundColor: patientPrimaryColor } : {};
 
@@ -222,7 +223,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen = false, onMobileClose }
                   }`}
                   style={active && isPatient ? { color: patientPrimaryColor } : {}}
                 >
-                  <item.icon className={`w-4 h-4 lg:w-4 lg:h-4 flex-shrink-0 transition-colors ${
+                  <item.icon className={`w-4 h-4 lg:w-4 lg:h-4 shrink-0 transition-colors ${
                     active
                       ? (isPatient ? '' : 'text-white')
                       : item.path === '/subscriptions' && pendingSubscriptionsCount > 0

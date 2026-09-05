@@ -1,7 +1,12 @@
 // Aura System - API Service
 // Integração com o backend Next.js
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Em produção, usamos caminho relativo (mesma origem) — o vercel.json reescreve
+// /api/* para o backend por trás dos panos. Isso faz o navegador tratar frontend
+// e backend como o mesmo site, evitando o bloqueio de cookies de terceiros que
+// impedia o cookie de sessão (aura_session) de sobreviver a um recarregamento de página.
+// Em dev, continua batendo direto no backend local (VITE_API_URL ou localhost:3001).
+export const API_BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001');
 
 // In-memory token storage (XSS-safe — not persisted to localStorage)
 let _memoryToken: string | null = null;
