@@ -368,11 +368,13 @@ describe('createPatientSchema', () => {
       }
     })
 
-    it('CPF "123.456.789-09" → success (algorithm accepts it as valid checksum)', () => {
-      // Despite the task description listing this as "wrong checksum", running the
-      // algorithm shows isValidCPF('123.456.789-09') === true. Tests match real behavior.
+    it('CPF "123.456.789-09" → fails (well-known placeholder CPF, blacklisted by cpf-cnpj-validator)', () => {
+      // Passa no cálculo de dígito verificador, mas é um CPF-modelo amplamente
+      // usado como dado de teste/preenchimento falso — a lib cpf-cnpj-validator
+      // rejeita esse e outros CPFs "óbvios" mesmo com checksum válido, o que é
+      // mais correto que o algoritmo manual anterior (que só bloqueava dígitos repetidos).
       const result = createPatientSchema.safeParse({ ...baseInput, cpf: '123.456.789-09' })
-      expect(result.success).toBe(true)
+      expect(result.success).toBe(false)
     })
 
     it('CPF with wrong format missing check digits "529.982.247" → fails (length != 11 after clean)', () => {

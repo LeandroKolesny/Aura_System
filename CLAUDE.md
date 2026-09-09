@@ -158,6 +158,14 @@ Os seguintes utilitários e sistemas já existem. Antes de escrever qualquer có
 **Frontend — checklist obrigatório antes de `vercel --prod --yes` na raiz:**
 1. `npx tsc --noEmit` — zero erros
 
+## Git Push Rules (OBRIGATÓRIO — sem exceções)
+
+**Nenhuma versão pode subir para o git (push) com testes falhando.**
+- Aplicado via hook `pre-push` do Husky (`.husky/pre-push`), instalado automaticamente em `npm install` (script `prepare`) — roda em QUALQUER `git push`, seja pelo Claude Code ou manualmente pelo terminal.
+- O hook roda `npm run test:unit` (frontend `vitest run` + backend `npm run test:ci`). Se qualquer teste falhar, o push é bloqueado.
+- `git push --no-verify` pula a checagem — usar apenas em emergência real, nunca como atalho de rotina.
+- `test-all.sh --unit-only` também roda frontend + backend (antes só rodava o backend — corrigido).
+
 ## Testing Rules
 
 - Toda nova rota de API ou lógica de negócio exige testes unitários em `aura-backend/src/__tests__/`

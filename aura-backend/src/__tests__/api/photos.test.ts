@@ -170,6 +170,35 @@ describe('POST /api/photos — validação Zod', () => {
     const res = await POST(makePOSTRequest(VALID_BODY))
     expect(res.status).toBe(401)
   })
+
+  // Regressão: o modal de upload do frontend ainda não envia a foto pra um
+  // storage externo — ele converte o arquivo em base64 no navegador e manda
+  // essa string como "url". Antes desse fix, toda tentativa de foto era
+  // rejeitada com 400 porque o schema só aceitava http(s).
+  it('aceita data URL de imagem base64 válida (foto enviada direto do upload)', async () => {
+    vi.mocked(prisma.photoRecord.create).mockResolvedValue(MOCK_PHOTO as unknown as PhotoRecord)
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+    const res = await POST(makePOSTRequest({ ...VALID_BODY, url: dataUrl }))
+    expect(res.status).toBe(201)
+  })
+
+  it('aceita data URL de imagem jpeg/gif/webp', async () => {
+    vi.mocked(prisma.photoRecord.create).mockResolvedValue(MOCK_PHOTO as unknown as PhotoRecord)
+    for (const mime of ['image/jpeg', 'image/gif', 'image/webp']) {
+      const res = await POST(makePOSTRequest({ ...VALID_BODY, url: `data:${mime};base64,QUJD` }))
+      expect(res.status).toBe(201)
+    }
+  })
+
+  it('SECURITY: rejeita data URL com mime type não-imagem (ex: text/html)', async () => {
+    const res = await POST(makePOSTRequest({ ...VALID_BODY, url: 'data:text/html;base64,PHNjcmlwdD4=' }))
+    expect(res.status).toBe(400)
+  })
+
+  it('SECURITY: rejeita data URL com payload não-base64', async () => {
+    const res = await POST(makePOSTRequest({ ...VALID_BODY, url: 'data:image/png,<script>alert(1)</script>' }))
+    expect(res.status).toBe(400)
+  })
 })
 
 // ---------------------------------------------------------------------------

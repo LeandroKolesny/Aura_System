@@ -51,10 +51,13 @@ print_result() {
 }
 
 # ── Testes unitários / integração (Vitest) ────────────────────────────────────
+# Roda frontend (raiz) E backend — faltava o frontend aqui antes, o que dava
+# falsa confiança rodando "--unit-only" (os testes de AppContext/api.ts nunca
+# eram executados por este script, só pelo `npm run test:unit` da raiz).
 if [ "$SKIP_UNIT" = false ]; then
-  print_header "TESTES UNITÁRIOS — Vitest (backend)"
+  print_header "TESTES UNITÁRIOS — Vitest (frontend + backend)"
   START=$(date +%s)
-  if (cd "$BACKEND_DIR" && npm run test:ci 2>&1); then
+  if (cd "$ROOT_DIR" && npx vitest run 2>&1) && (cd "$BACKEND_DIR" && npm run test:ci 2>&1); then
     UNIT_STATUS="PASS"
   else
     UNIT_STATUS="FAIL"

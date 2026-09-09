@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+# =============================================================================
+# pre-push — Bloqueia o push se os testes unitários (frontend + backend) não
+# passarem. Instalado via husky para rodar automaticamente em qualquer
+# `git push`, de qualquer terminal ou sessão (não só quando o Claude Code faz
+# o push) — política do usuário: nenhuma versão nova sobe pro git com
+# testes quebrados.
+# =============================================================================
+
+echo ""
+echo "🧪 Rodando testes obrigatórios antes do push (frontend + backend)..."
+echo ""
+
+npm run test:unit
+
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "❌ Testes falharam — push bloqueado. Corrija os testes antes de tentar novamente."
+  echo "   (Em caso de emergência real, 'git push --no-verify' pula esta checagem — evite usar.)"
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✅ Todos os testes passaram — prosseguindo com o push."
+echo ""
