@@ -8,7 +8,7 @@ import { useDialog } from '../context/DialogContext';
 
 const Plans: React.FC = () => {
   const { saasPlans, updatePlan, addPlan, removePlan, companies, updateCompany } = useApp();
-  const { confirm } = useDialog();
+  const { confirm, showAlert } = useDialog();
   
   // Estado para Modal de Adicionar Tempo
   const [timeModal, setTimeModal] = useState<{ isOpen: boolean; company: Company | null }>({
@@ -46,33 +46,41 @@ const Plans: React.FC = () => {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const handleAddTime = (days: number) => {
+  const handleAddTime = async (days: number) => {
       if (!timeModal.company) return;
-      
+
       const company = timeModal.company;
       const currentExpiration = new Date(company.subscriptionExpiresAt);
       const today = new Date();
-      
+
       // Se já expirou, conta a partir de hoje. Se não, estende a partir do vencimento.
       const baseDate = currentExpiration > today ? currentExpiration : today;
       const newExpiration = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
-      
-      updateCompany(company.id, { 
+
+      const result = await updateCompany(company.id, {
           subscriptionExpiresAt: newExpiration.toISOString(),
           subscriptionStatus: 'active'
       });
-      
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+          return;
+      }
+
       setTimeModal({ isOpen: false, company: null });
   };
 
-  const handleChangePlan = (planId: string) => {
+  const handleChangePlan = async (planId: string) => {
       if (!planChangeModal.company) return;
-      
-      updateCompany(planChangeModal.company.id, { 
+
+      const result = await updateCompany(planChangeModal.company.id, {
           plan: planId,
           lastPlan: planChangeModal.company.plan // Mantém histórico se necessário
       });
-      
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+          return;
+      }
+
       setPlanChangeModal({ isOpen: false, company: null });
   };
 
@@ -157,11 +165,18 @@ const Plans: React.FC = () => {
 
   const handleDeletePlan = async (id: string) => {
     const ok = await confirm('Tem certeza que deseja excluir este plano?', { title: 'Excluir plano' });
-    if (ok) removePlan(id);
+    if (!ok) return;
+    const result = await removePlan(id);
+    if (!result.success) {
+      showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+    }
   };
 
-  const togglePlanVisibility = (plan: SaasPlan) => {
-      updatePlan(plan.id, { active: !plan.active });
+  const togglePlanVisibility = async (plan: SaasPlan) => {
+      const result = await updatePlan(plan.id, { active: !plan.active });
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+      }
   };
 
   return (

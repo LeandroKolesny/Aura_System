@@ -1,40 +1,16 @@
 // Aura System - Validações de Pacientes
 import { z } from "zod";
-
-// Regex para validação de CPF (formato: 000.000.000-00)
-const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$/;
+import { cpf as cpfValidator } from "cpf-cnpj-validator";
 
 // Regex para validação de telefone brasileiro
 const phoneRegex = /^\(\d{2}\)\s?\d{4,5}-?\d{4}$/;
 
 /**
- * Valida CPF brasileiro (algoritmo completo)
+ * Valida CPF brasileiro — delega pra lib cpf-cnpj-validator
+ * (nunca reimplementar algoritmo de validação de documento na mão).
  */
 function isValidCPF(cpf: string): boolean {
-  const cleaned = cpf.replace(/\D/g, "");
-  if (cleaned.length !== 11) return false;
-  
-  // Verifica se todos os dígitos são iguais
-  if (/^(\d)\1{10}$/.test(cleaned)) return false;
-  
-  // Validação dos dígitos verificadores
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(cleaned.charAt(i)) * (10 - i);
-  }
-  let remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cleaned.charAt(9))) return false;
-  
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(cleaned.charAt(i)) * (11 - i);
-  }
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cleaned.charAt(10))) return false;
-  
-  return true;
+  return cpfValidator.isValid(cpf);
 }
 
 // Schema para criar paciente
@@ -80,7 +56,12 @@ export const createPatientSchema = z.object({
 });
 
 // Schema para atualizar paciente
-export const updatePatientSchema = createPatientSchema.partial();
+// anamnesisLinkSent é campo só de update (marcado quando a equipe envia o link
+// de anamnese pelo WhatsApp) — não faz sentido no create, por isso .extend() aqui
+// em vez de entrar em createPatientSchema.
+export const updatePatientSchema = createPatientSchema.partial().extend({
+  anamnesisLinkSent: z.boolean().optional(),
+});
 
 // Schema para assinar consentimento
 export const signConsentSchema = z.object({

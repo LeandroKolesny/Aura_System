@@ -130,7 +130,7 @@ const KingSettings: React.FC = () => {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const handleAddTime = (days: number) => {
+  const handleAddTime = async (days: number) => {
     if (!timeModal.company) return;
 
     const company = timeModal.company;
@@ -140,18 +140,26 @@ const KingSettings: React.FC = () => {
     const baseDate = currentExpiration > today ? currentExpiration : today;
     const newExpiration = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
 
-    updateCompany(company.id, {
+    const result = await updateCompany(company.id, {
       subscriptionExpiresAt: newExpiration.toISOString(),
       subscriptionStatus: 'active'
     });
+    if (!result.success) {
+      showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+      return;
+    }
 
     setTimeModal({ isOpen: false, company: null });
   };
 
-  const handleChangePlan = (planId: string) => {
+  const handleChangePlan = async (planId: string) => {
     if (!planChangeModal.company) return;
 
-    updateCompany(planChangeModal.company.id, { plan: planId });
+    const result = await updateCompany(planChangeModal.company.id, { plan: planId });
+    if (!result.success) {
+      showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+      return;
+    }
     setPlanChangeModal({ isOpen: false, company: null });
   };
 

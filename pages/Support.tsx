@@ -4,9 +4,11 @@ import { Ticket, UserRole } from '../types';
 import { MessageCircle, Send, Plus, CheckCircle, Lock, Clock } from 'lucide-react';
 import { SAAS_COMPANY_NAME } from '../constants';
 import { UpgradeOverlay } from '../components/UpgradeOverlay';
+import { useDialog } from '../context/DialogContext';
 
 const Support: React.FC = () => {
   const { tickets, createTicket, replyTicket, closeTicket, user, checkModuleAccess } = useApp();
+  const { showAlert } = useDialog();
 
   const hasSupportAccess = checkModuleAccess('support');
   
@@ -25,21 +27,36 @@ const Support: React.FC = () => {
     tickets.find(t => t.id === selectedTicketId) || null
   , [tickets, selectedTicketId]);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
       e.preventDefault();
       if (newTicketSubject && newTicketMessage) {
-          createTicket(newTicketSubject, newTicketMessage);
+          const result = await createTicket(newTicketSubject, newTicketMessage);
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+              return;
+          }
           setIsCreating(false);
           setNewTicketSubject('');
           setNewTicketMessage('');
       }
   };
 
-  const handleReply = (e: React.FormEvent) => {
+  const handleReply = async (e: React.FormEvent) => {
       e.preventDefault();
       if (selectedTicket && replyMessage) {
-          replyTicket(selectedTicket.id, replyMessage);
+          const result = await replyTicket(selectedTicket.id, replyMessage);
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+              return;
+          }
           setReplyMessage('');
+      }
+  };
+
+  const handleClose = async (ticketId: string) => {
+      const result = await closeTicket(ticketId);
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
       }
   };
 
@@ -159,7 +176,7 @@ const Support: React.FC = () => {
                             </div>
                             {selectedTicket.status === 'open' && (
                                 <button 
-                                    onClick={() => closeTicket(selectedTicket.id)}
+                                    onClick={() => handleClose(selectedTicket.id)}
                                     className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 py-1.5 rounded-lg flex items-center gap-1"
                                 >
                                     <Lock className="w-3 h-3" /> Encerrar

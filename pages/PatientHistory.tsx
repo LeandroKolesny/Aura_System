@@ -5,9 +5,11 @@ import { formatCurrency, formatDateTime, formatDate, getFriendlyDeviceInfo } fro
 import { SignatureModal } from '../components/Modals';
 import { Appointment, PhotoRecord, UserRole } from '../types';
 import StatusBadge from '../components/StatusBadge';
+import { useDialog } from '../context/DialogContext';
 
 const PatientHistory: React.FC = () => {
   const { appointments, patients, user, currentCompany, photos, signAppointmentConsent, loadAppointments, loadPatients } = useApp();
+  const { showAlert } = useDialog();
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<PhotoRecord | null>(null);
@@ -49,20 +51,23 @@ const PatientHistory: React.FC = () => {
       return (isPast && a.status !== 'pending_approval') || isFinalized;
   });
 
-  const handleSignSave = (signatureBase64: string) => {
-    if (selectedAppointment) {
-      signAppointmentConsent(selectedAppointment.id, signatureBase64);
-      setSelectedAppointment({
-        ...selectedAppointment,
-        signatureUrl: signatureBase64,
-        signatureMetadata: {
-          signedAt: new Date().toISOString(),
-          ipAddress: 'Simulado',
-          userAgent: navigator.userAgent,
-          documentVersion: 'v1.0-appt-consent'
-        }
-      });
+  const handleSignSave = async (signatureBase64: string) => {
+    if (!selectedAppointment) return;
+    const result = await signAppointmentConsent(selectedAppointment.id, signatureBase64);
+    if (!result.success) {
+      showAlert(result.error ?? 'Erro ao salvar a assinatura. Tente novamente.', { variant: 'danger' });
+      return;
     }
+    setSelectedAppointment({
+      ...selectedAppointment,
+      signatureUrl: signatureBase64,
+      signatureMetadata: {
+        signedAt: new Date().toISOString(),
+        ipAddress: 'Simulado',
+        userAgent: navigator.userAgent,
+        documentVersion: 'v1.0-appt-consent'
+      }
+    });
   };
 
   const AppointmentDetailModal = ({ appointment, onClose }: { appointment: Appointment, onClose: () => void }) => {

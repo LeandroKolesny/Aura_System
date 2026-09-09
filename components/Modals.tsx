@@ -156,7 +156,12 @@ export const NewPatientModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
         if (formData.cpf && !validateCPF(formData.cpf)) { throw new Error("CPF inválido."); }
         if (formData.birthDate && !validateBirthDate(formData.birthDate)) { throw new Error("Data de nascimento inválida. Verifique o ano."); }
         setIsSubmitting(true);
-        await addPatient({ ...formData, status: 'active', lastVisit: undefined });
+        const result = await addPatient({ ...formData, status: 'active', lastVisit: undefined });
+        if (!result.success) {
+          setError(result.error ?? "Erro ao cadastrar paciente.");
+          setIsSubmitting(false);
+          return;
+        }
         if (sendInvite) { console.log(`Convite enviado para ${formData.email}`); }
         onClose();
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Erro ao cadastrar paciente."); setIsSubmitting(false); }
@@ -465,26 +470,37 @@ export const NewAppointmentModal: React.FC<{ onClose: () => void, preSelectedDat
 };
 
 export const ReviewAppointmentModal: React.FC<{ appointment: Appointment; onClose: () => void }> = ({ appointment, onClose }) => {
-    const { updateAppointmentStatus, addNotification, currentCompany } = useApp();
+    const { changeAppointmentStatus, addNotification, currentCompany } = useApp();
+    const { showAlert: showReviewAlert } = useDialog();
     const [isProcessing, setIsProcessing] = useState(false);
     const [showConfirmCancel, setShowConfirmCancel] = useState(false);
 
-    const handleApprove = () => {
+    const handleApprove = async () => {
         setIsProcessing(true);
-        updateAppointmentStatus(appointment.id, 'confirmed');
+        // Transição válida a partir de PENDING_APPROVAL é para SCHEDULED (não CONFIRMED).
+        const result = await changeAppointmentStatus(appointment.id, 'SCHEDULED');
+        if (!result.success) {
+            setIsProcessing(false);
+            showReviewAlert(result.error ?? 'Erro ao aprovar o agendamento. Tente novamente.', { variant: 'danger' });
+            return;
+        }
         addNotification({
             companyId: appointment.companyId,
             message: `Olá ${appointment.patientName}, seu agendamento para ${appointment.service} em ${formatDate(appointment.date)} às ${new Date(appointment.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} foi APROVADO pela clínica ${currentCompany?.name}.`,
             type: 'success'
         });
-        setTimeout(() => {
-            setIsProcessing(false);
-            onClose();
-        }, 800);
+        setIsProcessing(false);
+        onClose();
     };
 
-    const handleCancel = () => {
-        updateAppointmentStatus(appointment.id, 'canceled');
+    const handleCancel = async () => {
+        setIsProcessing(true);
+        const result = await changeAppointmentStatus(appointment.id, 'CANCELED');
+        setIsProcessing(false);
+        if (!result.success) {
+            showReviewAlert(result.error ?? 'Erro ao cancelar o agendamento. Tente novamente.', { variant: 'danger' });
+            return;
+        }
         onClose();
     };
 
@@ -643,7 +659,7 @@ export const NewExpenseModal: React.FC<{ onClose: () => void; initialData?: Tran
         });
         if (!result.success) throw new Error(result.error ?? 'Erro ao editar lançamento.');
       } else {
-        await addTransaction({
+        const result = await addTransaction({
           date: new Date(date).toISOString(),
           description: description.trim(),
           amount: Number(amount),
@@ -651,6 +667,7 @@ export const NewExpenseModal: React.FC<{ onClose: () => void; initialData?: Tran
           category: category || (type === 'expense' ? 'Despesas' : 'Receitas'),
           status,
         });
+        if (!result.success) throw new Error(result.error ?? 'Erro ao criar lançamento.');
       }
       onSuccess?.();
       onClose();
@@ -783,7 +800,10 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
         setIsSubmitting(true);
         const finalTotalCost = finalSuppliesList.reduce((acc, curr) => acc + curr.cost, 0);
         const procedureData: Partial<Procedure> = { name, description, imageUrl, price: numPrice, cost: finalTotalCost, durationMinutes: numDuration, supplies: finalSuppliesList, maintenanceRequired, maintenanceIntervalDays: maintenanceRequired ? Number(maintenanceInterval) : undefined };
-        if (initialData) { await updateProcedure(initialData.id, procedureData); } else { await addProcedure(procedureData as Omit<Procedure, 'id' | 'companyId'>); }
+        const result = initialData
+          ? await updateProcedure(initialData.id, procedureData)
+          : await addProcedure(procedureData as Omit<Procedure, 'id' | 'companyId'>);
+        if (!result.success) throw new Error(result.error ?? 'Erro de sistema. Tente novamente.');
         onClose();
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Erro ao salvar procedimento."); setShowPendingConfirm(false); setIsSubmitting(false); }
   };
@@ -938,18 +958,22 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
     setIsResetting(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmittingProf, setIsSubmittingProf] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!initialData && !formData.password) {
       showProfAlert('Senha é obrigatória para novos usuários', { variant: 'warning', title: 'Campo obrigatório' });
       return;
     }
-    if (initialData) {
-      // Na edição, não envia password (usa botão separado)
-      const { password, ...dataWithoutPassword } = formData;
-      updateProfessional(initialData.id, dataWithoutPassword);
-    } else {
-      addProfessional(formData);
+    setIsSubmittingProf(true);
+    const result = initialData
+      ? await (() => { const { password, ...dataWithoutPassword } = formData; return updateProfessional(initialData.id, dataWithoutPassword); })()
+      : await addProfessional(formData);
+    setIsSubmittingProf(false);
+    if (!result.success) {
+      showProfAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger', title: 'Erro' });
+      return;
     }
     onClose();
   };
@@ -1019,7 +1043,7 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
           </div>
         </div>
         <div className="border-t border-slate-100 pt-4"><h4 className="font-bold text-slate-800 text-sm mb-3">Horário Específico (Opcional)</h4><BusinessHoursEditor compact value={formData.businessHours!} onChange={hours => setFormData({ ...formData, businessHours: hours })} /></div>
-        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold">Salvar Profissional</button></div>
+        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmittingProf}>Cancelar</button><button type="submit" disabled={isSubmittingProf} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold disabled:opacity-70 disabled:cursor-not-allowed">{isSubmittingProf ? 'Salvando...' : 'Salvar Profissional'}</button></div>
       </form>
     </BaseModal>
   );
@@ -1027,12 +1051,22 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
 
 export const InventoryModal: React.FC<{ onClose: () => void; initialData?: InventoryItem }> = ({ onClose, initialData }) => {
   const { addInventoryItem, updateInventoryItem } = useApp();
+  const { showAlert: showInventoryAlert } = useDialog();
   const [formData, setFormData] = useState({ name: initialData?.name || '', unit: initialData?.unit || 'un', currentStock: initialData?.currentStock !== undefined ? initialData.currentStock.toString() : '', minStock: initialData?.minStock !== undefined ? initialData.minStock.toString() : '', costPerUnit: initialData?.costPerUnit !== undefined ? initialData.costPerUnit.toString() : '' });
+  const [isSubmittingInv, setIsSubmittingInv] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const dataToSave = { name: formData.name, unit: formData.unit, currentStock: Number(formData.currentStock) || 0, minStock: Number(formData.minStock) || 0, costPerUnit: Number(formData.costPerUnit) || 0 };
-    if (initialData) { updateInventoryItem(initialData.id, dataToSave); } else { addInventoryItem(dataToSave as Omit<InventoryItem, 'id' | 'companyId' | 'lastRestockDate'>); }
+    setIsSubmittingInv(true);
+    const result = initialData
+      ? await updateInventoryItem(initialData.id, dataToSave)
+      : await addInventoryItem(dataToSave as Omit<InventoryItem, 'id' | 'companyId' | 'lastRestockDate'>);
+    setIsSubmittingInv(false);
+    if (!result.success) {
+      showInventoryAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+      return;
+    }
     onClose();
   };
 
@@ -1048,7 +1082,7 @@ export const InventoryModal: React.FC<{ onClose: () => void; initialData?: Inven
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Estoque Atual</label><input required type="number" step="0.1" className="w-full p-2 border rounded-lg" placeholder="" value={formData.currentStock} onChange={e => setFormData({ ...formData, currentStock: e.target.value })} /></div>
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Alerta de Estoque Mínimo</label><input required type="number" step="0.1" className="w-full p-2 border rounded-lg" placeholder="" value={formData.minStock} onChange={e => setFormData({ ...formData, minStock: e.target.value })} /></div>
         </div>
-        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold">Salvar Item</button></div>
+        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmittingInv}>Cancelar</button><button type="submit" disabled={isSubmittingInv} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold disabled:opacity-70 disabled:cursor-not-allowed">{isSubmittingInv ? 'Salvando...' : 'Salvar Item'}</button></div>
       </form>
     </BaseModal>
   );
@@ -1069,6 +1103,7 @@ export const NewPhotoModal: React.FC<{
   availableProcedures?: string[];
 }> = ({ patientId, onClose, initialType, initialProcedure, lockFields, initialGroupId, availableProcedures }) => {
   const { addPhoto } = useApp();
+  const { showAlert: showPhotoAlert } = useDialog();
   const [url, setUrl] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [procedure, setProcedure] = useState(initialProcedure || '');
@@ -1109,10 +1144,16 @@ export const NewPhotoModal: React.FC<{
 
     setIsSaving(true);
     try {
-      await addPhoto({ patientId, date, url, type, procedure, groupId });
+      const result = await addPhoto({ patientId, date, url, type, procedure, groupId });
+      if (!result.success) {
+        showPhotoAlert(result.error ?? 'Erro ao salvar a foto. Tente novamente.', { variant: 'danger' });
+        setIsSaving(false);
+        return;
+      }
       onClose();
     } catch (error) {
       console.error('Erro ao salvar foto:', error);
+      showPhotoAlert('Erro de conexão ao salvar a foto. Tente novamente.', { variant: 'danger' });
       setIsSaving(false);
     }
   };
@@ -1199,7 +1240,8 @@ export const SignatureModal: React.FC<{ onClose: () => void; onSave: (base64: st
 };
 
 export const CheckoutModal: React.FC<{ appointment: Appointment; onClose: () => void }> = ({ appointment, onClose }) => {
-  const { processPayment, updateAppointmentStatus, currentCompany } = useApp();
+  const { processPayment, changeAppointmentStatus, currentCompany } = useApp();
+  const { showAlert: showCheckoutAlert } = useDialog();
   const [method, setMethod] = useState('pix');
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1215,7 +1257,16 @@ export const CheckoutModal: React.FC<{ appointment: Appointment; onClose: () => 
       setIsProcessing(false);
     }
   };
-  const handleCancelAppointment = () => { updateAppointmentStatus(appointment.id, 'canceled'); onClose(); };
+  const handleCancelAppointment = async () => {
+    setIsProcessing(true);
+    const result = await changeAppointmentStatus(appointment.id, 'CANCELED');
+    setIsProcessing(false);
+    if (!result.success) {
+      showCheckoutAlert(result.error ?? 'Erro ao cancelar o agendamento. Tente novamente.', { variant: 'danger' });
+      return;
+    }
+    onClose();
+  };
   const canCancel = appointment.status === 'scheduled' || appointment.status === 'confirmed';
   return (
     <BaseModal title="Checkout de Atendimento" onClose={onClose}>

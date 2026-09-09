@@ -13,7 +13,7 @@ const PatientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { patients, updatePatient, toggleConsent, signConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos } = useApp();
+  const { patients, updatePatient, signConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos } = useApp();
   const { showAlert } = useDialog();
   
   const [activeTab, setActiveTab] = useState<'overview' | 'anamnesis' | 'photos'>('overview');
@@ -130,10 +130,14 @@ const PatientDetail: React.FC = () => {
     toggleAnamnesisSent(patient.id);
   };
 
-  const confirmDeletePhoto = () => {
+  const confirmDeletePhoto = async () => {
     if (isReadOnly) return;
     if (photoToDelete) {
-      removePhoto(photoToDelete);
+      const result = await removePhoto(photoToDelete);
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
       if (viewingPhoto?.id === photoToDelete) setViewingPhoto(null);
       setPhotoToDelete(null);
     }
@@ -160,8 +164,12 @@ const PatientDetail: React.FC = () => {
       setIsEditing(false);
   };
 
-  const handleSignatureSave = (base64: string) => {
-      if (patient) signConsent(patient.id, base64);
+  const handleSignatureSave = async (base64: string) => {
+      if (!patient) return;
+      const result = await signConsent(patient.id, base64);
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro ao salvar a assinatura. Tente novamente.', { variant: 'danger' });
+      }
   };
 
   const getFriendlyDeviceInfo = (ua?: string) => {

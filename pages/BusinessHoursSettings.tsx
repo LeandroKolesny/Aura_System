@@ -62,7 +62,7 @@ const BusinessHoursSettings: React.FC = () => {
       };
   }, [setHasUnsavedChanges, setTriggerSave, setPendingNavigationPath]);
 
-  const handleSaveHours = (e?: React.FormEvent) => {
+  const handleSaveHours = async (e?: React.FormEvent): Promise<boolean> => {
       if (e) e.preventDefault();
       setErrorMsg('');
       setSuccessMsg('');
@@ -70,7 +70,10 @@ const BusinessHoursSettings: React.FC = () => {
       if (!currentCompany) return false;
 
       try {
-          updateCompany(currentCompany.id, { businessHours });
+          const result = await updateCompany(currentCompany.id, { businessHours });
+          if (!result.success) {
+              throw new Error(result.error ?? 'Erro de sistema. Tente novamente.');
+          }
           setSuccessMsg('Horários de atendimento atualizados!');
           setHasUnsavedChanges(false);
           setTimeout(() => setSuccessMsg(''), 3000);
@@ -84,12 +87,14 @@ const BusinessHoursSettings: React.FC = () => {
   // External Save Trigger
   useEffect(() => {
       if (triggerSave) {
-          const saved = handleSaveHours();
+        (async () => {
+          const saved = await handleSaveHours();
           setTriggerSave(false);
           if (saved && pendingNavigationPath) {
               navigate(pendingNavigationPath);
               setPendingNavigationPath(null);
           }
+        })();
       }
   }, [triggerSave, pendingNavigationPath, navigate, setTriggerSave, setPendingNavigationPath]);
 
@@ -117,7 +122,7 @@ const BusinessHoursSettings: React.FC = () => {
       setUnavSelectedProfIds(unavSelectedProfIds.filter(pid => pid !== id));
   };
 
-  const handleAddRule = () => {
+  const handleAddRule = async () => {
       // Se o usuário preencheu o campo de data ou profissional mas esqueceu de clicar no "+",
       // nós adicionamos automaticamente para ele.
       const effectiveDates = [...unavSelectedDates];
@@ -146,13 +151,17 @@ const BusinessHoursSettings: React.FC = () => {
           return;
       }
 
-      addUnavailabilityRule({
+      const result = await addUnavailabilityRule({
           description: unavDesc || 'Bloqueio de Agenda',
           startTime: unavStart,
           endTime: unavEnd,
           dates: effectiveDates,
           professionalIds: effectiveProfs
       });
+      if (!result.success) {
+          setErrorMsg(result.error ?? 'Erro de sistema. Tente novamente.');
+          return;
+      }
 
       // Reset fields
       setUnavDesc('');
@@ -261,7 +270,7 @@ const BusinessHoursSettings: React.FC = () => {
                                 <div className="text-xs text-slate-500 mt-1">Datas: {rule.dates.map(d => formatDateString(d)).join(', ')}</div>
                                 <div className="text-xs text-slate-400 mt-0.5">Afeta: {rule.professionalIds.includes('all') ? 'Toda a Equipe' : rule.professionalIds.map(id => getProfName(id)).join(', ')}</div>
                             </div>
-                            <button type="button" onClick={() => removeUnavailabilityRule(rule.id)} className="text-slate-400 hover:text-red-500 p-2 rounded-full hover:bg-slate-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            <button type="button" onClick={async () => { const result = await removeUnavailabilityRule(rule.id); if (!result.success) setErrorMsg(result.error ?? 'Erro de sistema. Tente novamente.'); }} className="text-slate-400 hover:text-red-500 p-2 rounded-full hover:bg-slate-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </div>
                     ))}
                 </div>

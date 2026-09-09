@@ -1,18 +1,31 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useDialog } from '../context/DialogContext';
 import { BellRing, Plus, Info, AlertTriangle, XCircle, CheckCircle, Calendar, Building, Eye, EyeOff } from 'lucide-react';
 import { SystemAlert } from '../types';
 
 const SystemAlerts: React.FC = () => {
   const { systemAlerts, addSystemAlert, companies, toggleSystemAlertStatus } = useApp();
+  const { showAlert } = useDialog();
   const [formData, setFormData] = useState({ title: '', message: '', type: 'info' as SystemAlert['type'], target: 'all' });
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
       e.preventDefault();
       if (formData.title && formData.message) {
-          addSystemAlert(formData);
+          const result = await addSystemAlert(formData);
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+              return;
+          }
           setFormData({ title: '', message: '', type: 'info', target: 'all' });
+      }
+  };
+
+  const handleToggleStatus = async (id: string) => {
+      const result = await toggleSystemAlertStatus(id);
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
       }
   };
 
@@ -61,7 +74,7 @@ const SystemAlerts: React.FC = () => {
                         <select 
                             className="w-full p-2 border rounded-lg bg-white"
                             value={formData.type}
-                            onChange={e => setFormData({...formData, type: e.target.value as any})}
+                            onChange={e => setFormData({...formData, type: e.target.value as SystemAlert['type']})}
                         >
                             <option value="info">Informação (Azul)</option>
                             <option value="warning">Aviso (Amarelo)</option>
@@ -133,7 +146,7 @@ const SystemAlerts: React.FC = () => {
                                                 <Calendar className="w-3 h-3" /> {new Date(alert.createdAt).toLocaleDateString()}
                                             </span>
                                             <button 
-                                                onClick={() => toggleSystemAlertStatus(alert.id)}
+                                                onClick={() => handleToggleStatus(alert.id)}
                                                 className={`p-1 rounded-full transition-colors ${alert.status === 'active' ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-200'}`}
                                                 title={alert.status === 'active' ? 'Desativar' : 'Ativar'}
                                             >

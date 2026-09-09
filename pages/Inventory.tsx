@@ -12,7 +12,7 @@ import { inventoryApi } from '../services/api';
 
 const Inventory: React.FC = () => {
   const { inventory, removeInventoryItem, isReadOnly, loadInventory, loadingStates } = useApp();
-  const { confirm } = useDialog();
+  const { confirm, showAlert } = useDialog();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>(undefined);
@@ -39,7 +39,11 @@ const Inventory: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (isReadOnly) return;
     const ok = await confirm('Tem certeza que deseja remover este item do estoque?', { title: 'Remover item' });
-    if (ok) removeInventoryItem(id);
+    if (!ok) return;
+    const result = await removeInventoryItem(id);
+    if (!result.success) {
+      showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+    }
   };
 
   const handleClose = () => {

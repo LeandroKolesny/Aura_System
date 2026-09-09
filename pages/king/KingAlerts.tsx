@@ -4,10 +4,12 @@ import {
   Calendar, Building, Eye, EyeOff, Send, History, Megaphone
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useDialog } from '../../context/DialogContext';
 import { SystemAlert } from '../../types';
 
 const KingAlerts: React.FC = () => {
   const { systemAlerts, addSystemAlert, companies, toggleSystemAlertStatus } = useApp();
+  const { showAlert } = useDialog();
   const [formData, setFormData] = useState({
     title: '',
     message: '',
@@ -16,12 +18,23 @@ const KingAlerts: React.FC = () => {
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.title && formData.message) {
-      addSystemAlert(formData);
+      const result = await addSystemAlert(formData);
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
       setFormData({ title: '', message: '', type: 'info', target: 'all' });
       setIsFormOpen(false);
+    }
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    const result = await toggleSystemAlertStatus(id);
+    if (!result.success) {
+      showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
     }
   };
 
@@ -190,7 +203,7 @@ const KingAlerts: React.FC = () => {
 
                     {/* Toggle Button */}
                     <button
-                      onClick={() => toggleSystemAlertStatus(alert.id)}
+                      onClick={() => handleToggleStatus(alert.id)}
                       className={`p-2 rounded-xl transition-all ${
                         alert.status === 'active'
                           ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
@@ -251,7 +264,7 @@ const KingAlerts: React.FC = () => {
                   <select
                     className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
                     value={formData.type}
-                    onChange={e => setFormData({ ...formData, type: e.target.value as any })}
+                    onChange={e => setFormData({ ...formData, type: e.target.value as SystemAlert['type'] })}
                   >
                     <option value="info">Informativo (Azul)</option>
                     <option value="warning">Aviso (Amarelo)</option>

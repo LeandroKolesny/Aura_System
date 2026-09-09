@@ -645,11 +645,15 @@ const SaaSMarketing: React.FC = () => {
         }
     };
 
-    const handleSendWhatsApp = () => {
+    const handleSendWhatsApp = async () => {
         if (generatedMsg && selectedCompanyId) {
             const company = companies.find(c => c.id === selectedCompanyId);
             // Atualiza status na empresa
-            updateCompany(selectedCompanyId, { lastMarketingSentAt: new Date().toISOString() });
+            const result = await updateCompany(selectedCompanyId, { lastMarketingSentAt: new Date().toISOString() });
+            if (!result.success) {
+                showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+                return;
+            }
 
             const phone = company?.phones?.[0]?.replace(/\D/g, '');
             if (phone) {

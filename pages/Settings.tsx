@@ -133,7 +133,7 @@ const Settings: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const executeSave = () => {
+  const executeSave = async (): Promise<boolean> => {
     setErrorMsg('');
     setSuccessMsg('');
 
@@ -148,7 +148,7 @@ const Settings: React.FC = () => {
              throw new Error('CNPJ/CPF inválido. Verifique os números digitados.');
         }
 
-        updateCompany(currentCompany.id, {
+        const result = await updateCompany(currentCompany.id, {
             name: companyName,
             address: companyAddress,
             city: companyCity,
@@ -160,7 +160,10 @@ const Settings: React.FC = () => {
             targetAudience,
             socialMedia
         });
-        
+        if (!result.success) {
+            throw new Error(result.error ?? 'Erro de sistema. Tente novamente.');
+        }
+
         setHasUnsavedChanges(false); // Clear dirty state
         return true;
     } catch (err: unknown) {
@@ -170,9 +173,9 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (executeSave()) {
+    if (await executeSave()) {
         setSuccessMsg('Configurações salvas com sucesso!');
         setTimeout(() => setSuccessMsg(''), 3000);
     }
@@ -181,12 +184,14 @@ const Settings: React.FC = () => {
   // Listen for TriggerSave from Sidebar
   useEffect(() => {
       if (triggerSave) {
-          const saved = executeSave();
-          setTriggerSave(false);
-          if (saved && pendingNavigationPath) {
-              navigate(pendingNavigationPath);
-              setPendingNavigationPath(null);
-          }
+          (async () => {
+              const saved = await executeSave();
+              setTriggerSave(false);
+              if (saved && pendingNavigationPath) {
+                  navigate(pendingNavigationPath);
+                  setPendingNavigationPath(null);
+              }
+          })();
       }
   }, [triggerSave, pendingNavigationPath, navigate, setTriggerSave, setPendingNavigationPath, executeSave]);
 

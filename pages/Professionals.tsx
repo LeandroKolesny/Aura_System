@@ -10,7 +10,7 @@ import { getAvatarConfig, getAvatarInitials } from '../utils/formatUtils';
 
 const Professionals: React.FC = () => {
   const { professionals, removeProfessional, user, companies, isReadOnly, currentCompany } = useApp();
-  const { confirm } = useDialog();
+  const { confirm, showAlert } = useDialog();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProfessional, setEditingProfessional] = useState<User | undefined>(undefined);
   // Alterado para rastrear seções ABERTAS. Inicialmente vazio = tudo fechado.
@@ -26,7 +26,11 @@ const Professionals: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (isReadOnly) return;
     const ok = await confirm('Tem certeza que deseja remover este profissional?', { title: 'Remover profissional' });
-    if (ok) removeProfessional(id);
+    if (!ok) return;
+    const result = await removeProfessional(id);
+    if (!result.success) {
+      showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+    }
   };
 
   const handleClose = () => {

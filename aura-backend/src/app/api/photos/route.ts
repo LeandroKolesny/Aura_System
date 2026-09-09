@@ -5,11 +5,16 @@ import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
 
+// Aceita tanto uma URL http(s) hospedada quanto uma data URL base64 de imagem
+// (o modal de upload no frontend ainda não envia pra um storage externo —
+// a foto é lida localmente e convertida em base64 antes de ser enviada).
+const DATA_URL_IMAGE_REGEX = /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/;
+
 const createPhotoSchema = z.object({
   patientId: z.string().cuid(),
-  url: z.string().url().max(2000).refine(
-    (u) => u.startsWith('https://') || u.startsWith('http://'),
-    { message: "URL deve usar scheme http ou https" }
+  url: z.string().max(8_000_000).refine(
+    (u) => u.startsWith('https://') || u.startsWith('http://') || DATA_URL_IMAGE_REGEX.test(u),
+    { message: "URL deve ser http(s) ou uma data URL de imagem válida (png, jpeg, gif ou webp)" }
   ),
   type: z.enum(["BEFORE", "AFTER"]),
   procedure: z.string().min(1).max(100),

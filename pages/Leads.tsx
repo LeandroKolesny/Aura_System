@@ -5,9 +5,11 @@ import { Lead, LeadStatus } from '../types';
 import { Plus, Phone, Mail, DollarSign, Calendar, MoreHorizontal, XCircle, RotateCcw, TrendingUp } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
 import { maskPhone } from '../utils/maskUtils';
+import { useDialog } from '../context/DialogContext';
 
 const Leads: React.FC = () => {
   const { leads, addLead, moveLead } = useApp();
+  const { showAlert } = useDialog();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newLead, setNewLead] = useState({ clinicName: '', contactName: '', phone: '', email: '', value: '' });
   const [activeMenuLeadId, setActiveMenuLeadId] = useState<string | null>(null);
@@ -21,35 +23,45 @@ const Leads: React.FC = () => {
     { id: 'lost', title: 'Perdido', color: 'border-red-500' },
   ];
 
-  const handleAddLead = (e: React.FormEvent) => {
+  const handleAddLead = async (e: React.FormEvent) => {
       e.preventDefault();
       if (newLead.clinicName && newLead.contactName) {
-          addLead({
+          const result = await addLead({
               ...newLead,
               value: Number(newLead.value) || 0,
               status: 'new',
               createdAt: new Date().toISOString()
           });
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+              return;
+          }
           setNewLead({ clinicName: '', contactName: '', phone: '', email: '', value: '' });
           setIsModalOpen(false);
       }
   };
 
   // Simples drag and drop handler (mudança de status via clique ou botão para simplificar implementação sem dnd-kit)
-  const handleMove = (id: string, direction: 'next' | 'prev', currentStatus: LeadStatus) => {
+  const handleMove = async (id: string, direction: 'next' | 'prev', currentStatus: LeadStatus) => {
       const statusOrder: LeadStatus[] = ['new', 'contacted', 'demo', 'negotiation', 'won', 'lost'];
       const currentIndex = statusOrder.indexOf(currentStatus);
-      
+
       let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-      
+
       // Pular 'lost' na navegação sequencial, deixar apenas por ação direta se preferir, mas aqui vamos linear
       if (nextIndex >= 0 && nextIndex < statusOrder.length) {
-          moveLead(id, statusOrder[nextIndex]);
+          const result = await moveLead(id, statusOrder[nextIndex]);
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+          }
       }
   };
 
-  const handleStatusChange = (id: string, status: LeadStatus) => {
-      moveLead(id, status);
+  const handleStatusChange = async (id: string, status: LeadStatus) => {
+      const result = await moveLead(id, status);
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+      }
       setActiveMenuLeadId(null);
   };
 

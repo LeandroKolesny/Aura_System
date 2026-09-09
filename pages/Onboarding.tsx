@@ -71,9 +71,13 @@ const Onboarding: React.FC = () => {
       }));
   };
 
-  const handleNextStep2 = () => {
+  const handleNextStep2 = async () => {
       if (currentCompany) {
-          updateCompany(currentCompany.id, { businessHours });
+          const result = await updateCompany(currentCompany.id, { businessHours });
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+              return;
+          }
       }
       setStep(3);
   };
@@ -87,18 +91,22 @@ const Onboarding: React.FC = () => {
       }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
       if (currentCompany) {
-          updateCompany(currentCompany.id, { 
+          const result = await updateCompany(currentCompany.id, {
               logo,
-              layoutConfig: { 
-                  ...currentCompany.layoutConfig, 
+              layoutConfig: {
+                  ...currentCompany.layoutConfig,
                   primaryColor: themeColor,
                   backgroundColor: '#f8fafc',
                   fontFamily: 'inter',
                   baseFontSize: 'md'
               } as PublicLayoutConfig
           });
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+              return;
+          }
           completeOnboarding();
           navigate('/dashboard');
       }

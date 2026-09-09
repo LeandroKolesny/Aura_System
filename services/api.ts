@@ -509,6 +509,13 @@ export const patientsApi = {
       { method: 'POST', body: formData }
     );
   },
+
+  async signConsent(id: string, signatureUrl: string, metadata?: { documentVersion?: string }) {
+    return fetchApi<{ success: boolean; consentSignedAt: string; message: string }>(
+      `/api/patients/${id}/consent`,
+      { method: 'POST', body: JSON.stringify({ signatureUrl, metadata }) }
+    );
+  },
 };
 
 // ============================================
@@ -581,6 +588,13 @@ export const appointmentsApi = {
       method: 'POST',
       body: JSON.stringify({ paymentMethod, installments }),
     });
+  },
+
+  async signConsent(id: string, signatureUrl: string, metadata?: { documentVersion?: string }) {
+    return fetchApi<{ success: boolean; signatureUrl: string; signatureMetadata: Record<string, unknown> }>(
+      `/api/appointments/${id}/consent`,
+      { method: 'POST', body: JSON.stringify({ signatureUrl, metadata }) }
+    );
   },
 };
 
@@ -719,6 +733,17 @@ export const inventoryApi = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  },
+
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<{ item: ApiInventoryItem }>(`/api/inventory/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(id: string) {
+    return fetchApi<{ success: boolean; message: string }>(`/api/inventory/${id}`, { method: 'DELETE' });
   },
 
   async importCSV(file: File) {
@@ -965,6 +990,17 @@ export const usersApi = {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
     });
+  },
+
+  async update(id: string, data: Record<string, unknown>) {
+    return fetchApi<{ user: ApiUser_Extended }>(`/api/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(id: string) {
+    return fetchApi<{ success: boolean; message: string }>(`/api/users/${id}`, { method: 'DELETE' });
   },
 };
 

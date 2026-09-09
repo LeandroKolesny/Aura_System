@@ -59,15 +59,13 @@ interface AppContextType {
   addPatient: (patient: Omit<Patient, 'id' | 'companyId' | 'status'> & { status?: 'active' | 'inactive' | 'lead' }) => void;
   updatePatient: (id: string, data: Partial<Patient>) => void;
   removePatient: (id: string) => void;
-  toggleConsent: (id: string) => void;
-  signConsent: (id: string, signatureBase64: string) => void; // Novo
+  signConsent: (id: string, signatureBase64: string) => Promise<{ success: boolean; error?: string }>;
   toggleAnamnesisSent: (id: string) => void;
 
   appointments: Appointment[];
   addAppointment: (appt: Record<string, unknown>, isPublic?: boolean, publicCompanyId?: string, patientInfo?: { name?: string; email: string; phone: string; password?: string }) => { success: boolean; conflict?: boolean; error?: string };
   updateAppointment: (id: string, data: Partial<Appointment>) => void;
-  updateAppointmentStatus: (id: string, status: Appointment['status']) => void;
-  signAppointmentConsent: (id: string, signatureBase64: string) => void; // Novo
+  signAppointmentConsent: (id: string, signatureBase64: string) => Promise<{ success: boolean; error?: string }>;
   
   transactions: Transaction[];
   addTransaction: (transaction: Omit<Transaction, 'id' | 'companyId'>) => void;
@@ -83,8 +81,8 @@ interface AppContextType {
 
   professionals: User[];
   addProfessional: (prof: Record<string, unknown>) => void;
-  updateProfessional: (id: string, data: Partial<User>) => void;
-  removeProfessional: (id: string) => void;
+  updateProfessional: (id: string, data: Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  removeProfessional: (id: string) => Promise<{ success: boolean; error?: string }>;
   resetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 
   photos: PhotoRecord[];
@@ -125,8 +123,8 @@ interface AppContextType {
   // Inventory
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'companyId'>) => void;
-  updateInventoryItem: (id: string, data: Partial<InventoryItem>) => void;
-  removeInventoryItem: (id: string) => void;
+  updateInventoryItem: (id: string, data: Partial<InventoryItem>) => Promise<{ success: boolean; error?: string }>;
+  removeInventoryItem: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   checkModuleAccess: (module: SystemModule) => boolean;
   isReadOnly: boolean;
@@ -187,6 +185,28 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// Normaliza um profissional vindo da API pro formato usado no frontend:
+// remunerationType/contractType em minúsculo PT-BR, commissionRate/fixedSalary
+// como number (o Prisma usa Decimal, que serializa como string em JSON — sem
+// essa conversão, somas tipo `soma + item.commissionRate` viram concatenação
+// de string em vez de soma numérica, gerando totais absurdos como "151180%").
+// Usar SEMPRE essa função ao inserir/atualizar um profissional no estado —
+// nunca espalhar o objeto cru da API direto.
+function normalizeProfessional<T extends Partial<ApiUser_Extended>>(u: T) {
+  const remunerationMap: Record<string, string> = {
+    'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
+    'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
+  };
+  return {
+    ...u,
+    role: u.role || 'ESTHETICIAN',
+    contractType: (u.contractType as string | undefined)?.toLowerCase() || 'pj',
+    remunerationType: remunerationMap[u.remunerationType as string] || (u.remunerationType as string | undefined)?.toLowerCase() || 'comissao',
+    commissionRate: Number(u.commissionRate) || 0,
+    fixedSalary: Number(u.fixedSalary) || 0,
+  };
+}
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // State Initialization - Inicializa vazio, dados vêm do Supabase
@@ -553,18 +573,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await usersApi.list({ limit: 100 });
       if (res.success && res.data?.users) {
-        const remunerationMap: Record<string, string> = {
-          'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
-          'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
-        };
-        const mapped = res.data.users.map((u: ApiUser_Extended) => ({
-          ...u,
-          role: u.role || 'ESTHETICIAN',
-          contractType: (u.contractType as string | undefined)?.toLowerCase() || 'pj',
-          remunerationType: remunerationMap[u.remunerationType as string] || (u.remunerationType as string | undefined)?.toLowerCase() || 'comissao',
-          commissionRate: Number(u.commissionRate) || 0,
-          fixedSalary: Number(u.fixedSalary) || 0
-        }));
+        const mapped = res.data.users.map(normalizeProfessional);
         setProfessionals(mapped);
         loadedRef.current.professionals = true;
         setLoaded('professionals', true);
@@ -748,18 +757,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       if (usersRes.success && usersRes.data?.users) {
-        const remunerationMap: Record<string, string> = {
-          'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
-          'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'
-        };
-        const mapped = usersRes.data.users.map((u: ApiUser_Extended) => ({
-          ...u,
-          role: u.role || 'ESTHETICIAN',
-          contractType: (u.contractType as string | undefined)?.toLowerCase() || 'pj',
-          remunerationType: remunerationMap[u.remunerationType as string] || (u.remunerationType as string | undefined)?.toLowerCase() || 'comissao',
-          commissionRate: Number(u.commissionRate) || 0,
-          fixedSalary: Number(u.fixedSalary) || 0
-        }));
+        const mapped = usersRes.data.users.map(normalizeProfessional);
         setProfessionals(mapped);
         setLoaded('professionals', true);
         console.log('✅ Profissionais carregados:', mapped.length);
@@ -1016,10 +1014,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateCompany = async (companyId: string, data: Partial<Company>) => {
       if (user?.role !== UserRole.OWNER) checkWriteAccess();
 
-      // Atualiza local state imediatamente para UI responsiva
-      setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, ...data } : c));
-
-      // Persiste no banco de dados via API
+      // Regressão: antes atualizava o estado local ANTES de confirmar com a
+      // API (otimista) e não desfazia em caso de falha — a tela mostrava
+      // "salvo" mesmo quando a chamada retornava erro. Persiste primeiro e só
+      // então atualiza o estado com o valor confirmado pelo servidor.
       try {
         const response = await companiesApi.update(companyId, data);
         if (response.success && response.data?.company) {
@@ -1125,29 +1123,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  const toggleConsent = (id: string) => {
+  // NOTA: existiu aqui uma `toggleConsent` que chamava o PUT genérico de paciente
+  // com `consentSignedAt` — campo que o schema de update não aceita (mesma causa
+  // raiz do bug de assinatura corrigido nesta sessão), então nunca persistia.
+  // Função não tinha nenhum uso ativo na UI; removida em vez de meio-corrigida.
+  // Salva a assinatura de consentimento do paciente via endpoint dedicado
+  // (o PUT genérico de paciente não aceita esses campos — usar sempre /consent).
+  const signConsent = async (id: string, signatureBase64: string) => {
       checkWriteAccess();
-      const patient = patients.find(p => p.id === id);
-      if (patient) {
-          updatePatient(id, { consentSignedAt: patient.consentSignedAt ? undefined : new Date().toISOString() });
+      try {
+        const result = await patientsApi.signConsent(id, signatureBase64);
+        if (result.success && result.data) {
+          setPatients(prev => prev.map(p => p.id === id ? {
+            ...p,
+            consentSignedAt: result.data!.consentSignedAt,
+            consentSignatureUrl: signatureBase64,
+          } : p));
+          return { success: true };
+        }
+        console.error('❌ Erro ao assinar consentimento:', result.error);
+        return { success: false, error: result.error || 'Erro ao salvar assinatura' };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao assinar consentimento:', error);
+        return { success: false, error: 'Erro de conexão' };
       }
-  };
-
-  // Nova função para salvar assinatura com metadados
-  const signConsent = (id: string, signatureBase64: string) => {
-      checkWriteAccess();
-      const metadata: SignatureMetadata = {
-          signedAt: new Date().toISOString(),
-          ipAddress: '192.168.1.' + Math.floor(Math.random() * 255), // Simulação de IP
-          userAgent: navigator.userAgent,
-          documentVersion: 'v1.0-2023'
-      };
-
-      updatePatient(id, { 
-          consentSignedAt: new Date().toISOString(),
-          consentSignatureUrl: signatureBase64,
-          consentMetadata: metadata
-      });
   };
 
   const toggleAnamnesisSent = (id: string) => {
@@ -1232,82 +1231,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
   };
 
-  const deductStock = (appointment: Appointment) => {
-      const proc = procedures.find(p => p.name === appointment.service && p.companyId === appointment.companyId);
-      
-      if (proc && proc.supplies && proc.supplies.length > 0) {
-          let updatedInventory = [...inventory];
-          let lowStockAlerts: string[] = [];
-
-          proc.supplies.forEach(supply => {
-              if (supply.inventoryItemId) {
-                  const itemIndex = updatedInventory.findIndex(i => i.id === supply.inventoryItemId);
-                  if (itemIndex !== -1) {
-                      updatedInventory[itemIndex] = {
-                          ...updatedInventory[itemIndex],
-                          currentStock: Math.max(0, updatedInventory[itemIndex].currentStock - supply.quantityUsed)
-                      };
-
-                      if (updatedInventory[itemIndex].currentStock <= updatedInventory[itemIndex].minStock) {
-                          lowStockAlerts.push(updatedInventory[itemIndex].name);
-                      }
-                  }
-              }
-          });
-
-          setInventory(updatedInventory);
-
-          if (lowStockAlerts.length > 0) {
-              const notif: AppNotification = {
-                  id: `n_stock_${Date.now()}`,
-                  companyId: appointment.companyId,
-                  recipientId: 'clinic',
-                  message: `Alerta de Estoque Baixo: ${lowStockAlerts.join(', ')}`,
-                  type: 'error',
-                  timestamp: new Date().toISOString(),
-                  read: false
-              };
-              setNotifications(prev => [notif, ...prev]);
-          }
-      }
-  };
-
-  const updateAppointmentStatus = (id: string, status: Appointment['status']) => {
-      checkWriteAccess();
-      
-      const appt = appointments.find(a => a.id === id);
-      
-      if (appt && status === 'completed' && !appt.stockDeducted) {
-          deductStock(appt);
-          updateAppointment(id, { status, stockDeducted: true });
-      } else {
-          updateAppointment(id, { status });
-      }
-      
-      if (appt && status === 'completed') {
-          updatePatient(appt.patientId, { lastVisit: new Date().toISOString() });
-      }
-  };
-
+  // NOTA: existiu aqui uma `updateAppointmentStatus` que só mexia no estado local
+  // (setAppointments/setInventory), sem nenhuma chamada de API — mudanças de status
+  // feitas por ela (aprovar/cancelar agendamento) nunca eram persistidas no banco e
+  // se perdiam ao recarregar a página. Removida; usar sempre `changeAppointmentStatus`
+  // abaixo, que chama a rota real (com dedução de estoque feita no servidor).
   const changeAppointmentStatus = useCallback(async (id: string, status: string): Promise<{ success: boolean; error?: string }> => {
     const res = await appointmentsApi.updateStatus(id, status);
     await loadAppointments(true);
     return { success: !!res.success, error: res.error };
   }, [loadAppointments]);
 
-  const signAppointmentConsent = (id: string, signatureBase64: string) => {
+  // Salva a assinatura de consentimento do agendamento via endpoint dedicado
+  // (o update genérico de agendamento não aceita esses campos — usar sempre /consent).
+  const signAppointmentConsent = async (id: string, signatureBase64: string) => {
     checkWriteAccess();
-    const metadata: SignatureMetadata = {
-      signedAt: new Date().toISOString(),
-      ipAddress: 'Simulado',
-      userAgent: navigator.userAgent,
-      documentVersion: 'v1.0-appt-consent'
-    };
-
-    updateAppointment(id, {
-      signatureUrl: signatureBase64,
-      signatureMetadata: metadata
-    });
+    try {
+      const result = await appointmentsApi.signConsent(id, signatureBase64);
+      if (result.success && result.data) {
+        setAppointments(prev => prev.map(a => a.id === id ? {
+          ...a,
+          signatureUrl: result.data!.signatureUrl,
+          signatureMetadata: result.data!.signatureMetadata as unknown as SignatureMetadata,
+        } : a));
+        return { success: true };
+      }
+      console.error('❌ Erro ao assinar consentimento do agendamento:', result.error);
+      return { success: false, error: result.error || 'Erro ao salvar assinatura' };
+    } catch (error) {
+      console.error('❌ Erro de conexão ao assinar consentimento do agendamento:', error);
+      return { success: false, error: 'Erro de conexão' };
+    }
   };
 
   // --- Transactions (SEMPRE via API) ---
@@ -1607,12 +1561,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const response = await usersApi.create(prof);
         if (response.success && response.data?.user) {
-          const newProf = {
-            ...response.data.user,
-            role: response.data.user.role || 'ESTHETICIAN',
-            commissionRate: Number(response.data.user.commissionRate) || 0,
-            fixedSalary: Number(response.data.user.fixedSalary) || 0,
-          };
+          const newProf = normalizeProfessional(response.data.user);
           setProfessionals(prev => [...prev, newProf]);
           console.log('✅ Profissional criado:', newProf.name);
           return { success: true, user: newProf };
@@ -1627,14 +1576,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateProfessional = async (id: string, data: Partial<User>) => {
       checkWriteAccess();
-      // Atualiza localmente por enquanto - API de update não existe ainda
-      setProfessionals(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      try {
+        const response = await usersApi.update(id, data);
+        if (response.success && response.data?.user) {
+          const updated = normalizeProfessional(response.data.user);
+          setProfessionals(prev => prev.map(p => p.id === id ? { ...p, ...updated } : p));
+          return { success: true };
+        }
+        console.error('❌ Erro ao atualizar profissional:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao atualizar profissional:', error);
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
+      }
   };
 
   const removeProfessional = async (id: string) => {
       checkWriteAccess();
-      // Remove localmente por enquanto - API de delete não existe ainda
-      setProfessionals(prev => prev.filter(p => p.id !== id));
+      try {
+        const response = await usersApi.delete(id);
+        if (response.success) {
+          setProfessionals(prev => prev.filter(p => p.id !== id));
+          return { success: true };
+        }
+        console.error('❌ Erro ao remover profissional:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao remover profissional:', error);
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
+      }
   };
 
   const resetUserPassword = async (userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
@@ -1695,9 +1665,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro ao remover foto:', response.error);
         return { success: false, error: response.error };
       } catch (error) {
+        // NOTA: antes isso fingia sucesso e removia a foto só localmente,
+        // desincronizando do backend (a foto continuava existindo no servidor).
         console.error('❌ Erro de conexão ao remover foto:', error);
-        setPhotos(prev => prev.filter(p => p.id !== id));
-        return { success: true };
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
       }
   };
 
@@ -1818,10 +1789,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro ao mover lead:', response.error);
         return { success: false, error: response.error };
       } catch (error) {
+        // NOTA: antes isso fingia sucesso e movia o lead só localmente,
+        // desincronizando do backend (revertia ao recarregar a página).
         console.error('❌ Erro de conexão ao mover lead:', error);
-        // Fallback local
-        setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
-        return { success: true };
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
       }
   };
 
@@ -1878,9 +1849,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro ao fechar ticket:', response.error);
         return { success: false, error: response.error };
       } catch (error) {
+        // NOTA: antes isso fingia sucesso e fechava o ticket só localmente,
+        // desincronizando do backend (o ticket continuava aberto no servidor).
         console.error('❌ Erro de conexão ao fechar ticket:', error);
-        setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'closed' } : t));
-        return { success: true };
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
       }
   };
 
@@ -1930,10 +1902,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro ao alterar status do alerta:', response.error);
         return { success: false, error: response.error };
       } catch (error) {
+        // NOTA: antes isso fingia sucesso e alternava o status só localmente,
+        // desincronizando do backend. Removido o fallback local.
         console.error('❌ Erro de conexão ao alterar alerta:', error);
-        // Fallback local
-        setSystemAlerts(prev => prev.map(a => a.id === id ? { ...a, status: a.status === 'active' ? 'inactive' : 'active' } : a));
-        return { success: true };
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
       }
   };
 
@@ -1964,16 +1936,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro ao criar notificação:', response.error);
         return { success: false, error: response.error };
       } catch (error) {
+        // NOTA: antes isso fingia sucesso e criava a notificação só localmente
+        // com um id falso (`n_${Date.now()}`) que nunca existiu no servidor —
+        // desincronizando do backend.
         console.error('❌ Erro de conexão ao criar notificação:', error);
-        // Fallback local para não perder notificação
-        const newNotif: AppNotification = {
-          id: `n_${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          read: false,
-          ...notif
-        };
-        setNotifications(prev => [newNotif, ...prev]);
-        return { success: true, notification: newNotif };
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
       }
   };
 
@@ -1982,9 +1949,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await notificationsApi.markAsRead(id);
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
       } catch (error) {
+        // Marcar como lida é de baixo risco (idempotente, sem perda de dados),
+        // mas não fingimos sucesso local desincronizado do backend.
         console.error('❌ Erro ao marcar notificação como lida:', error);
-        // Fallback local
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
       }
   };
 
@@ -2018,10 +1985,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro ao remover regra:', response.error);
         return { success: false, error: response.error };
       } catch (error) {
+        // NOTA: antes isso fingia sucesso e removia a regra só localmente,
+        // desincronizando do backend (a regra continuava existindo no servidor).
         console.error('❌ Erro de conexão ao remover regra:', error);
-        // Fallback local
-        setUnavailabilityRules(prev => prev.filter(r => r.id !== id));
-        return { success: true };
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
       }
   };
 
@@ -2080,14 +2047,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateInventoryItem = async (id: string, data: Partial<InventoryItem>) => {
       checkWriteAccess();
-      // Atualiza localmente por enquanto - API de update não existe ainda
-      setInventory(prev => prev.map(i => i.id === id ? { ...i, ...data } : i));
+      try {
+        const response = await inventoryApi.update(id, data);
+        if (response.success && response.data?.item) {
+          const updated = response.data.item;
+          setInventory(prev => prev.map(i => i.id === id ? { ...i, ...updated } : i));
+          return { success: true };
+        }
+        console.error('❌ Erro ao atualizar item de estoque:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao atualizar item de estoque:', error);
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
+      }
   };
 
   const removeInventoryItem = async (id: string) => {
       checkWriteAccess();
-      // Remove localmente por enquanto - API de delete não existe ainda
-      setInventory(prev => prev.filter(i => i.id !== id));
+      try {
+        const response = await inventoryApi.delete(id);
+        if (response.success) {
+          setInventory(prev => prev.filter(i => i.id !== id));
+          return { success: true };
+        }
+        console.error('❌ Erro ao remover item de estoque:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao remover item de estoque:', error);
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
+      }
   };
 
   // --- Public Data Access ---
@@ -2126,13 +2114,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addPatient,
       updatePatient,
       removePatient,
-      toggleConsent,
-      signConsent, 
+      signConsent,
       toggleAnamnesisSent,
       appointments: user?.role === UserRole.OWNER ? appointments : appointments.filter(a => a.companyId === user?.companyId),
       addAppointment,
       updateAppointment,
-      updateAppointmentStatus,
       changeAppointmentStatus,
       signAppointmentConsent,
       transactions: user?.role === UserRole.OWNER ? transactions : transactions.filter(t => t.companyId === user?.companyId),

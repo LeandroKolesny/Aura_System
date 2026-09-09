@@ -11,6 +11,13 @@ import {
 } from "@/lib/validations/appointment";
 import { pushAppointmentToCalendar } from "@/lib/calendarSync";
 
+// Tipo do client dentro de uma transação — extraído do próprio `prisma`
+// exportado (que é um client estendido, não o PrismaClient cru) em vez de
+// `Prisma.TransactionClient`, que não bate estruturalmente com o tipo real
+// que $transaction injeta quando o client tem extensões (@/lib/prisma usa
+// $extends para converter campos Decimal em number).
+type PrismaOrTx = typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 // Sentinel lançado dentro da transação quando a re-checagem encontra conflito
 class ScheduleConflictError extends Error {
   conflictingAppointment?: { id: string; date: Date; durationMinutes: number; patient: { name: string } };
@@ -35,7 +42,7 @@ function createCachedResponse(data: unknown, cacheSeconds: number = 15) {
  * LÓGICA DE NEGÓCIO CRÍTICA - EXECUTADA NO SERVIDOR
  */
 async function checkScheduleConflict(
-  client: Prisma.TransactionClient | typeof prisma,
+  client: PrismaOrTx,
   companyId: string,
   professionalId: string,
   date: Date,

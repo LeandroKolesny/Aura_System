@@ -133,13 +133,21 @@ const KingLeads: React.FC = () => {
       setLostComment('');
       setLostModal({ open: true, lead });
     } else {
-      moveLead(id, status);
+      moveLead(id, status).then(result => {
+        if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        }
+      });
     }
   }
 
   const handleConversion = async () => {
     if (!conversionModal.lead?.companyId) {
-      moveLead(conversionModal.lead!.id, 'won');
+      const result = await moveLead(conversionModal.lead!.id, 'won');
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
       setConversionModal({ open: false, lead: null });
       return;
     }
@@ -149,7 +157,11 @@ const KingLeads: React.FC = () => {
         plan: selectedPlan,
         subscriptionStatus: 'ACTIVE',
       });
-      moveLead(conversionModal.lead.id, 'won');
+      const result = await moveLead(conversionModal.lead.id, 'won');
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
       setConversionModal({ open: false, lead: null });
       showAlert('Lead convertido com sucesso!', { title: 'Conversão realizada', variant: 'success' });
     } catch {
@@ -168,7 +180,11 @@ const KingLeads: React.FC = () => {
         demoAt: demoAt || undefined,
         demoNotes: demoNotes || undefined,
       });
-      moveLead(demoModal.lead.id, 'demo');
+      const result = await moveLead(demoModal.lead.id, 'demo');
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
       setDemoModal({ open: false, lead: null });
     } catch {
       showAlert('Erro ao salvar demo. Tente novamente.', { variant: 'danger', title: 'Erro' });
@@ -192,7 +208,11 @@ const KingLeads: React.FC = () => {
         lostReason,
         lostComment: lostComment || undefined,
       });
-      moveLead(lostModal.lead.id, 'lost');
+      const result = await moveLead(lostModal.lead.id, 'lost');
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
       setLostModal({ open: false, lead: null });
     } catch {
       showAlert('Erro ao registrar perda. Tente novamente.', { variant: 'danger', title: 'Erro' });

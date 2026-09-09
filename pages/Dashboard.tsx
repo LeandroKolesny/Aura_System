@@ -353,7 +353,7 @@ const DashboardSkeleton: React.FC = () => (
 );
 
 const ClinicDashboard: React.FC = () => {
-  const { appointments, user, systemAlerts, currentCompany, dismissedAlertIds, dismissAlert, updateAppointmentStatus, addNotification, loadAppointments, changeAppointmentStatus } = useApp();
+  const { appointments, user, systemAlerts, currentCompany, dismissedAlertIds, dismissAlert, addNotification, loadAppointments, changeAppointmentStatus } = useApp();
   const [selectedAlert, setSelectedAlert] = useState<SystemAlert | null>(null);
   const [revenueRange, setRevenueRange] = useState<'7d' | '30d'>('7d');
   const [approvingId, setApprovingId] = useState<string | null>(null);

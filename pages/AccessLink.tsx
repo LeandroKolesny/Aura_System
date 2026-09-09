@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, ExternalLink, QrCode, Check, Globe, Palette, RotateCcw, Save, ChevronDown, ChevronUp, Clock, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useDialog } from '../context/DialogContext';
 import { PublicLayoutConfig, UserRole, OnlineBookingConfig } from '../types';
 
 const AccessLink: React.FC = () => {
   const { currentCompany, updateCompany, user, setHasUnsavedChanges } = useApp();
+  const { showAlert } = useDialog();
   const [copied, setCopied] = useState(false);
 
   // Accordion States
@@ -158,29 +160,38 @@ const AccessLink: React.FC = () => {
       setHasUnsavedChanges(true);
   };
 
-  const handleSaveLayout = () => {
-      if (currentCompany) {
-          updateCompany(currentCompany.id, { layoutConfig });
-          setMsg('Layout atualizado com sucesso!');
-          setTimeout(() => setMsg(''), 3000);
+  const handleSaveLayout = async () => {
+      if (!currentCompany) return;
+      const result = await updateCompany(currentCompany.id, { layoutConfig });
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+          return;
       }
+      setMsg('Layout atualizado com sucesso!');
+      setTimeout(() => setMsg(''), 3000);
   };
 
-  const handleResetLayout = () => {
+  const handleResetLayout = async () => {
+      if (!currentCompany) return;
+      const result = await updateCompany(currentCompany.id, { layoutConfig: undefined });
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+          return;
+      }
       setLayoutConfig(defaultLayout);
-      if (currentCompany) {
-          updateCompany(currentCompany.id, { layoutConfig: undefined });
-          setMsg('Layout restaurado para o padrão.');
-          setTimeout(() => setMsg(''), 3000);
-      }
+      setMsg('Layout restaurado para o padrão.');
+      setTimeout(() => setMsg(''), 3000);
   };
 
-  const handleSaveOnlineConfig = () => {
-      if (currentCompany) {
-          updateCompany(currentCompany.id, { onlineBookingConfig: onlineConfig });
-          setConfigMsg('Configurações de horário salvas!');
-          setTimeout(() => setConfigMsg(''), 3000);
+  const handleSaveOnlineConfig = async () => {
+      if (!currentCompany) return;
+      const result = await updateCompany(currentCompany.id, { onlineBookingConfig: onlineConfig });
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+          return;
       }
+      setConfigMsg('Configurações de horário salvas!');
+      setTimeout(() => setConfigMsg(''), 3000);
   };
 
   const canEditLayout = user?.role === UserRole.ADMIN || user?.role === UserRole.OWNER;
