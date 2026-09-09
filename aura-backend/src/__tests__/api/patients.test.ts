@@ -129,6 +129,26 @@ describe('GET /api/patients', () => {
     const res = await GET_LIST(makeListRequest())
     expect(res.status).toBe(403)
   })
+
+  // REGRESSÃO: um mock de Prisma sempre retorna o objeto que você mandar,
+  // não importa o que a rota realmente pediu no `select` — então testes que
+  // só checam o status/formato da resposta não pegam campo faltando no
+  // select. Aconteceu de verdade: consentSignatureUrl/consentMetadata
+  // ficaram de fora do select da listagem, e a assinatura sumia da tela
+  // assim que a lista de pacientes recarregava (ficava só "assinado em X",
+  // sem a imagem). Este teste trava a lista de campos exigidos no select.
+  it('REGRESSÃO: o select da listagem inclui os campos de assinatura do consentimento (consentSignatureUrl/consentMetadata)', async () => {
+    await GET_LIST(makeListRequest())
+    expect(prisma.patient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          consentSignedAt: true,
+          consentSignatureUrl: true,
+          consentMetadata: true,
+        }),
+      })
+    )
+  })
 })
 
 // ── POST /api/patients ────────────────────────────────────────────────────────

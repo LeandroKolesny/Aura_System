@@ -14,13 +14,14 @@ const PatientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { patients, updatePatient, signConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos } = useApp();
+  const { patients, updatePatient, signConsent, signAppointmentConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos } = useApp();
   const { showAlert } = useDialog();
   
   const [activeTab, setActiveTab] = useState<'overview' | 'anamnesis' | 'photos'>('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Patient>>({});
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [isCorrectingAppointmentSignature, setIsCorrectingAppointmentSignature] = useState(false);
   
   // Estado para o Admin visualizar a evidência de uma assinatura específica
   const [viewingAppointment, setViewingAppointment] = useState<Appointment | null>(null);
@@ -175,6 +176,25 @@ const PatientDetail: React.FC = () => {
       }
   };
 
+  // Equipe corrigindo a assinatura de um procedimento em nome do paciente
+  // (ex: paciente ainda está na clínica e a assinatura saiu ilegível) — o
+  // backend já permite equipe assinar/corrigir, a versão antiga fica
+  // preservada no histórico.
+  const handleCorrectAppointmentSignature = async (base64: string, correctionReason?: string) => {
+      if (!viewingAppointment) return;
+      const result = await signAppointmentConsent(viewingAppointment.id, base64, correctionReason);
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro ao salvar a correção da assinatura. Tente novamente.', { variant: 'danger' });
+        return;
+      }
+      setIsCorrectingAppointmentSignature(false);
+      // signAppointmentConsent já atualizou o agendamento no estado global —
+      // busca a versão fresca pra manter o "Comprovante Digital" aberto já
+      // mostrando a assinatura corrigida, em vez de simplesmente fechar.
+      const refreshed = appointments.find(a => a.id === viewingAppointment.id);
+      if (refreshed) setViewingAppointment(refreshed);
+  };
+
   const getFriendlyDeviceInfo = (ua?: string) => {
     if (!ua) return 'Desconhecido';
     let browser = 'Navegador';
@@ -218,7 +238,8 @@ const PatientDetail: React.FC = () => {
                     {!!appointment.signatureCorrectionCount && (
                         <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 mt-2 inline-block">Corrigida em {formatDateTime(appointment.lastSignatureCorrectionAt)}</p>
                     )}
-                    <div className="mt-2">
+                    <div className="mt-2 flex items-center justify-center gap-4">
+                        <button onClick={() => setIsCorrectingAppointmentSignature(true)} className="text-xs font-bold text-primary-600 hover:underline">Corrigir assinatura</button>
                         <button onClick={() => setViewingSignatureHistoryId(appointment.id)} className="text-xs font-bold text-slate-500 hover:underline">Ver histórico de assinaturas</button>
                     </div>
                 </div>
@@ -458,6 +479,13 @@ const PatientDetail: React.FC = () => {
       {viewingAppointment && <AppointmentEvidenceModal appointment={viewingAppointment} onClose={() => setViewingAppointment(null)} />}
       {isSignatureModalOpen && <SignatureModal onClose={() => setIsSignatureModalOpen(false)} onSave={handleSignatureSave} />}
       {viewingSignatureHistoryId && <SignatureHistoryModal appointmentId={viewingSignatureHistoryId} onClose={() => setViewingSignatureHistoryId(null)} />}
+      {isCorrectingAppointmentSignature && (
+        <SignatureModal
+          onClose={() => setIsCorrectingAppointmentSignature(false)}
+          onSave={handleCorrectAppointmentSignature}
+          isCorrection
+        />
+      )}
       {annotatingPhoto && id && (
         <PhotoAnnotationModal
             photo={annotatingPhoto}

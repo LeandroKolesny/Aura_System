@@ -1,5 +1,6 @@
 // Aura System - API de Pacientes
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess, checkPatientLimit } from "@/lib/apiGuards";
@@ -9,7 +10,7 @@ import {
 } from "@/lib/validations/patient";
 
 // Cache helper
-function createCachedResponse(data: any, cacheSeconds: number = 30) {
+function createCachedResponse<T>(data: T, cacheSeconds: number = 30) {
   const response = NextResponse.json(data);
   response.headers.set(
     "Cache-Control",
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Construir filtros
-    const where: any = {
+    const where: Prisma.PatientWhereInput = {
       companyId: user.companyId,
     };
 
@@ -94,6 +95,8 @@ export async function GET(request: NextRequest) {
           status: true,
           lastVisit: true,
           consentSignedAt: true,
+          consentSignatureUrl: true,
+          consentMetadata: true,
           anamnesisLinkSent: true,
           createdAt: true,
         },
