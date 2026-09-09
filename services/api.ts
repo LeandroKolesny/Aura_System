@@ -178,6 +178,9 @@ export interface ApiPatient {
   consentSignedAt?: string | null;
   consentSignatureUrl?: string | null;
   consentMetadata?: Record<string, unknown> | null;
+  consentCorrectionCount?: number;
+  lastConsentCorrectionAt?: string | null;
+  lastConsentCorrectionReason?: string | null;
   anamnesisLinkSent?: boolean;
   lastMarketingMessageSentAt?: string | null;
 }
@@ -557,11 +560,23 @@ export const patientsApi = {
     );
   },
 
-  async signConsent(id: string, signatureUrl: string, metadata?: { documentVersion?: string }) {
-    return fetchApi<{ success: boolean; consentSignedAt: string; message: string }>(
+  async signConsent(id: string, signatureUrl: string, metadata?: { documentVersion?: string }, correctionReason?: string) {
+    return fetchApi<{
+      success: boolean;
+      consentSignedAt: string;
+      consentSignatureUrl: string;
+      consentCorrectionCount: number;
+      lastConsentCorrectionAt: string | null;
+      lastConsentCorrectionReason: string | null;
+      message: string;
+    }>(
       `/api/patients/${id}/consent`,
-      { method: 'POST', body: JSON.stringify({ signatureUrl, metadata }) }
+      { method: 'POST', body: JSON.stringify({ signatureUrl, metadata, correctionReason }) }
     );
+  },
+
+  async getConsentSignatureHistory(id: string) {
+    return fetchApi<{ history: ApiSignatureHistoryEntry[] }>(`/api/patients/${id}/consent/history`);
   },
 };
 

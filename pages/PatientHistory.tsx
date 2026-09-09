@@ -270,7 +270,7 @@ const PatientHistory: React.FC = () => {
       </section>
       {selectedAppointment && <AppointmentDetailModal appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} />}
       {isSignModalOpen && <SignatureModal onClose={() => setIsSignModalOpen(false)} onSave={handleSignSave} isCorrection={!!selectedAppointment?.signatureUrl} />}
-      {viewingSignatureHistoryId && <SignatureHistoryModal appointmentId={viewingSignatureHistoryId} onClose={() => setViewingSignatureHistoryId(null)} />}
+      {viewingSignatureHistoryId && <SignatureHistoryModal targetId={viewingSignatureHistoryId} source="appointment" onClose={() => setViewingSignatureHistoryId(null)} />}
       
       {/* Full Screen Photo Viewer */}
       {viewingPhoto && (

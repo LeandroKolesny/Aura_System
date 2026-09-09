@@ -59,7 +59,8 @@ interface AppContextType {
   addPatient: (patient: Omit<Patient, 'id' | 'companyId' | 'status'> & { status?: 'active' | 'inactive' | 'lead' }) => Promise<{ success: boolean; error?: string; patient?: Patient; limitReached?: boolean }>;
   updatePatient: (id: string, data: Partial<Patient>) => Promise<{ success: boolean; error?: string }>;
   removePatient: (id: string) => Promise<{ success: boolean; error?: string }>;
-  signConsent: (id: string, signatureBase64: string) => Promise<{ success: boolean; error?: string }>;
+  signConsent: (id: string, signatureBase64: string, correctionReason?: string) => Promise<{ success: boolean; error?: string }>;
+  getPatientSignatureHistory: (id: string) => Promise<{ success: boolean; history?: SignatureHistoryEntry[]; error?: string }>;
   toggleAnamnesisSent: (id: string) => void;
 
   appointments: Appointment[];
@@ -1138,15 +1139,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Função não tinha nenhum uso ativo na UI; removida em vez de meio-corrigida.
   // Salva a assinatura de consentimento do paciente via endpoint dedicado
   // (o PUT genérico de paciente não aceita esses campos — usar sempre /consent).
-  const signConsent = async (id: string, signatureBase64: string) => {
+  // `correctionReason` é obrigatório (validado no backend) quando já existe
+  // uma assinatura anterior — nunca sobrescreve sem motivo, a versão antiga
+  // fica preservada em PatientConsentSignatureHistory.
+  const signConsent = async (id: string, signatureBase64: string, correctionReason?: string) => {
       checkWriteAccess();
       try {
-        const result = await patientsApi.signConsent(id, signatureBase64);
+        const result = await patientsApi.signConsent(id, signatureBase64, undefined, correctionReason);
         if (result.success && result.data) {
           setPatients(prev => prev.map(p => p.id === id ? {
             ...p,
             consentSignedAt: result.data!.consentSignedAt,
             consentSignatureUrl: signatureBase64,
+            consentCorrectionCount: result.data!.consentCorrectionCount,
+            lastConsentCorrectionAt: result.data!.lastConsentCorrectionAt ?? undefined,
+            lastConsentCorrectionReason: result.data!.lastConsentCorrectionReason ?? undefined,
           } as Patient : p));
           return { success: true };
         }
@@ -1156,6 +1163,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('❌ Erro de conexão ao assinar consentimento:', error);
         return { success: false, error: 'Erro de conexão' };
       }
+  };
+
+  // Busca a trilha completa de assinaturas do consentimento geral de um
+  // paciente (todas as versões, com imagem e motivo de cada correção) — sob
+  // demanda, não vem na listagem.
+  const getPatientSignatureHistory = async (id: string): Promise<{ success: boolean; history?: SignatureHistoryEntry[]; error?: string }> => {
+    try {
+      const result = await patientsApi.getConsentSignatureHistory(id);
+      if (result.success && result.data) {
+        return { success: true, history: result.data.history };
+      }
+      return { success: false, error: result.error || 'Erro ao buscar histórico de assinaturas' };
+    } catch (error) {
+      console.error('❌ Erro de conexão ao buscar histórico de assinaturas do consentimento:', error);
+      return { success: false, error: 'Erro de conexão' };
+    }
   };
 
   const toggleAnamnesisSent = (id: string) => {
@@ -2158,6 +2181,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updatePatient,
       removePatient,
       signConsent,
+      getPatientSignatureHistory,
       toggleAnamnesisSent,
       appointments: user?.role === UserRole.OWNER ? appointments : appointments.filter(a => a.companyId === user?.companyId),
       addAppointment,

@@ -163,11 +163,39 @@ describe('AppContext > signConsent (consentimento LGPD do paciente)', () => {
       outcome = await result.current.signConsent('p1', 'data:image/png;base64,xxx');
     });
 
-    expect(patientsApi.signConsent).toHaveBeenCalledWith('p1', 'data:image/png;base64,xxx');
+    expect(patientsApi.signConsent).toHaveBeenCalledWith('p1', 'data:image/png;base64,xxx', undefined, undefined);
     expect(outcome).toEqual({ success: true });
     expect(result.current.patients[0].consentSignedAt).toBe('2026-09-07T00:00:00.000Z');
     // Regressão: NÃO deve usar o PUT genérico de paciente para isso.
     expect(patientsApi.update).not.toHaveBeenCalled();
+  });
+
+  it('corrigir a assinatura do consentimento repassa o motivo pra API', async () => {
+    const { result } = await renderReadyApp();
+
+    vi.mocked(patientsApi.list).mockResolvedValue({ success: true, data: { patients: [MOCK_API_PATIENT] } } as never);
+    await act(async () => { await result.current.loadPatients(true); });
+
+    vi.mocked(patientsApi.signConsent).mockResolvedValue({
+      success: true,
+      data: {
+        success: true,
+        consentSignedAt: '2026-09-09T00:00:00.000Z',
+        consentSignatureUrl: 'data:image/png;base64,nova',
+        consentCorrectionCount: 1,
+        lastConsentCorrectionAt: '2026-09-09T00:00:00.000Z',
+        lastConsentCorrectionReason: 'Assinatura ilegível',
+        message: 'ok',
+      },
+    } as never);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      outcome = await result.current.signConsent('p1', 'data:image/png;base64,nova', 'Assinatura ilegível');
+    });
+
+    expect(patientsApi.signConsent).toHaveBeenCalledWith('p1', 'data:image/png;base64,nova', undefined, 'Assinatura ilegível');
+    expect(outcome).toEqual({ success: true });
   });
 
   it('REGRESSÃO: quando a API falha, retorna {success:false, error} em vez de fingir sucesso', async () => {

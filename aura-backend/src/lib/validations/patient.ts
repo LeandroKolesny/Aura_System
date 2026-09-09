@@ -71,6 +71,9 @@ export const signConsentSchema = z.object({
     userAgent: z.string().optional(),
     documentVersion: z.string().optional(),
   }).optional(),
+  // Obrigatório apenas quando já existe uma assinatura anterior (correção) —
+  // validado na rota, depois de sabermos se é a primeira assinatura ou não.
+  correctionReason: z.string().trim().min(3, "Descreva o motivo da correção (mínimo 3 caracteres)").optional(),
 });
 
 // Schema para filtros de listagem

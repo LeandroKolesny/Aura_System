@@ -26,6 +26,7 @@ const PatientDetail: React.FC = () => {
   // Estado para o Admin visualizar a evidência de uma assinatura específica
   const [viewingAppointment, setViewingAppointment] = useState<Appointment | null>(null);
   const [viewingSignatureHistoryId, setViewingSignatureHistoryId] = useState<string | null>(null);
+  const [isViewingConsentHistory, setIsViewingConsentHistory] = useState(false);
 
   useEffect(() => {
     if (location.state && location.state.editMode && !isReadOnly) {
@@ -187,9 +188,9 @@ const PatientDetail: React.FC = () => {
       setIsEditing(false);
   };
 
-  const handleSignatureSave = async (base64: string) => {
+  const handleSignatureSave = async (base64: string, correctionReason?: string) => {
       if (!patient) return;
-      const result = await signConsent(patient.id, base64);
+      const result = await signConsent(patient.id, base64, correctionReason);
       if (!result.success) {
         showAlert(result.error ?? 'Erro ao salvar a assinatura. Tente novamente.', { variant: 'danger' });
       }
@@ -367,7 +368,18 @@ const PatientDetail: React.FC = () => {
                   )}
                 </div>
                 {!patient.consentSignedAt && <p className="text-sm text-slate-500">O termo de consentimento está pendente.</p>}
-                {patient.consentSignatureUrl && <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 flex justify-center"><img src={patient.consentSignatureUrl} alt="Assinatura" className="h-16 object-contain" /></div>}
+                {patient.consentSignatureUrl && (
+                  <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 flex flex-col items-center gap-2">
+                    <img src={patient.consentSignatureUrl} alt="Assinatura" className="h-16 object-contain" />
+                    {!!patient.consentCorrectionCount && (
+                      <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">Corrigida em {formatDate(patient.lastConsentCorrectionAt)}</p>
+                    )}
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => setIsSignatureModalOpen(true)} className="text-xs font-bold text-primary-600 hover:underline">Corrigir assinatura</button>
+                      <button onClick={() => setIsViewingConsentHistory(true)} className="text-xs font-bold text-slate-500 hover:underline">Ver histórico</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -496,8 +508,15 @@ const PatientDetail: React.FC = () => {
       </div>
 
       {viewingAppointment && <AppointmentEvidenceModal appointment={viewingAppointment} onClose={() => setViewingAppointment(null)} />}
-      {isSignatureModalOpen && <SignatureModal onClose={() => setIsSignatureModalOpen(false)} onSave={handleSignatureSave} />}
-      {viewingSignatureHistoryId && <SignatureHistoryModal appointmentId={viewingSignatureHistoryId} onClose={() => setViewingSignatureHistoryId(null)} />}
+      {isSignatureModalOpen && (
+        <SignatureModal
+          onClose={() => setIsSignatureModalOpen(false)}
+          onSave={handleSignatureSave}
+          isCorrection={!!patient.consentSignedAt}
+        />
+      )}
+      {viewingSignatureHistoryId && <SignatureHistoryModal targetId={viewingSignatureHistoryId} source="appointment" onClose={() => setViewingSignatureHistoryId(null)} />}
+      {isViewingConsentHistory && <SignatureHistoryModal targetId={patient.id} source="patient-consent" onClose={() => setIsViewingConsentHistory(false)} />}
       {isCorrectingAppointmentSignature && (
         <SignatureModal
           onClose={() => setIsCorrectingAppointmentSignature(false)}

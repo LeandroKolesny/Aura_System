@@ -8,7 +8,10 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// POST - Assinar consentimento
+// POST - Assinar (ou corrigir) o consentimento geral (LGPD) do paciente.
+// Nunca sobrescreve sem deixar rastro: cada assinatura (a primeira e toda
+// correção) vira uma linha em PatientConsentSignatureHistory, preservando a
+// imagem exata assinada em cada versão.
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const user = await getAuthUser(request);
@@ -20,6 +23,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (!user.companyId) {
       return NextResponse.json({ error: "Usuário sem empresa" }, { status: 403 });
+    }
+
+    // SECURITY: só a equipe da clínica assina/corrige o consentimento geral
+    // em nome do paciente (a assinatura acontece na ficha, com o paciente
+    // fisicamente presente) — nunca outro paciente da mesma empresa.
+    const allowedRoles = ["OWNER", "ADMIN", "RECEPTIONIST", "ESTHETICIAN"];
+    if (!allowedRoles.includes(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
     // Verificar se paciente existe e pertence à empresa
@@ -41,49 +52,87 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // É uma correção se já existe uma assinatura salva — nesse caso o motivo é obrigatório.
+    const isCorrection = !!patient.consentSignatureUrl;
+    if (isCorrection && !validation.data.correctionReason) {
+      return NextResponse.json(
+        { error: "Descreva o motivo da correção da assinatura." },
+        { status: 400 }
+      );
+    }
+
     // Capturar metadados de segurança
-    const ipAddress = request.headers.get("x-forwarded-for") || 
-                      request.headers.get("x-real-ip") || 
+    const ipAddress = request.headers.get("x-forwarded-for") ||
+                      request.headers.get("x-real-ip") ||
                       "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown";
+    const signedAt = new Date();
 
     const consentMetadata = {
-      signedAt: new Date().toISOString(),
+      signedAt: signedAt.toISOString(),
       ipAddress,
       userAgent,
       documentVersion: validation.data.metadata?.documentVersion || "1.0",
       signedBy: user.id,
     };
 
-    // Atualizar paciente com assinatura
-    const updatedPatient = await prisma.patient.update({
-      where: { id },
-      data: {
-        consentSignedAt: new Date(),
-        consentSignatureUrl: validation.data.signatureUrl,
-        consentMetadata,
-      },
-    });
+    const [, updatedPatient] = await prisma.$transaction([
+      // Preserva a versão anterior (ou a primeira assinatura) na trilha de auditoria.
+      prisma.patientConsentSignatureHistory.create({
+        data: {
+          patientId: id,
+          signatureUrl: validation.data.signatureUrl,
+          signedAt,
+          ipAddress,
+          userAgent,
+          documentVersion: consentMetadata.documentVersion,
+          signedByUserId: user.id,
+          correctionReason: isCorrection ? validation.data.correctionReason : null,
+        },
+      }),
+      prisma.patient.update({
+        where: { id },
+        data: {
+          consentSignedAt: signedAt,
+          consentSignatureUrl: validation.data.signatureUrl,
+          consentMetadata,
+          ...(isCorrection
+            ? {
+                consentCorrectionCount: { increment: 1 },
+                lastConsentCorrectionAt: signedAt,
+                lastConsentCorrectionReason: validation.data.correctionReason,
+              }
+            : {}),
+        },
+      }),
+    ]);
 
     // Log de atividade (auditoria)
     await prisma.activity.create({
       data: {
-        type: "CONSENT_SIGNED",
-        title: `Consentimento assinado por "${patient.name}"`,
+        type: isCorrection ? "CONSENT_CORRECTED" : "CONSENT_SIGNED",
+        title: isCorrection
+          ? `Assinatura do consentimento corrigida - ${patient.name}`
+          : `Consentimento assinado por "${patient.name}"`,
         userId: user.id,
         ipAddress,
         userAgent,
-        metadata: { 
+        metadata: {
           patientId: patient.id,
           documentVersion: consentMetadata.documentVersion,
+          ...(isCorrection ? { correctionReason: validation.data.correctionReason } : {}),
         },
       },
     });
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       consentSignedAt: updatedPatient.consentSignedAt,
-      message: "Consentimento assinado com sucesso" 
+      consentSignatureUrl: updatedPatient.consentSignatureUrl,
+      consentCorrectionCount: updatedPatient.consentCorrectionCount,
+      lastConsentCorrectionAt: updatedPatient.lastConsentCorrectionAt,
+      lastConsentCorrectionReason: updatedPatient.lastConsentCorrectionReason,
+      message: "Consentimento assinado com sucesso"
     });
   } catch (error) {
     console.error("Erro ao assinar consentimento:", error);
@@ -129,4 +178,3 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
-

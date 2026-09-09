@@ -227,8 +227,14 @@ model Patient {
   // Anamnese e Consentimento
   anamnesisSummary        String?
   consentSignedAt         DateTime?
-  consentSignatureUrl     String?   // Base64 ou URL
+  consentSignatureUrl     String?   // Base64 ou URL — sempre a versão mais recente
   consentMetadata         Json?     // SignatureMetadata
+  // Campos denormalizados pra mostrar "corrigida em X" sem join extra — o
+  // histórico completo (imagem de cada versão) fica em PatientConsentSignatureHistory.
+  consentCorrectionCount      Int       @default(0)
+  lastConsentCorrectionAt     DateTime?
+  lastConsentCorrectionReason String?
+  consentSignatureHistory PatientConsentSignatureHistory[]
   anamnesisLinkSent       Boolean   @default(false)
   lastMarketingMessageSentAt DateTime?
 
@@ -256,6 +262,28 @@ enum PatientStatus {
   ACTIVE
   INACTIVE
   LEAD
+}
+
+// Trilha de auditoria do consentimento geral (LGPD) do paciente — mesmo
+// princípio da AppointmentSignatureHistory: nunca sobrescreve, só acrescenta.
+model PatientConsentSignatureHistory {
+  id               String   @id @default(cuid())
+  signatureUrl     String
+  signedAt         DateTime
+  ipAddress        String
+  userAgent        String
+  documentVersion  String
+  signedByUserId   String
+  // Motivo informado ao substituir uma assinatura anterior — null na
+  // primeira assinatura do consentimento.
+  correctionReason String?
+  createdAt        DateTime @default(now())
+
+  patient          Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId        String
+
+  @@index([patientId])
+  @@map("patient_consent_signature_history")
 }
 
 // ============================================

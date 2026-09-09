@@ -155,6 +155,11 @@ export interface Patient {
   consentSignedAt?: string;
   consentSignatureUrl?: string; // Base64 image
   consentMetadata?: SignatureMetadata; // Dados de auditoria
+  // Indicador leve de correção — o histórico completo (imagem de cada versão)
+  // vem sob demanda via patientsApi.getConsentSignatureHistory.
+  consentCorrectionCount?: number;
+  lastConsentCorrectionAt?: string;
+  lastConsentCorrectionReason?: string;
   anamnesisLinkSent?: boolean;
   lastMarketingMessageSentAt?: string; 
 }

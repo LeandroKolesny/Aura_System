@@ -1301,20 +1301,25 @@ export const SignatureModal: React.FC<{
 // Trilha de auditoria: mostra todas as versões já assinadas de um agendamento
 // (a original + cada correção), com a imagem exata e o motivo de cada uma.
 // Buscado sob demanda — não vem junto da lista de agendamentos.
-export const SignatureHistoryModal: React.FC<{ appointmentId: string; onClose: () => void }> = ({ appointmentId, onClose }) => {
-  const { getAppointmentSignatureHistory } = useApp();
+type SignatureHistorySource = 'appointment' | 'patient-consent';
+
+export const SignatureHistoryModal: React.FC<{ targetId: string; source: SignatureHistorySource; onClose: () => void }> = ({ targetId, source, onClose }) => {
+  // Mesmo componente serve pra assinatura de procedimento e pra consentimento
+  // geral (LGPD) — só muda qual busca de histórico é chamada.
+  const { getAppointmentSignatureHistory, getPatientSignatureHistory } = useApp();
   const [history, setHistory] = useState<SignatureHistoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    getAppointmentSignatureHistory(appointmentId).then(result => {
+    const fetchHistory = source === 'appointment' ? getAppointmentSignatureHistory : getPatientSignatureHistory;
+    fetchHistory(targetId).then(result => {
       if (!active) return;
       if (result.success) setHistory(result.history ?? []);
       else setError(result.error ?? 'Erro ao carregar histórico de assinaturas.');
     });
     return () => { active = false; };
-  }, [appointmentId, getAppointmentSignatureHistory]);
+  }, [targetId, source, getAppointmentSignatureHistory, getPatientSignatureHistory]);
 
   const ordered = history ? [...history].reverse() : null; // mais recente primeiro
 
