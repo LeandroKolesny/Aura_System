@@ -14,7 +14,7 @@ const PatientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { patients, updatePatient, signConsent, signAppointmentConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos } = useApp();
+  const { patients, updatePatient, signConsent, signAppointmentConsent, toggleAnamnesisSent, currentCompany, photos, removePhoto, appointments, isReadOnly, loadPhotos, loadPatients, loadAppointments, loadedStates } = useApp();
   const { showAlert } = useDialog();
   
   const [activeTab, setActiveTab] = useState<'overview' | 'anamnesis' | 'photos'>('overview');
@@ -38,6 +38,17 @@ const PatientDetail: React.FC = () => {
   useEffect(() => {
     loadPhotos(); // Carrega todas as fotos da empresa (lazy loading)
   }, [loadPhotos]);
+
+  // REGRESSÃO: esta página lê `patients`/`appointments` do estado global mas
+  // nunca disparava o carregamento deles — funcionava só por sorte quando se
+  // chegava aqui navegando a partir da lista de pacientes (que já tinha
+  // carregado tudo). Num F5 direto nesta URL, ambos os arrays começam vazios
+  // e nunca eram populados, então `patients.find()` nunca achava o paciente
+  // e a página ficava presa em "Paciente não encontrado" pra sempre.
+  useEffect(() => {
+    loadPatients();
+    loadAppointments();
+  }, [loadPatients, loadAppointments]);
 
   const [photoModalConfig, setPhotoModalConfig] = useState<{
     isOpen: boolean;
@@ -99,7 +110,15 @@ const PatientDetail: React.FC = () => {
   const [followUpMsg, setFollowUpMsg] = useState<string | null>(null);
   const [isGeneratingMsg, setIsGeneratingMsg] = useState(false);
 
-  if (!patient) return <div className="p-6 text-slate-500 italic">Paciente não encontrado</div>;
+  // Só declara "não encontrado" depois que a lista de pacientes já terminou
+  // de carregar — enquanto ainda está carregando (ex: F5 direto nesta URL),
+  // mostra um estado de carregamento em vez de um falso negativo.
+  if (!patient) {
+    if (!loadedStates.patients) {
+      return <div className="p-6 text-slate-400 italic animate-pulse">Carregando paciente...</div>;
+    }
+    return <div className="p-6 text-slate-500 italic">Paciente não encontrado</div>;
+  }
 
   const handleGenerateSummary = async () => {
     if (isReadOnly) return;
