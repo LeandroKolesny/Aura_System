@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Calendar, FileText, Image as ImageIcon, Sparkles, Share2, CheckCircle, MessageCircle, Maximize2, Trash2, X, AlertTriangle, Clock, Plus, Edit, Save, PenTool, Shield, Info, Eye } from 'lucide-react';
+import { ArrowLeft, Calendar, FileText, Image as ImageIcon, Sparkles, Share2, CheckCircle, MessageCircle, Maximize2, Trash2, X, AlertTriangle, Clock, Plus, Edit, Save, PenTool, Shield, Info, Eye, Download } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useDialog } from '../context/DialogContext';
 import { summarizeAnamnesis, generateFollowUpMessage } from '../services/geminiService';
-import { NewPhotoModal, SignatureModal } from '../components/Modals';
+import { NewPhotoModal, SignatureModal, SignatureHistoryModal } from '../components/Modals';
 import { PhotoAnnotationModal } from '../components/PhotoAnnotationModal';
 import { PhotoRecord, Patient, Appointment } from '../types';
 import { maskPhone, validateBirthDate } from '../utils/maskUtils';
-import { formatDate, formatDateTime, formatCurrency } from '../utils/formatUtils';
+import { formatDate, formatDateTime, formatCurrency, downloadPhoto } from '../utils/formatUtils';
 
 const PatientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +24,7 @@ const PatientDetail: React.FC = () => {
   
   // Estado para o Admin visualizar a evidência de uma assinatura específica
   const [viewingAppointment, setViewingAppointment] = useState<Appointment | null>(null);
+  const [viewingSignatureHistoryId, setViewingSignatureHistoryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (location.state && location.state.editMode && !isReadOnly) {
@@ -214,6 +215,12 @@ const PatientDetail: React.FC = () => {
                         <img src={appointment.signatureUrl} alt="Assinatura" className="h-24 object-contain" />
                     </div>
                     <p className="text-[10px] text-slate-400 font-mono">ID Registro: {appointment.id}</p>
+                    {!!appointment.signatureCorrectionCount && (
+                        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 mt-2 inline-block">Corrigida em {formatDateTime(appointment.lastSignatureCorrectionAt)}</p>
+                    )}
+                    <div className="mt-2">
+                        <button onClick={() => setViewingSignatureHistoryId(appointment.id)} className="text-xs font-bold text-slate-500 hover:underline">Ver histórico de assinaturas</button>
+                    </div>
                 </div>
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <h4 className="font-bold text-slate-800 text-sm mb-4 flex items-center gap-2">
@@ -411,6 +418,7 @@ const PatientDetail: React.FC = () => {
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-lg z-20">
                                             <button onClick={() => setViewingPhoto(setPhotos.before!)} className="p-3 bg-white rounded-full text-slate-900 hover:scale-110 transition-transform"><Maximize2 className="w-6 h-6" /></button>
                                             <button onClick={() => setAnnotatingPhoto(setPhotos.before!)} className="p-3 bg-blue-500 text-white rounded-full hover:scale-110 transition-transform" title="Marcar região"><PenTool className="w-6 h-6" /></button>
+                                            <button onClick={() => downloadPhoto(setPhotos.before!)} className="p-3 bg-slate-700 text-white rounded-full hover:scale-110 transition-transform" title="Baixar foto"><Download className="w-6 h-6" /></button>
                                             <button onClick={() => setPhotoToDelete(setPhotos.before!.id)} className="p-3 bg-red-500 text-white rounded-full hover:scale-110 transition-transform"><Trash2 className="w-6 h-6" /></button>
                                         </div>
                                         {setPhotos.before ? (
@@ -428,6 +436,7 @@ const PatientDetail: React.FC = () => {
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-lg z-20">
                                                     <button onClick={() => setViewingPhoto(setPhotos.after!)} className="p-3 bg-white rounded-full text-slate-900 hover:scale-110 transition-transform"><Maximize2 className="w-6 h-6" /></button>
                                                     <button onClick={() => setAnnotatingPhoto(setPhotos.after!)} className="p-3 bg-blue-500 text-white rounded-full hover:scale-110 transition-transform" title="Marcar região"><PenTool className="w-6 h-6" /></button>
+                                                    <button onClick={() => downloadPhoto(setPhotos.after!)} className="p-3 bg-slate-700 text-white rounded-full hover:scale-110 transition-transform" title="Baixar foto"><Download className="w-6 h-6" /></button>
                                                     <button onClick={() => setPhotoToDelete(setPhotos.after!.id)} className="p-3 bg-red-50 text-white rounded-full hover:scale-110 transition-transform"><Trash2 className="w-6 h-6" /></button>
                                                 </div>
                                                 <img src={setPhotos.after.url} className="w-full h-80 object-cover rounded-lg border-2 border-slate-700 shadow-2xl" alt="Depois" />
@@ -448,6 +457,7 @@ const PatientDetail: React.FC = () => {
 
       {viewingAppointment && <AppointmentEvidenceModal appointment={viewingAppointment} onClose={() => setViewingAppointment(null)} />}
       {isSignatureModalOpen && <SignatureModal onClose={() => setIsSignatureModalOpen(false)} onSave={handleSignatureSave} />}
+      {viewingSignatureHistoryId && <SignatureHistoryModal appointmentId={viewingSignatureHistoryId} onClose={() => setViewingSignatureHistoryId(null)} />}
       {annotatingPhoto && id && (
         <PhotoAnnotationModal
             photo={annotatingPhoto}
@@ -469,6 +479,7 @@ const PatientDetail: React.FC = () => {
       
       {viewingPhoto && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center p-4">
+           <button onClick={() => downloadPhoto(viewingPhoto)} className="absolute top-4 right-20 text-white p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all flex items-center gap-2" title="Baixar foto"><Download className="w-6 h-6" /></button>
            <button onClick={() => setViewingPhoto(null)} className="absolute top-4 right-4 text-white p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all"><X className="w-8 h-8" /></button>
            <img src={viewingPhoto.url} alt="Ampliada" className="max-h-[85vh] max-w-full rounded-lg shadow-2xl" />
            <div className="mt-6 text-white text-center">

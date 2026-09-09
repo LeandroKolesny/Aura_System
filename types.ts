@@ -215,6 +215,19 @@ export interface Appointment {
   // Novos campos para Assinatura por procedimento
   signatureUrl?: string;
   signatureMetadata?: SignatureMetadata;
+  // Indicador leve de correção — o histórico completo (imagem de cada versão)
+  // vem sob demanda via appointmentsApi.getSignatureHistory.
+  signatureCorrectionCount?: number;
+  lastSignatureCorrectionAt?: string;
+  lastSignatureCorrectionReason?: string;
+}
+
+export interface SignatureHistoryEntry {
+  id: string;
+  signatureUrl: string;
+  signedAt: string;
+  documentVersion: string;
+  correctionReason: string | null;
 }
 
 export interface Transaction {

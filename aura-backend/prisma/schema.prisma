@@ -320,9 +320,17 @@ model Appointment {
   roomId          Int?
   stockDeducted   Boolean  @default(false)
 
-  // Assinatura de procedimento
+  // Assinatura de procedimento (sempre a mais recente — a trilha de auditoria
+  // completa, com as imagens de cada versão, fica em AppointmentSignatureHistory)
   signatureUrl    String?
   signatureMetadata Json?
+  // Campos denormalizados pra mostrar "assinatura corrigida em X" nas listagens
+  // sem precisar de um join/fetch extra — o histórico completo (com motivo e
+  // imagem de cada versão) só é buscado sob demanda em /consent/history.
+  signatureCorrectionCount      Int       @default(0)
+  lastSignatureCorrectionAt     DateTime?
+  lastSignatureCorrectionReason String?
+  signatureHistory AppointmentSignatureHistory[]
   googleEventId   String?
   subscriptionId  String?
   subscription    PatientSubscription? @relation(fields: [subscriptionId], references: [id])
@@ -348,6 +356,30 @@ model Appointment {
   @@index([companyId, professionalId, date])
   @@index([patientId])
   @@map("appointments")
+}
+
+// Trilha de auditoria de assinaturas de procedimento: nunca sobrescreve, só
+// acrescenta. Toda assinatura (a primeira e cada correção) vira uma linha
+// aqui, preservando a imagem exata que foi assinada em cada versão —
+// permite corrigir uma assinatura errada sem perder o registro original.
+model AppointmentSignatureHistory {
+  id               String   @id @default(cuid())
+  signatureUrl     String
+  signedAt         DateTime
+  ipAddress        String
+  userAgent        String
+  documentVersion  String
+  signedByUserId   String
+  // Motivo informado ao substituir uma assinatura anterior — null na
+  // primeira assinatura de um agendamento (nada para corrigir ainda).
+  correctionReason String?
+  createdAt        DateTime @default(now())
+
+  appointment      Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  appointmentId    String
+
+  @@index([appointmentId])
+  @@map("appointment_signature_history")
 }
 
 enum AppointmentStatus {
@@ -575,6 +607,7 @@ enum ActivityType {
   PATIENT_CREATED
   PATIENT_UPDATED
   CONSENT_SIGNED
+  CONSENT_CORRECTED
 
   // Agendamentos
   APPOINTMENT_CREATED

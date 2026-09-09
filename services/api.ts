@@ -200,7 +200,20 @@ export interface ApiAppointment {
   patient?: { id: string; name: string; phone?: string; email?: string };
   professional?: { id: string; name: string };
   procedure?: { id: string; name: string; durationMinutes?: number };
+  // Indicador leve de correção de assinatura — o histórico completo (com a
+  // imagem de cada versão) vem só sob demanda via appointmentsApi.getSignatureHistory.
+  signatureCorrectionCount?: number;
+  lastSignatureCorrectionAt?: string | null;
+  lastSignatureCorrectionReason?: string | null;
   [key: string]: unknown;
+}
+
+export interface ApiSignatureHistoryEntry {
+  id: string;
+  signatureUrl: string;
+  signedAt: string;
+  documentVersion: string;
+  correctionReason: string | null;
 }
 
 export interface ApiTransaction {
@@ -624,11 +637,22 @@ export const appointmentsApi = {
     });
   },
 
-  async signConsent(id: string, signatureUrl: string, metadata?: { documentVersion?: string }) {
-    return fetchApi<{ success: boolean; signatureUrl: string; signatureMetadata: Record<string, unknown> }>(
+  async signConsent(id: string, signatureUrl: string, metadata?: { documentVersion?: string }, correctionReason?: string) {
+    return fetchApi<{
+      success: boolean;
+      signatureUrl: string;
+      signatureMetadata: Record<string, unknown>;
+      signatureCorrectionCount: number;
+      lastSignatureCorrectionAt: string | null;
+      lastSignatureCorrectionReason: string | null;
+    }>(
       `/api/appointments/${id}/consent`,
-      { method: 'POST', body: JSON.stringify({ signatureUrl, metadata }) }
+      { method: 'POST', body: JSON.stringify({ signatureUrl, metadata, correctionReason }) }
     );
+  },
+
+  async getSignatureHistory(id: string) {
+    return fetchApi<{ history: ApiSignatureHistoryEntry[] }>(`/api/appointments/${id}/signature-history`);
   },
 };
 

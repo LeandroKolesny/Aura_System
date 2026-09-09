@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool, Loader2 } from 'lucide-react';
-import { Patient, Appointment, UserRole, User, Procedure, Supply, PhotoRecord, SystemAlert, BusinessHours, InventoryItem, Transaction } from '../types';
+import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool, Loader2, History } from 'lucide-react';
+import { Patient, Appointment, UserRole, User, Procedure, Supply, PhotoRecord, SystemAlert, BusinessHours, InventoryItem, Transaction, SignatureHistoryEntry } from '../types';
 import { useApp } from '../context/AppContext';
 import { maskCpf, maskPhone, validateCPF, validateBirthDate } from '../utils/maskUtils';
 import { formatCurrency, formatDateTime, formatDate } from '../utils/formatUtils';
@@ -1205,7 +1205,14 @@ export const NewPhotoModal: React.FC<{
   );
 };
 
-export const SignatureModal: React.FC<{ onClose: () => void; onSave: (base64: string) => void }> = ({ onClose, onSave }) => {
+export const SignatureModal: React.FC<{
+  onClose: () => void;
+  onSave: (base64: string, correctionReason?: string) => void;
+  // Quando true, já existe uma assinatura anterior — exige motivo da correção
+  // antes de liberar o botão de confirmar (a versão antiga fica preservada
+  // no histórico, nunca é apagada).
+  isCorrection?: boolean;
+}> = ({ onClose, onSave, isCorrection = false }) => {
   // Usa react-signature-canvas (wrapper da signature_pad) em vez de canvas
   // manual: a implementação anterior desenhava na posição do mouse (em
   // pixels de CSS, já que o canvas era esticado via `w-full`) diretamente
@@ -1219,6 +1226,8 @@ export const SignatureModal: React.FC<{ onClose: () => void; onSave: (base64: st
   const sigPadRef = useRef<SignatureCanvas>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEmpty, setIsEmpty] = useState(true);
+  const [correctionReason, setCorrectionReason] = useState('');
+  const reasonIsValid = correctionReason.trim().length >= 3;
 
   const resizeCanvas = useCallback(() => {
     const container = containerRef.current;
@@ -1244,14 +1253,29 @@ export const SignatureModal: React.FC<{ onClose: () => void; onSave: (base64: st
   const clear = () => { sigPadRef.current?.clear(); setIsEmpty(true); };
   const handleSave = () => {
     if (!sigPadRef.current || sigPadRef.current.isEmpty()) return;
-    onSave(sigPadRef.current.toDataURL('image/png'));
+    if (isCorrection && !reasonIsValid) return;
+    onSave(sigPadRef.current.toDataURL('image/png'), isCorrection ? correctionReason.trim() : undefined);
     onClose();
   };
+  const canSave = !isEmpty && (!isCorrection || reasonIsValid);
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2"><PenTool className="w-5 h-5" /> Assinatura Digital</h3><button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400" /></button></div>
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2"><PenTool className="w-5 h-5" /> {isCorrection ? 'Corrigir Assinatura' : 'Assinatura Digital'}</h3><button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400" /></button></div>
         <div className="p-6">
+          {isCorrection && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Motivo da correção <span className="text-red-500">*</span></label>
+              <textarea
+                value={correctionReason}
+                onChange={e => setCorrectionReason(e.target.value)}
+                rows={2}
+                placeholder="Ex: assinatura ilegível, pessoa errada assinou..."
+                className="w-full p-2 border rounded-lg text-sm resize-none"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">A assinatura anterior não será apagada — fica registrada no histórico com a data e o motivo.</p>
+            </div>
+          )}
           <p className="text-sm text-slate-500 mb-4">Desenhe sua assinatura no campo abaixo:</p>
           <div ref={containerRef} className="border-2 border-slate-200 rounded-xl bg-slate-50 relative overflow-hidden touch-none h-[200px]">
             <SignatureCanvas
@@ -1266,8 +1290,59 @@ export const SignatureModal: React.FC<{ onClose: () => void; onSave: (base64: st
           </div>
           <div className="mt-6 flex gap-3">
             <button onClick={onClose} className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50">Cancelar</button>
-            <button onClick={handleSave} disabled={isEmpty} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">Confirmar Assinatura</button>
+            <button onClick={handleSave} disabled={!canSave} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">Confirmar Assinatura</button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Trilha de auditoria: mostra todas as versões já assinadas de um agendamento
+// (a original + cada correção), com a imagem exata e o motivo de cada uma.
+// Buscado sob demanda — não vem junto da lista de agendamentos.
+export const SignatureHistoryModal: React.FC<{ appointmentId: string; onClose: () => void }> = ({ appointmentId, onClose }) => {
+  const { getAppointmentSignatureHistory } = useApp();
+  const [history, setHistory] = useState<SignatureHistoryEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAppointmentSignatureHistory(appointmentId).then(result => {
+      if (!active) return;
+      if (result.success) setHistory(result.history ?? []);
+      else setError(result.error ?? 'Erro ao carregar histórico de assinaturas.');
+    });
+    return () => { active = false; };
+  }, [appointmentId, getAppointmentSignatureHistory]);
+
+  const ordered = history ? [...history].reverse() : null; // mais recente primeiro
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[210] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in max-h-[85vh] flex flex-col">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2"><History className="w-5 h-5" /> Histórico de Assinaturas</h3>
+          <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400" /></button>
+        </div>
+        <div className="p-6 overflow-y-auto space-y-4">
+          {!ordered && !error && <p className="text-sm text-slate-500 text-center py-6">Carregando...</p>}
+          {error && <p className="text-sm text-red-500 text-center py-6">{error}</p>}
+          {ordered && ordered.length === 0 && <p className="text-sm text-slate-500 text-center py-6">Nenhuma assinatura registrada.</p>}
+          {ordered?.map((entry, idx) => (
+            <div key={entry.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>{idx === 0 ? 'Versão atual' : 'Substituída'}</span>
+                <span className="text-[11px] text-slate-400 font-mono">{formatDateTime(entry.signedAt)}</span>
+              </div>
+              <div className="bg-white p-2 border border-slate-200 rounded flex justify-center mb-2">
+                <img src={entry.signatureUrl} alt="Assinatura" className="h-14 object-contain" />
+              </div>
+              {entry.correctionReason && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">Motivo da correção: {entry.correctionReason}</p>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -209,7 +209,7 @@ describe('AppContext > signAppointmentConsent (consentimento do procedimento)', 
       outcome = await result.current.signAppointmentConsent('appt-1', 'data:image/png;base64,xxx');
     });
 
-    expect(appointmentsApi.signConsent).toHaveBeenCalledWith('appt-1', 'data:image/png;base64,xxx');
+    expect(appointmentsApi.signConsent).toHaveBeenCalledWith('appt-1', 'data:image/png;base64,xxx', undefined, undefined);
     expect(outcome).toEqual({ success: true });
   });
 
@@ -223,6 +223,29 @@ describe('AppContext > signAppointmentConsent (consentimento do procedimento)', 
     });
 
     expect(outcome).toEqual({ success: false, error: 'Sem permissão' });
+  });
+
+  it('corrigir uma assinatura repassa o motivo pra API', async () => {
+    const { result } = await renderReadyApp();
+    vi.mocked(appointmentsApi.signConsent).mockResolvedValue({
+      success: true,
+      data: {
+        success: true,
+        signatureUrl: 'data:image/png;base64,nova',
+        signatureMetadata: {},
+        signatureCorrectionCount: 1,
+        lastSignatureCorrectionAt: '2026-09-09T00:00:00.000Z',
+        lastSignatureCorrectionReason: 'Assinatura ilegível',
+      },
+    } as never);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      outcome = await result.current.signAppointmentConsent('appt-1', 'data:image/png;base64,nova', 'Assinatura ilegível');
+    });
+
+    expect(appointmentsApi.signConsent).toHaveBeenCalledWith('appt-1', 'data:image/png;base64,nova', undefined, 'Assinatura ilegível');
+    expect(outcome).toEqual({ success: true });
   });
 });
 

@@ -1,5 +1,7 @@
 // Utilitários de Formatação Global — importar daqui, nunca redefinir localmente
 
+import { PhotoRecord } from '../types';
+
 const AVATAR_PALETTES = [
   { bg: 'from-primary-400 to-primary-600', text: 'text-white' },
   { bg: 'from-rose-400 to-rose-600', text: 'text-white' },
@@ -78,4 +80,22 @@ export const getFriendlyDeviceInfo = (ua?: string): string => {
     else if (ua.includes('Linux')) os = 'Linux';
 
     return `${browser} no ${os}`;
+};
+
+/**
+ * Baixa uma foto de evolução (antes/depois) direto pro computador do usuário —
+ * funciona tanto com data URL base64 quanto com URL hospedada, sem precisar
+ * de nenhuma chamada de rede extra (o navegador usa o próprio src já carregado).
+ */
+export const downloadPhoto = (photo: PhotoRecord): void => {
+    const extMatch = photo.url.match(/^data:image\/(png|jpe?g|gif|webp)/);
+    const ext = extMatch ? extMatch[1] : 'jpg';
+    const safeProcedure = (photo.procedure || 'foto').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const label = photo.type === 'before' ? 'antes' : 'depois';
+    const link = document.createElement('a');
+    link.href = photo.url;
+    link.download = `${safeProcedure}_${label}_${photo.date}.${ext}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };

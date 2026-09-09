@@ -13,9 +13,15 @@ const signAppointmentConsentSchema = z.object({
   metadata: z.object({
     documentVersion: z.string().optional(),
   }).optional(),
+  // Obrigatório apenas quando já existe uma assinatura anterior (correção) —
+  // validado abaixo, depois de sabermos se é a primeira assinatura ou não.
+  correctionReason: z.string().trim().min(3, "Descreva o motivo da correção (mínimo 3 caracteres)").optional(),
 });
 
-// POST - Assinar consentimento de um agendamento específico
+// POST - Assinar (ou corrigir) o consentimento de um agendamento específico.
+// Nunca sobrescreve sem deixar rastro: cada assinatura (a primeira e toda
+// correção) vira uma linha em AppointmentSignatureHistory, preservando a
+// imagem exata assinada em cada versão.
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const user = await getAuthUser(request);
@@ -55,35 +61,73 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // É uma correção se já existe uma assinatura salva — nesse caso o motivo é obrigatório.
+    const isCorrection = !!appointment.signatureUrl;
+    if (isCorrection && !validation.data.correctionReason) {
+      return NextResponse.json(
+        { error: "Descreva o motivo da correção da assinatura." },
+        { status: 400 }
+      );
+    }
+
     const ipAddress = request.headers.get("x-forwarded-for") ||
                       request.headers.get("x-real-ip") ||
                       "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown";
+    const signedAt = new Date();
 
     const signatureMetadata = {
-      signedAt: new Date().toISOString(),
+      signedAt: signedAt.toISOString(),
       ipAddress,
       userAgent,
       documentVersion: validation.data.metadata?.documentVersion || "v1.0-appt-consent",
       signedBy: user.id,
     };
 
-    const updated = await prisma.appointment.update({
-      where: { id },
-      data: {
-        signatureUrl: validation.data.signatureUrl,
-        signatureMetadata,
-      },
-    });
+    const [, updated] = await prisma.$transaction([
+      // Preserva a versão anterior (ou a primeira assinatura) na trilha de auditoria.
+      prisma.appointmentSignatureHistory.create({
+        data: {
+          appointmentId: id,
+          signatureUrl: validation.data.signatureUrl,
+          signedAt,
+          ipAddress,
+          userAgent,
+          documentVersion: signatureMetadata.documentVersion,
+          signedByUserId: user.id,
+          correctionReason: isCorrection ? validation.data.correctionReason : null,
+        },
+      }),
+      prisma.appointment.update({
+        where: { id },
+        data: {
+          signatureUrl: validation.data.signatureUrl,
+          signatureMetadata,
+          ...(isCorrection
+            ? {
+                signatureCorrectionCount: { increment: 1 },
+                lastSignatureCorrectionAt: signedAt,
+                lastSignatureCorrectionReason: validation.data.correctionReason,
+              }
+            : {}),
+        },
+      }),
+    ]);
 
     await prisma.activity.create({
       data: {
-        type: "CONSENT_SIGNED",
-        title: `Consentimento do procedimento assinado - ${appointment.patient.name}`,
+        type: isCorrection ? "CONSENT_CORRECTED" : "CONSENT_SIGNED",
+        title: isCorrection
+          ? `Assinatura do procedimento corrigida - ${appointment.patient.name}`
+          : `Consentimento do procedimento assinado - ${appointment.patient.name}`,
         userId: user.id,
         ipAddress,
         userAgent,
-        metadata: { appointmentId: id, patientId: appointment.patient.id },
+        metadata: {
+          appointmentId: id,
+          patientId: appointment.patient.id,
+          ...(isCorrection ? { correctionReason: validation.data.correctionReason } : {}),
+        },
       },
     });
 
@@ -91,6 +135,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       success: true,
       signatureUrl: updated.signatureUrl,
       signatureMetadata: updated.signatureMetadata,
+      signatureCorrectionCount: updated.signatureCorrectionCount,
+      lastSignatureCorrectionAt: updated.lastSignatureCorrectionAt,
+      lastSignatureCorrectionReason: updated.lastSignatureCorrectionReason,
     });
   } catch (error) {
     console.error("Erro ao assinar consentimento do agendamento:", error);

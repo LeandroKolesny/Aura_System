@@ -165,6 +165,9 @@ export async function GET(request: NextRequest) {
           roomId: true,
           signatureUrl: true,
           signatureMetadata: true,
+          signatureCorrectionCount: true,
+          lastSignatureCorrectionAt: true,
+          lastSignatureCorrectionReason: true,
           companyId: true,
           patientId: true,
           professionalId: true,
@@ -193,6 +196,7 @@ export async function GET(request: NextRequest) {
             notes: "",
             signatureUrl: "",
             signatureMetadata: {},
+            lastSignatureCorrectionReason: null,
           };
         }
       });

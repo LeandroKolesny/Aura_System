@@ -3,7 +3,7 @@ import {
   User, Company, Patient, Appointment, Transaction, Procedure,
   PhotoRecord, SaasPlan, Lead, Ticket, SystemAlert, AppNotification,
   UserRole, SystemModule, UnavailabilityRule, LeadStatus, InventoryItem, SignatureMetadata,
-  SubscriptionStatus, BusinessHours
+  SubscriptionStatus, BusinessHours, SignatureHistoryEntry
 } from '../types';
 import { PLAN_NAMES, PlanLimits } from '../constants';
 import {
@@ -65,7 +65,8 @@ interface AppContextType {
   appointments: Appointment[];
   addAppointment: (appt: Record<string, unknown>, isPublic?: boolean, publicCompanyId?: string, patientInfo?: { name?: string; email: string; phone: string; password?: string }) => Promise<{ success: boolean; conflict?: boolean; error?: string; appointment?: Appointment }>;
   updateAppointment: (id: string, data: Partial<Appointment>) => void;
-  signAppointmentConsent: (id: string, signatureBase64: string) => Promise<{ success: boolean; error?: string }>;
+  signAppointmentConsent: (id: string, signatureBase64: string, correctionReason?: string) => Promise<{ success: boolean; error?: string }>;
+  getAppointmentSignatureHistory: (id: string) => Promise<{ success: boolean; history?: SignatureHistoryEntry[]; error?: string }>;
 
   transactions: Transaction[];
   addTransaction: (transaction: Omit<Transaction, 'id' | 'companyId'>) => Promise<{ success: boolean; error?: string; transaction?: Transaction }>;
@@ -1252,15 +1253,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Salva a assinatura de consentimento do agendamento via endpoint dedicado
   // (o update genérico de agendamento não aceita esses campos — usar sempre /consent).
-  const signAppointmentConsent = async (id: string, signatureBase64: string) => {
+  // `correctionReason` é obrigatório (validado no backend) quando já existe uma
+  // assinatura anterior — nunca sobrescreve sem motivo, a versão antiga fica
+  // preservada em AppointmentSignatureHistory.
+  const signAppointmentConsent = async (id: string, signatureBase64: string, correctionReason?: string) => {
     checkWriteAccess();
     try {
-      const result = await appointmentsApi.signConsent(id, signatureBase64);
+      const result = await appointmentsApi.signConsent(id, signatureBase64, undefined, correctionReason);
       if (result.success && result.data) {
         setAppointments(prev => prev.map(a => a.id === id ? {
           ...a,
           signatureUrl: result.data!.signatureUrl,
           signatureMetadata: result.data!.signatureMetadata as unknown as SignatureMetadata,
+          signatureCorrectionCount: result.data!.signatureCorrectionCount,
+          lastSignatureCorrectionAt: result.data!.lastSignatureCorrectionAt ?? undefined,
+          lastSignatureCorrectionReason: result.data!.lastSignatureCorrectionReason ?? undefined,
         } : a));
         return { success: true };
       }
@@ -1268,6 +1275,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: false, error: result.error || 'Erro ao salvar assinatura' };
     } catch (error) {
       console.error('❌ Erro de conexão ao assinar consentimento do agendamento:', error);
+      return { success: false, error: 'Erro de conexão' };
+    }
+  };
+
+  // Busca a trilha completa de assinaturas de um agendamento (todas as versões,
+  // com imagem e motivo de cada correção) — sob demanda, não vem na listagem.
+  const getAppointmentSignatureHistory = async (id: string): Promise<{ success: boolean; history?: SignatureHistoryEntry[]; error?: string }> => {
+    try {
+      const result = await appointmentsApi.getSignatureHistory(id);
+      if (result.success && result.data) {
+        return { success: true, history: result.data.history };
+      }
+      return { success: false, error: result.error || 'Erro ao buscar histórico de assinaturas' };
+    } catch (error) {
+      console.error('❌ Erro de conexão ao buscar histórico de assinaturas:', error);
       return { success: false, error: 'Erro de conexão' };
     }
   };
@@ -2142,6 +2164,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateAppointment,
       changeAppointmentStatus,
       signAppointmentConsent,
+      getAppointmentSignatureHistory,
       transactions: user?.role === UserRole.OWNER ? transactions : transactions.filter(t => t.companyId === user?.companyId),
       addTransaction,
       updateTransaction,

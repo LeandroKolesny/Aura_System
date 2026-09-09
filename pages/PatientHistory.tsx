@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Calendar, Clock, CheckCircle, XCircle, MapPin, ChevronRight, X, ImageIcon, Shield, PenTool, Info, Maximize2 } from 'lucide-react';
-import { formatCurrency, formatDateTime, formatDate, getFriendlyDeviceInfo } from '../utils/formatUtils';
-import { SignatureModal } from '../components/Modals';
+import { Calendar, Clock, CheckCircle, XCircle, MapPin, ChevronRight, X, ImageIcon, Shield, PenTool, Info, Maximize2, Download } from 'lucide-react';
+import { formatCurrency, formatDateTime, formatDate, getFriendlyDeviceInfo, downloadPhoto } from '../utils/formatUtils';
+import { SignatureModal, SignatureHistoryModal } from '../components/Modals';
 import { Appointment, PhotoRecord, UserRole } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { useDialog } from '../context/DialogContext';
@@ -12,6 +12,7 @@ const PatientHistory: React.FC = () => {
   const { showAlert } = useDialog();
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
+  const [viewingSignatureHistoryId, setViewingSignatureHistoryId] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<PhotoRecord | null>(null);
 
   // Carregar dados ao montar
@@ -51,9 +52,9 @@ const PatientHistory: React.FC = () => {
       return (isPast && a.status !== 'pending_approval') || isFinalized;
   });
 
-  const handleSignSave = async (signatureBase64: string) => {
+  const handleSignSave = async (signatureBase64: string, correctionReason?: string) => {
     if (!selectedAppointment) return;
-    const result = await signAppointmentConsent(selectedAppointment.id, signatureBase64);
+    const result = await signAppointmentConsent(selectedAppointment.id, signatureBase64, correctionReason);
     if (!result.success) {
       showAlert(result.error ?? 'Erro ao salvar a assinatura. Tente novamente.', { variant: 'danger' });
       return;
@@ -66,7 +67,10 @@ const PatientHistory: React.FC = () => {
         ipAddress: 'Simulado',
         userAgent: navigator.userAgent,
         documentVersion: 'v1.0-appt-consent'
-      }
+      },
+      signatureCorrectionCount: correctionReason ? (selectedAppointment.signatureCorrectionCount ?? 0) + 1 : selectedAppointment.signatureCorrectionCount,
+      lastSignatureCorrectionAt: correctionReason ? new Date().toISOString() : selectedAppointment.lastSignatureCorrectionAt,
+      lastSignatureCorrectionReason: correctionReason ?? selectedAppointment.lastSignatureCorrectionReason,
     });
   };
 
@@ -193,6 +197,15 @@ const PatientHistory: React.FC = () => {
                     <p>Assinado em {formatDateTime(appointment.signatureMetadata?.signedAt)}</p>
                     <p>Dispositivo: {getFriendlyDeviceInfo(appointment.signatureMetadata?.userAgent)}</p>
                   </div>
+                  {!!appointment.signatureCorrectionCount && (
+                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 mt-2">
+                      Corrigida em {formatDateTime(appointment.lastSignatureCorrectionAt)}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 mt-3">
+                    <button onClick={() => setIsSignModalOpen(true)} className="text-xs font-bold text-primary-600 hover:underline">Corrigir assinatura</button>
+                    <button onClick={() => setViewingSignatureHistoryId(appointment.id)} className="text-xs font-bold text-slate-500 hover:underline">Ver histórico</button>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-4">
@@ -256,11 +269,19 @@ const PatientHistory: React.FC = () => {
           ) : (<div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-8 text-center text-slate-500"><p>Nenhum histórico disponível.</p></div>)}
       </section>
       {selectedAppointment && <AppointmentDetailModal appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} />}
-      {isSignModalOpen && <SignatureModal onClose={() => setIsSignModalOpen(false)} onSave={handleSignSave} />}
+      {isSignModalOpen && <SignatureModal onClose={() => setIsSignModalOpen(false)} onSave={handleSignSave} isCorrection={!!selectedAppointment?.signatureUrl} />}
+      {viewingSignatureHistoryId && <SignatureHistoryModal appointmentId={viewingSignatureHistoryId} onClose={() => setViewingSignatureHistoryId(null)} />}
       
       {/* Full Screen Photo Viewer */}
       {viewingPhoto && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in">
+           <button
+            onClick={() => downloadPhoto(viewingPhoto)}
+            className="absolute top-4 right-20 text-white p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all z-50 shadow-xl backdrop-blur-sm"
+            title="Baixar foto"
+           >
+             <Download className="w-6 h-6" />
+           </button>
            <button 
             onClick={() => setViewingPhoto(null)} 
             className="absolute top-4 right-4 text-white p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all z-50 shadow-xl backdrop-blur-sm"
