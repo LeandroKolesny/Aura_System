@@ -153,6 +153,16 @@ describe('POST /api/photos — validação Zod', () => {
     expect(res.status).toBe(201)
   })
 
+  // REGRESSÃO CRÍTICA (produção): o NewPhotoModal do frontend sempre envia
+  // type minúsculo ('before'/'after') — o enum aqui só aceitava maiúsculo,
+  // então TODA foto enviada pelo app real falhava com 400, sem exceção
+  // (só os testes acima, que usam 'BEFORE'/'AFTER' direto, passavam).
+  it.each(['before', 'after', 'Before', 'AFTER'])('aceita type=%s (minúsculo/misto, como o frontend envia de verdade)', async (type) => {
+    vi.mocked(prisma.photoRecord.create).mockResolvedValue(MOCK_PHOTO as unknown as PhotoRecord)
+    const res = await POST(makePOSTRequest({ ...VALID_BODY, type }))
+    expect(res.status).toBe(201)
+  })
+
   it('retorna 400 quando url está ausente', async () => {
     const { url: _, ...withoutUrl } = VALID_BODY
     const res = await POST(makePOSTRequest(withoutUrl))
@@ -198,6 +208,38 @@ describe('POST /api/photos — validação Zod', () => {
   it('SECURITY: rejeita data URL com payload não-base64', async () => {
     const res = await POST(makePOSTRequest({ ...VALID_BODY, url: 'data:image/png,<script>alert(1)</script>' }))
     expect(res.status).toBe(400)
+  })
+
+  // REGRESSÃO CRÍTICA (produção): o campo de data do NewPhotoModal é um
+  // <input type="date">, que só envia "YYYY-MM-DD" — z.string().datetime()
+  // exige o formato ISO completo (com hora/timezone) e rejeitava isso,
+  // quebrando toda foto que tivesse uma data preenchida (ou seja, sempre,
+  // já que o campo tem um valor default e é obrigatório no formulário).
+  it('aceita date no formato YYYY-MM-DD do <input type="date"> (como o frontend envia de verdade)', async () => {
+    vi.mocked(prisma.photoRecord.create).mockResolvedValue(MOCK_PHOTO as unknown as PhotoRecord)
+    const res = await POST(makePOSTRequest({ ...VALID_BODY, date: '2026-09-09' }))
+    expect(res.status).toBe(201)
+    expect(prisma.photoRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ date: new Date('2026-09-09') }) })
+    )
+  })
+
+  it('aceita date em ISO datetime completo também', async () => {
+    vi.mocked(prisma.photoRecord.create).mockResolvedValue(MOCK_PHOTO as unknown as PhotoRecord)
+    const res = await POST(makePOSTRequest({ ...VALID_BODY, date: '2026-09-09T14:30:00.000Z' }))
+    expect(res.status).toBe(201)
+  })
+
+  it('retorna 400 quando date não é uma data válida', async () => {
+    const res = await POST(makePOSTRequest({ ...VALID_BODY, date: 'não-é-uma-data' }))
+    expect(res.status).toBe(400)
+  })
+
+  it('usa a data atual quando date não é informado', async () => {
+    vi.mocked(prisma.photoRecord.create).mockResolvedValue(MOCK_PHOTO as unknown as PhotoRecord)
+    const { date: _date, ...withoutDate } = VALID_BODY as Record<string, unknown>
+    const res = await POST(makePOSTRequest(withoutDate))
+    expect(res.status).toBe(201)
   })
 })
 

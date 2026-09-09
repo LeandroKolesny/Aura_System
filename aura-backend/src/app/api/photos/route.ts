@@ -16,10 +16,21 @@ const createPhotoSchema = z.object({
     (u) => u.startsWith('https://') || u.startsWith('http://') || DATA_URL_IMAGE_REGEX.test(u),
     { message: "URL deve ser http(s) ou uma data URL de imagem válida (png, jpeg, gif ou webp)" }
   ),
-  type: z.enum(["BEFORE", "AFTER"]),
+  // REGRESSÃO: o modal de upload (NewPhotoModal) sempre envia 'before'/'after'
+  // minúsculo — o enum aqui só aceitava maiúsculo, então TODA foto enviada
+  // falhava com 400 "Dados inválidos", sem exceção. Aceita os dois casos.
+  type: z.string().transform((v) => v.toUpperCase()).pipe(z.enum(["BEFORE", "AFTER"])),
   procedure: z.string().min(1).max(100),
   groupId: z.string().max(100).optional(),
-  date: z.string().datetime().optional(),
+  // REGRESSÃO: o input de data do modal é <input type="date"> — envia só
+  // "YYYY-MM-DD", não um datetime ISO completo. z.string().datetime() exige
+  // o formato completo (com hora/timezone) e rejeitava isso, quebrando toda
+  // foto que tivesse uma data preenchida. Basta ser parseável como data válida
+  // (mesmo padrão usado em createTransactionSchema).
+  date: z.string().optional().refine(
+    (v) => v === undefined || !isNaN(new Date(v).getTime()),
+    { message: "Data inválida" }
+  ),
 });
 
 // GET - Listar fotos
