@@ -24,7 +24,11 @@
       ]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    // Adicionado após descobrir que @types/react nunca esteve instalado:
+    // sem isso, todo o JSX/React virava `any` implícito e o tsc nunca
+    // pegava — agora qualquer gap de tipagem futuro quebra o build na hora.
+    "noImplicitAny": true
   },
   "exclude": [
     "node_modules",

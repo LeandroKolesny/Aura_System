@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { useDialog } from '../context/DialogContext';
 import { summarizeAnamnesis, generateFollowUpMessage } from '../services/geminiService';
 import { NewPhotoModal, SignatureModal } from '../components/Modals';
+import { PhotoAnnotationModal } from '../components/PhotoAnnotationModal';
 import { PhotoRecord, Patient, Appointment } from '../types';
 import { maskPhone, validateBirthDate } from '../utils/maskUtils';
 import { formatDate, formatDateTime, formatCurrency } from '../utils/formatUtils';
@@ -45,6 +46,7 @@ const PatientDetail: React.FC = () => {
   }>({ isOpen: false, initialType: 'before', initialProcedure: '', lockFields: false });
 
   const [viewingPhoto, setViewingPhoto] = useState<PhotoRecord | null>(null);
+  const [annotatingPhoto, setAnnotatingPhoto] = useState<PhotoRecord | null>(null);
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
 
   const patient = patients.find(p => p.id === id);
@@ -408,6 +410,7 @@ const PatientDetail: React.FC = () => {
                                         <span className="absolute top-4 left-4 z-10 bg-black/60 text-white px-3 py-1 rounded text-[10px] font-bold uppercase backdrop-blur-md border border-white/10">Antes</span>
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-lg z-20">
                                             <button onClick={() => setViewingPhoto(setPhotos.before!)} className="p-3 bg-white rounded-full text-slate-900 hover:scale-110 transition-transform"><Maximize2 className="w-6 h-6" /></button>
+                                            <button onClick={() => setAnnotatingPhoto(setPhotos.before!)} className="p-3 bg-blue-500 text-white rounded-full hover:scale-110 transition-transform" title="Marcar região"><PenTool className="w-6 h-6" /></button>
                                             <button onClick={() => setPhotoToDelete(setPhotos.before!.id)} className="p-3 bg-red-500 text-white rounded-full hover:scale-110 transition-transform"><Trash2 className="w-6 h-6" /></button>
                                         </div>
                                         {setPhotos.before ? (
@@ -424,6 +427,7 @@ const PatientDetail: React.FC = () => {
                                             <>
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-lg z-20">
                                                     <button onClick={() => setViewingPhoto(setPhotos.after!)} className="p-3 bg-white rounded-full text-slate-900 hover:scale-110 transition-transform"><Maximize2 className="w-6 h-6" /></button>
+                                                    <button onClick={() => setAnnotatingPhoto(setPhotos.after!)} className="p-3 bg-blue-500 text-white rounded-full hover:scale-110 transition-transform" title="Marcar região"><PenTool className="w-6 h-6" /></button>
                                                     <button onClick={() => setPhotoToDelete(setPhotos.after!.id)} className="p-3 bg-red-50 text-white rounded-full hover:scale-110 transition-transform"><Trash2 className="w-6 h-6" /></button>
                                                 </div>
                                                 <img src={setPhotos.after.url} className="w-full h-80 object-cover rounded-lg border-2 border-slate-700 shadow-2xl" alt="Depois" />
@@ -444,6 +448,13 @@ const PatientDetail: React.FC = () => {
 
       {viewingAppointment && <AppointmentEvidenceModal appointment={viewingAppointment} onClose={() => setViewingAppointment(null)} />}
       {isSignatureModalOpen && <SignatureModal onClose={() => setIsSignatureModalOpen(false)} onSave={handleSignatureSave} />}
+      {annotatingPhoto && id && (
+        <PhotoAnnotationModal
+            photo={annotatingPhoto}
+            patientId={id}
+            onClose={() => setAnnotatingPhoto(null)}
+        />
+      )}
       {photoModalConfig.isOpen && id && (
         <NewPhotoModal 
             patientId={id} 

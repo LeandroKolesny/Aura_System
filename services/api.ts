@@ -148,6 +148,10 @@ export interface ApiLead {
   phone?: string;
   status: string;
   companyId: string;
+  clinicName?: string;
+  contactName?: string;
+  value?: number;
+  createdAt?: string;
   [key: string]: unknown;
 }
 
@@ -167,6 +171,15 @@ export interface ApiPatient {
   phone: string;
   companyId: string;
   status: string;
+  birthDate?: string | null;
+  cpf?: string | null;
+  lastVisit?: string | null;
+  anamnesisSummary?: string | null;
+  consentSignedAt?: string | null;
+  consentSignatureUrl?: string | null;
+  consentMetadata?: Record<string, unknown> | null;
+  anamnesisLinkSent?: boolean;
+  lastMarketingMessageSentAt?: string | null;
 }
 
 export interface ApiAppointment {
@@ -177,6 +190,16 @@ export interface ApiAppointment {
   procedureId: string;
   professionalId: string;
   companyId: string;
+  price?: number;
+  durationMinutes?: number;
+  patientName?: string;
+  professionalName?: string;
+  service?: string;
+  // Relacionamentos aninhados que o backend inclui ao criar um agendamento
+  // (não vêm em toda resposta — por isso opcionais).
+  patient?: { id: string; name: string; phone?: string; email?: string };
+  professional?: { id: string; name: string };
+  procedure?: { id: string; name: string; durationMinutes?: number };
   [key: string]: unknown;
 }
 
@@ -231,9 +254,12 @@ export interface ApiProcedure {
 export interface ApiInventoryItem {
   id: string;
   name: string;
-  quantity: number;
+  unit: string;
+  currentStock: number;
   minStock: number;
+  costPerUnit: number;
   companyId: string;
+  lastRestockDate?: string | null;
   [key: string]: unknown;
 }
 
@@ -255,9 +281,12 @@ export interface ApiProduct {
 
 export interface ApiUnavailabilityRule {
   id: string;
-  professionalId: string;
-  startDate: string;
-  endDate: string;
+  companyId: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  dates: string[];
+  professionalIds: string[];
   [key: string]: unknown;
 }
 
@@ -288,6 +317,9 @@ export interface ApiTicket {
   status: string;
   companyId: string;
   company?: { name: string };
+  createdAt: string;
+  updatedAt: string;
+  messages: { id: string; senderId: string; senderName: string; content: string; timestamp: string; isAdmin: boolean }[];
 }
 
 export interface ApiSystemAlert {
@@ -296,6 +328,8 @@ export interface ApiSystemAlert {
   message: string;
   type: string;
   status: string;
+  target: string;
+  createdAt: string;
   [key: string]: unknown;
 }
 
@@ -352,7 +386,7 @@ export const authApi = {
     return result;
   },
 
-  async register(data: { name: string; email: string; password: string; companyName: string; acceptedTerms?: boolean }) {
+  async register(data: { name: string; email: string; password: string; companyName: string; acceptedTerms?: boolean; state?: string; marketingConsent?: boolean }) {
     return fetchApi<{ user: ApiUser; company: ApiCompany }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -1111,14 +1145,14 @@ export const plansApi = {
     return fetchApi<SaasPlan[]>(`/api/plans${query}`);
   },
 
-  async create(data: { name: string; price: number; features: string[]; active?: boolean; stripePaymentLink?: string }) {
+  async create(data: { name: string; price: number; features: string[]; active?: boolean; stripePaymentLink?: string; maxProfessionals?: number; maxPatients?: number; modules?: string[] }) {
     return fetchApi<{ success: boolean; plan: SaasPlan }>('/api/plans', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, data: Partial<{ name: string; price: number; features: string[]; active: boolean; stripePaymentLink: string }>) {
+  async update(id: string, data: Partial<{ name: string; price: number; features: string[]; active: boolean; stripePaymentLink: string; maxProfessionals: number; maxPatients: number; modules: string[] }>) {
     return fetchApi<{ success: boolean; plan: SaasPlan }>(`/api/plans/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

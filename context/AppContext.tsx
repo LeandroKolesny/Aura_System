@@ -47,7 +47,7 @@ interface AppContextType {
   login: (email: string, password?: string) => Promise<boolean>;
   loginWithToken: (token: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  registerCompany: (companyName: string, adminData: { name: string; email: string; password: string; phone?: string; acceptedTerms?: boolean }) => Promise<{ success: boolean; error?: string }>;
+  registerCompany: (companyName: string, adminData: { name: string; email: string; password: string; phone?: string; acceptedTerms?: boolean; state?: string; marketingConsent?: boolean }) => Promise<{ success: boolean; error?: string }>;
   setupGoogleCompany: (companyName: string, state?: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
 
   companies: Company[];
@@ -56,73 +56,73 @@ interface AppContextType {
   completeOnboarding: () => void;
 
   patients: Patient[];
-  addPatient: (patient: Omit<Patient, 'id' | 'companyId' | 'status'> & { status?: 'active' | 'inactive' | 'lead' }) => void;
-  updatePatient: (id: string, data: Partial<Patient>) => void;
-  removePatient: (id: string) => void;
+  addPatient: (patient: Omit<Patient, 'id' | 'companyId' | 'status'> & { status?: 'active' | 'inactive' | 'lead' }) => Promise<{ success: boolean; error?: string; patient?: Patient; limitReached?: boolean }>;
+  updatePatient: (id: string, data: Partial<Patient>) => Promise<{ success: boolean; error?: string }>;
+  removePatient: (id: string) => Promise<{ success: boolean; error?: string }>;
   signConsent: (id: string, signatureBase64: string) => Promise<{ success: boolean; error?: string }>;
   toggleAnamnesisSent: (id: string) => void;
 
   appointments: Appointment[];
-  addAppointment: (appt: Record<string, unknown>, isPublic?: boolean, publicCompanyId?: string, patientInfo?: { name?: string; email: string; phone: string; password?: string }) => { success: boolean; conflict?: boolean; error?: string };
+  addAppointment: (appt: Record<string, unknown>, isPublic?: boolean, publicCompanyId?: string, patientInfo?: { name?: string; email: string; phone: string; password?: string }) => Promise<{ success: boolean; conflict?: boolean; error?: string; appointment?: Appointment }>;
   updateAppointment: (id: string, data: Partial<Appointment>) => void;
   signAppointmentConsent: (id: string, signatureBase64: string) => Promise<{ success: boolean; error?: string }>;
-  
+
   transactions: Transaction[];
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'companyId'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'companyId'>) => Promise<{ success: boolean; error?: string; transaction?: Transaction }>;
   updateTransaction: (id: string, data: Partial<Transaction>) => Promise<{ success: boolean; error?: string }>;
   deleteTransaction: (id: string) => Promise<{ success: boolean; error?: string }>;
-  processPayment: (appointment: Appointment, method: string) => void;
+  processPayment: (appointment: Appointment, method: string, installments?: number) => Promise<{ success: boolean; error?: string }>;
   markInstallmentPaid: (transactionId: string) => Promise<{ success: boolean; error?: string }>;
 
   procedures: Procedure[];
-  addProcedure: (proc: Omit<Procedure, 'id' | 'companyId'>) => void;
-  updateProcedure: (id: string, data: Partial<Procedure>) => void;
-  removeProcedure: (id: string) => void;
+  addProcedure: (proc: Omit<Procedure, 'id' | 'companyId'>) => Promise<{ success: boolean; error?: string; procedure?: Procedure }>;
+  updateProcedure: (id: string, data: Partial<Procedure>) => Promise<{ success: boolean; error?: string }>;
+  removeProcedure: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   professionals: User[];
-  addProfessional: (prof: Record<string, unknown>) => void;
+  addProfessional: (prof: Record<string, unknown>) => Promise<{ success: boolean; error?: string; user?: User; limitReached?: boolean }>;
   updateProfessional: (id: string, data: Partial<User>) => Promise<{ success: boolean; error?: string }>;
   removeProfessional: (id: string) => Promise<{ success: boolean; error?: string }>;
   resetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 
   photos: PhotoRecord[];
-  addPhoto: (photo: Omit<PhotoRecord, 'id' | 'companyId'>) => void;
-  removePhoto: (id: string) => void;
+  addPhoto: (photo: Omit<PhotoRecord, 'id' | 'companyId'>) => Promise<{ success: boolean; error?: string; photo?: PhotoRecord }>;
+  removePhoto: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   saasPlans: SaasPlan[];
-  addPlan: (plan: Omit<SaasPlan, 'id'>) => Promise<{ success: boolean; plan?: SaasPlan; error?: string }>;
+  addPlan: (plan: Omit<SaasPlan, 'id' | 'maxProfessionals' | 'maxPatients' | 'modules'> & { maxProfessionals?: number; maxPatients?: number; modules?: string[] }) => Promise<{ success: boolean; plan?: SaasPlan; error?: string }>;
   updatePlan: (id: string, data: Partial<SaasPlan>) => Promise<{ success: boolean; error?: string }>;
   removePlan: (id: string) => Promise<{ success: boolean; error?: string }>;
   loadPlans: (forceReload?: boolean) => Promise<void>;
 
   leads: Lead[];
-  addLead: (lead: Omit<Lead, 'id'>) => void;
-  moveLead: (id: string, status: LeadStatus) => void;
+  addLead: (lead: Omit<Lead, 'id'>) => Promise<{ success: boolean; error?: string; lead?: Lead }>;
+  moveLead: (id: string, status: LeadStatus) => Promise<{ success: boolean; error?: string }>;
 
   tickets: Ticket[];
-  createTicket: (subject: string, message: string) => void;
-  replyTicket: (ticketId: string, message: string) => void;
-  closeTicket: (ticketId: string) => void;
+  createTicket: (subject: string, message: string) => Promise<{ success: boolean; error?: string; ticket?: Ticket }>;
+  replyTicket: (ticketId: string, message: string) => Promise<{ success: boolean; error?: string }>;
+  closeTicket: (ticketId: string) => Promise<{ success: boolean; error?: string }>;
 
   systemAlerts: SystemAlert[];
-  addSystemAlert: (alert: Omit<SystemAlert, 'id' | 'createdAt' | 'status'>) => void;
-  toggleSystemAlertStatus: (id: string) => void;
-  
+  addSystemAlert: (alert: Omit<SystemAlert, 'id' | 'createdAt' | 'status'>) => Promise<{ success: boolean; error?: string; alert?: SystemAlert }>;
+  toggleSystemAlertStatus: (id: string) => Promise<{ success: boolean; error?: string }>;
+
   // Gestão de alertas descartados
   dismissedAlertIds: string[];
   dismissAlert: (id: string) => void;
 
   notifications: AppNotification[];
-  addNotification: (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
-  markNotificationAsRead: (id: string) => void;
+  addNotification: (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => Promise<{ success: boolean; error?: string; notification?: AppNotification }>;
+  markNotificationAsRead: (id: string) => Promise<void>;
 
   unavailabilityRules: UnavailabilityRule[];
-  addUnavailabilityRule: (rule: Omit<UnavailabilityRule, 'id' | 'companyId'>) => void;
-  removeUnavailabilityRule: (id: string) => void;
+  addUnavailabilityRule: (rule: Omit<UnavailabilityRule, 'id' | 'companyId'>) => Promise<{ success: boolean; error?: string; rule?: UnavailabilityRule }>;
+  removeUnavailabilityRule: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Inventory
   inventory: InventoryItem[];
-  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'companyId'>) => void;
+  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'companyId'>) => Promise<{ success: boolean; error?: string; item?: InventoryItem }>;
   updateInventoryItem: (id: string, data: Partial<InventoryItem>) => Promise<{ success: boolean; error?: string }>;
   removeInventoryItem: (id: string) => Promise<{ success: boolean; error?: string }>;
 
@@ -200,9 +200,11 @@ function normalizeProfessional<T extends Partial<ApiUser_Extended>>(u: T) {
   };
   return {
     ...u,
-    role: u.role || 'ESTHETICIAN',
-    contractType: (u.contractType as string | undefined)?.toLowerCase() || 'pj',
-    remunerationType: remunerationMap[u.remunerationType as string] || (u.remunerationType as string | undefined)?.toLowerCase() || 'comissao',
+    // Os valores do enum UserRole (OWNER/ADMIN/RECEPTIONIST/ESTHETICIAN/PATIENT)
+    // já batem 1:1 com o que a API envia — só precisa do cast, sem transformação.
+    role: (u.role || 'ESTHETICIAN') as UserRole,
+    contractType: ((u.contractType as string | undefined)?.toLowerCase() || 'pj') as User['contractType'],
+    remunerationType: (remunerationMap[u.remunerationType as string] || (u.remunerationType as string | undefined)?.toLowerCase() || 'comissao') as User['remunerationType'],
     commissionRate: Number(u.commissionRate) || 0,
     fixedSalary: Number(u.fixedSalary) || 0,
   };
@@ -432,8 +434,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (res.success && res.data?.patients) {
         const mapped = res.data.patients.map((p: ApiPatient) => ({
           ...p,
-          status: p.status?.toLowerCase() || 'active'
-        }));
+          status: (p.status?.toLowerCase() || 'active') as Patient['status']
+        } as unknown as Patient));
         setPatients(mapped);
         loadedRef.current.patients = true;
         setLoaded('patients', true);
@@ -481,7 +483,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ...a,
           price: Number(a.price) || 0,
           durationMinutes: Number(a.durationMinutes) || 60,
-          status: a.status?.toLowerCase() || 'scheduled',
+          status: (a.status?.toLowerCase() || 'scheduled') as Appointment['status'],
           patientId: a.patientId || a.patient?.id,
           patientName: a.patient?.name || a.patientName,
           professionalId: a.professionalId || a.professional?.id,
@@ -516,8 +518,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const mapped = res.data.transactions.map((t: ApiTransaction) => ({
           ...t,
           amount: Number(t.amount) || 0,
-          type: t.type?.toLowerCase() || 'income',
-          status: t.status?.toLowerCase() || 'paid'
+          type: (t.type?.toLowerCase() || 'income') as Transaction['type'],
+          status: (t.status?.toLowerCase() || 'paid') as Transaction['status']
         }));
         setTransactions(mapped);
         loadedRef.current.transactions = true;
@@ -544,6 +546,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ...p,
           price: Number(p.price) || 0,
           cost: Number(p.cost) || 0,
+          durationMinutes: Number(p.durationMinutes ?? p.duration) || 60,
           supplies: p.supplies?.map((s: ApiProcedureSupply) => ({
             id: s.id,
             inventoryItemId: s.inventoryItemId || s.inventoryItem?.id,
@@ -703,8 +706,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const mapped = res.data.leads.map((l: ApiLead | ApiKingLead) => ({
           ...l,
           status: (l.status as string | undefined)?.toLowerCase() || 'new',
-          value: Number(l.value) || 0,
-        }));
+          value: Number((l as ApiLead).value) || 0,
+          clinicName: (l as ApiLead).clinicName || l.name || '',
+          contactName: (l as ApiLead).contactName || l.name || '',
+          createdAt: l.createdAt || new Date().toISOString(),
+        } as unknown as Lead));
         setLeads(mapped);
         loadedRef.current.leads = true;
         setLoaded('leads', true);
@@ -740,7 +746,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const mappedCompanies = companiesRes.data.companies.map((c: ApiCompany) => ({
           ...c,
           plan: c.plan?.toLowerCase() || 'basic',
-          subscriptionStatus: c.subscriptionStatus?.toLowerCase() || 'active',
+          subscriptionStatus: (c.subscriptionStatus?.toLowerCase() || 'active') as SubscriptionStatus,
           targetAudience: {
             female: c.targetFemale ?? true,
             male: c.targetMale ?? true,
@@ -751,7 +757,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             facebook: c.facebook || '',
             website: c.website || ''
           }
-        }));
+        } as unknown as Company));
         setCompanies(mappedCompanies);
         console.log('✅ Empresas carregadas:', mappedCompanies.length);
       }
@@ -955,7 +961,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setDismissedAlertIds([]);
   };
 
-  const registerCompany = async (companyName: string, adminData: { name: string; email: string; password: string; phone?: string; acceptedTerms?: boolean }): Promise<{ success: boolean; error?: string }> => {
+  const registerCompany = async (companyName: string, adminData: { name: string; email: string; password: string; phone?: string; acceptedTerms?: boolean; state?: string; marketingConsent?: boolean }): Promise<{ success: boolean; error?: string }> => {
       try {
         // Chamar API de registro para salvar no banco de dados
         const response = await authApi.register({
@@ -964,6 +970,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           password: adminData.password,
           companyName: companyName,
           acceptedTerms: adminData.acceptedTerms ?? false,
+          state: adminData.state,
+          marketingConsent: adminData.marketingConsent,
         });
 
         if (!response.success) {
@@ -1025,7 +1033,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const updatedCompany = {
             ...response.data.company,
             plan: response.data.company.plan?.toLowerCase() || 'basic',
-            subscriptionStatus: response.data.company.subscriptionStatus?.toLowerCase() || 'active',
+            subscriptionStatus: (response.data.company.subscriptionStatus?.toLowerCase() || 'active') as SubscriptionStatus,
             targetAudience: {
               female: response.data.company.targetFemale ?? true,
               male: response.data.company.targetMale ?? true,
@@ -1036,7 +1044,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               facebook: response.data.company.facebook || '',
               website: response.data.company.website || ''
             }
-          };
+          } as unknown as Company;
           setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, ...updatedCompany } : c));
           console.log('✅ Empresa atualizada no banco:', companyId);
           return { success: true, company: updatedCompany };
@@ -1079,7 +1087,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const result = await patientsApi.create(patientData);
         if (result.success && result.data?.patient) {
-          const newPatient = { ...result.data.patient, status: result.data.patient.status?.toLowerCase() || 'active' };
+          const newPatient = { ...result.data.patient, status: (result.data.patient.status?.toLowerCase() || 'active') as Patient['status'] } as unknown as Patient;
           setPatients(prev => [...prev, newPatient]);
           return { success: true, patient: newPatient };
         }
@@ -1096,7 +1104,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const result = await patientsApi.update(id, data);
         if (result.success && result.data?.patient) {
-          setPatients(prev => prev.map(p => p.id === id ? { ...p, ...result.data!.patient } : p));
+          setPatients(prev => prev.map(p => p.id === id ? ({ ...p, ...result.data!.patient } as unknown as Patient) : p));
           return { success: true };
         }
         console.error('❌ Erro ao atualizar paciente:', result.error);
@@ -1138,7 +1146,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...p,
             consentSignedAt: result.data!.consentSignedAt,
             consentSignatureUrl: signatureBase64,
-          } : p));
+          } as Patient : p));
           return { success: true };
         }
         console.error('❌ Erro ao assinar consentimento:', result.error);
@@ -1162,7 +1170,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!companyId) return { success: false, error: 'Company ID missing' };
 
       try {
-        let response;
+        let response: { success: boolean; error?: string; data?: { appointment: ApiAppointment; patient?: ApiPatient } };
 
         if (isPublic && patientInfo) {
           // Usar endpoint público para booking
@@ -1194,19 +1202,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...newAppt,
             price: Number(newAppt.price) || 0,
             durationMinutes: Number(newAppt.durationMinutes) || 60,
-            status: newAppt.status?.toLowerCase() || 'scheduled',
+            status: (newAppt.status?.toLowerCase() || 'scheduled') as Appointment['status'],
             patientId: newAppt.patientId || newAppt.patient?.id,
             patientName: newAppt.patient?.name || newAppt.patientName,
             professionalId: newAppt.professionalId || newAppt.professional?.id,
             professionalName: newAppt.professional?.name || newAppt.professionalName,
             procedureId: newAppt.procedureId || newAppt.procedure?.id,
             service: newAppt.procedure?.name || newAppt.service
-          };
+          } as unknown as Appointment;
           setAppointments(prev => [...prev, mappedAppt]);
 
           // Se criou novo paciente, adicionar ao estado local
           if (response.data.patient) {
-            setPatients(prev => [...prev, response.data!.patient]);
+            setPatients(prev => [...prev, response.data!.patient as unknown as Patient]);
           }
 
           console.log('✅ Agendamento criado:', mappedAppt.id);
@@ -1273,8 +1281,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const newTrans = {
             ...response.data.transaction,
             amount: Number(response.data.transaction.amount),
-            type: response.data.transaction.type?.toLowerCase(),
-            status: response.data.transaction.status?.toLowerCase(),
+            type: response.data.transaction.type?.toLowerCase() as Transaction['type'],
+            status: response.data.transaction.status?.toLowerCase() as Transaction['status'],
           };
           setTransactions(prev => [...prev, newTrans]);
           console.log('✅ Transação criada:', newTrans.id);
@@ -1296,8 +1304,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const updated = {
           ...response.data.transaction,
           amount: Number(response.data.transaction.amount),
-          type: response.data.transaction.type?.toLowerCase(),
-          status: response.data.transaction.status?.toLowerCase(),
+          type: response.data.transaction.type?.toLowerCase() as Transaction['type'],
+          status: response.data.transaction.status?.toLowerCase() as Transaction['status'],
         };
         setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updated } : t));
         return { success: true };
@@ -1455,6 +1463,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...response.data.procedure,
             price: Number(response.data.procedure.price) || 0,
             cost: Number(response.data.procedure.cost) || 0,
+            durationMinutes: Number(response.data.procedure.durationMinutes ?? response.data.procedure.duration) || 60,
             supplies: response.data.procedure.supplies?.map((s: ApiProcedureSupply) => ({
               id: s.id,
               inventoryItemId: s.inventoryItemId,
@@ -1500,6 +1509,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...response.data.procedure,
             price: Number(response.data.procedure.price) || 0,
             cost: Number(response.data.procedure.cost) || 0,
+            durationMinutes: Number(response.data.procedure.durationMinutes ?? response.data.procedure.duration) || 60,
             supplies: response.data.procedure.supplies?.map((s: ApiProcedureSupply) => ({
               id: s.id,
               inventoryItemId: s.inventoryItemId,
@@ -1673,7 +1683,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // --- Plans (SEMPRE via API) ---
-  const addPlan = async (plan: Omit<SaasPlan, 'id'>): Promise<{ success: boolean; plan?: SaasPlan; error?: string }> => {
+  const addPlan = async (plan: Omit<SaasPlan, 'id' | 'maxProfessionals' | 'maxPatients' | 'modules'> & { maxProfessionals?: number; maxPatients?: number; modules?: string[] }): Promise<{ success: boolean; plan?: SaasPlan; error?: string }> => {
       checkPermission([UserRole.OWNER]);
       try {
         const response = await plansApi.create({
@@ -1682,6 +1692,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           features: plan.features,
           active: plan.active,
           stripePaymentLink: plan.stripePaymentLink,
+          // Opcionais: o backend já assume defaults (maxProfessionals ?? 1,
+          // maxPatients ?? 50, modules || []) quando omitidos — ver
+          // aura-backend/src/app/api/plans/route.ts
+          maxProfessionals: plan.maxProfessionals,
+          maxPatients: plan.maxPatients,
+          modules: plan.modules,
         });
         if (response.success && response.data?.plan) {
           const newPlan: SaasPlan = {
@@ -1760,7 +1776,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const newLead = {
             ...response.data,
             status: response.data.status?.toLowerCase() || 'new',
-          };
+            clinicName: response.data.clinicName || response.data.name || '',
+            contactName: response.data.contactName || response.data.name || '',
+            value: Number(response.data.value) || 0,
+            createdAt: response.data.createdAt || new Date().toISOString(),
+          } as unknown as Lead;
           setLeads(prev => [...prev, newLead]);
           console.log('✅ Lead criado:', newLead.id);
           return { success: true, lead: newLead };
@@ -1806,7 +1826,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...response.data.ticket,
             companyName: response.data.ticket.company?.name || currentCompany?.name || 'Unknown',
             status: response.data.ticket.status?.toLowerCase(),
-          };
+          } as unknown as Ticket;
           setTickets(prev => [ticket, ...prev]);
           console.log('✅ Ticket criado:', ticket.id);
           return { success: true, ticket };
@@ -1828,7 +1848,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...response.data!.ticket,
             companyName: response.data!.ticket.company?.name || t.companyName,
             status: response.data!.ticket.status?.toLowerCase(),
-          } : t));
+          } as unknown as Ticket : t));
           return { success: true };
         }
         console.error('❌ Erro ao responder ticket:', response.error);
@@ -1871,7 +1891,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...response.data.alert,
             status: response.data.alert.status?.toLowerCase(),
             type: response.data.alert.type?.toLowerCase(),
-          };
+          } as unknown as SystemAlert;
           setSystemAlerts(prev => [newAlert, ...prev]);
           console.log('✅ Alerta criado:', newAlert.id);
           return { success: true, alert: newAlert };
@@ -1895,7 +1915,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (response.success) {
           setSystemAlerts(prev => prev.map(a => a.id === id ? {
             ...a,
-            status: newStatus.toLowerCase()
+            status: newStatus.toLowerCase() as SystemAlert['status']
           } : a));
           return { success: true };
         }
@@ -1924,8 +1944,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (response.success && response.data?.notification) {
           const newNotif = {
             id: response.data.notification.id,
+            companyId: notif.companyId,
             message: response.data.notification.message,
-            type: response.data.notification.type?.toLowerCase(),
+            type: response.data.notification.type?.toLowerCase() as AppNotification['type'],
             timestamp: response.data.notification.createdAt,
             read: response.data.notification.isRead,
           };
@@ -1961,7 +1982,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const response = await unavailabilityApi.create(rule);
         if (response.success && response.data?.rule) {
-          setUnavailabilityRules(prev => [...prev, response.data!.rule]);
+          setUnavailabilityRules(prev => [...prev, response.data!.rule as unknown as UnavailabilityRule]);
           console.log('✅ Regra de indisponibilidade criada:', response.data.rule.id);
           return { success: true, rule: response.data.rule };
         }
@@ -1999,7 +2020,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await unavailabilityApi.list({ limit: 500 });
       if (res.success && res.data?.rules) {
-        setUnavailabilityRules(res.data.rules);
+        setUnavailabilityRules(res.data.rules as unknown as UnavailabilityRule[]);
         loadedRef.current.unavailabilityRules = true;
         console.log('✅ Regras de indisponibilidade carregadas:', res.data.rules.length);
       }

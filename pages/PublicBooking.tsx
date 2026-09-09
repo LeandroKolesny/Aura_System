@@ -119,12 +119,20 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
           setCompanyName(company.name);
           setCompanyAddress(company.address || '');
           setCompanyLogo(company.logo || '');
-          setProcedures(procs);
-          setProfessionals(profs);
-          setAppointments(appts);
+          setProcedures(procs.map(p => ({
+            ...p,
+            durationMinutes: Number(p.durationMinutes ?? p.duration) || 60,
+          } as unknown as Procedure)));
+          // Dados públicos dos profissionais — sem email/role, só o necessário
+          // pra exibir na agenda pública (mesmo padrão de ClinicContext.tsx).
+          setProfessionals(profs as unknown as User[]);
+          // Agendamentos públicos vêm só com os campos necessários pra checar
+          // disponibilidade (id/date/durationMinutes/professionalId/roomId/status)
+          // — ver aura-backend/src/app/api/public/company/[slug]/route.ts.
+          setAppointments(appts as unknown as Appointment[]);
           setUnavailabilityRules(rules || []);
-          setLayoutConfig(company.layoutConfig);
-          setBusinessHours(company.businessHours);
+          setLayoutConfig(company.layoutConfig as unknown as PublicLayoutConfig);
+          setBusinessHours(company.businessHours as unknown as BusinessHours);
           setOnlineConfig(company.onlineBookingConfig);
           setSubscriptionPlans(plans || []);
 

@@ -52,20 +52,21 @@ export const ClinicProvider: React.FC<ClinicProviderProps> = ({ slug, children }
               facebook: companyData.facebook || '',
               website: companyData.website || ''
             }
-          });
+          } as unknown as Company);
 
           // Mapear procedimentos
           if (response.data.procedures) {
-            setProcedures(response.data.procedures.map((p: any) => ({
+            setProcedures(response.data.procedures.map((p) => ({
               ...p,
               price: Number(p.price) || 0,
               cost: Number(p.cost) || 0,
-            })));
+              durationMinutes: Number(p.durationMinutes ?? p.duration) || 60,
+            } as unknown as Procedure)));
           }
 
-          // Mapear profissionais
+          // Mapear profissionais (dados públicos — sem email/role, só o necessário pra exibir na agenda pública)
           if (response.data.professionals) {
-            setProfessionals(response.data.professionals);
+            setProfessionals(response.data.professionals as unknown as User[]);
           }
 
           // Aplicar tema da clínica

@@ -123,7 +123,15 @@ async function renderReadyAppLoggedIn(companyId = 'c1', role: 'ADMIN' | 'OWNER' 
   return view;
 }
 
-const MOCK_API_PATIENT = {
+const MOCK_API_PATIENT: {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+  consentSignedAt: string | null;
+  consentSignatureUrl: string | null;
+} = {
   id: 'p1',
   name: 'Paciente Teste',
   email: 'paciente@teste.com',
@@ -671,7 +679,10 @@ describe('AppContext > addLead / createTicket / replyTicket / addSystemAlert / a
   });
 
   it('addNotification chama notificationsApi.create e adiciona a notificação', async () => {
-    const { result } = await renderReadyApp();
+    // Notificações são filtradas por companyId do usuário logado no contexto
+    // (isolamento de tenant no client) — precisa de sessão restaurada com o
+    // mesmo companyId da notificação criada, senão o filtro descarta ela.
+    const { result } = await renderReadyAppLoggedIn('c1');
     vi.mocked(notificationsApi.create).mockResolvedValue({
       success: true,
       data: { notification: { id: 'notif-1', message: 'Olá', type: 'INFO', createdAt: '2026-09-08T00:00:00.000Z', isRead: false } },
@@ -1392,7 +1403,8 @@ describe('AppContext > login / loginWithToken / logout / registerCompany / setup
 
 describe('AppContext > markNotificationAsRead / completeOnboarding', () => {
   it('markNotificationAsRead chama notificationsApi.markAsRead e marca como lida em memória', async () => {
-    const { result } = await renderReadyApp();
+    // Idem: notificações são filtradas por companyId do usuário logado.
+    const { result } = await renderReadyAppLoggedIn('c1');
     vi.mocked(notificationsApi.create).mockResolvedValue({
       success: true,
       data: { notification: { id: 'n1', message: 'Olá', type: 'INFO', createdAt: '2026-09-08T00:00:00.000Z', isRead: false } },

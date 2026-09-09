@@ -12,7 +12,8 @@ export type SystemModule =
   | 'reports' 
   | 'online_booking'
   | 'support'
-  | 'inventory'; // Novo módulo
+  | 'inventory' // Novo módulo
+  | 'whatsapp_notifications';
 
 export interface Company {
   id: string;
@@ -123,7 +124,7 @@ export interface User {
   patientId?: string; // Para usuários com role PATIENT, referência ao registro Patient
 
   title?: string;
-  contractType?: 'CLT' | 'PJ' | 'Freelancer';
+  contractType?: 'clt' | 'pj' | 'freelancer'; // normalizado sempre minúsculo (ver normalizeProfessional em AppContext.tsx)
   remunerationType?: 'fixo' | 'comissao' | 'misto';
   commissionType?: 'porcentagem' | 'valor_fixo';
   commissionRate?: number; 
@@ -146,7 +147,7 @@ export interface Patient {
   name: string;
   phone: string;
   email: string;
-  birthDate: string;
+  birthDate?: string; // Opcional no banco (Prisma: DateTime?) — nem todo paciente tem data de nascimento cadastrada
   cpf?: string;
   lastVisit?: string;
   status: 'active' | 'inactive' | 'lead';

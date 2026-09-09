@@ -10,7 +10,7 @@ import { PatientsSkeleton } from '../components/LoadingSkeleton';
 import ImportCSVModal from '../components/ImportCSVModal';
 import { patientsApi } from '../services/api';
 import { useDialog } from '../context/DialogContext';
-import { getAvatarConfig, getAvatarInitials } from '../utils/formatUtils';
+import { getAvatarConfig, getAvatarInitials, formatDate } from '../utils/formatUtils';
 
 const Patients: React.FC = () => {
   const { patients, user, companies, removePatient, isReadOnly, loadPatients, loadingStates } = useApp();
@@ -94,7 +94,7 @@ const Patients: React.FC = () => {
                         </div>
                         <div>
                           <div className="font-medium text-secondary-900 group-hover:text-primary-600 transition-colors text-sm">{patient.name}</div>
-                          <div className="text-xs text-slate-400">Nasc: {new Date(patient.birthDate).toLocaleDateString('pt-BR')}</div>
+                          {patient.birthDate && <div className="text-xs text-slate-400">Nasc: {formatDate(patient.birthDate)}</div>}
                         </div>
                       </Link>
                     </td>

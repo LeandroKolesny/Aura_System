@@ -147,7 +147,6 @@ const Plans: React.FC = () => {
                 features: planModal.data.features,
                 active: true,
                 stripePaymentLink: planModal.data.stripePaymentLink,
-                id: planModal.data.name.toLowerCase().replace(/\s/g, '-')
             });
         } else if (planModal.mode === 'edit' && planModal.planId) {
             updatePlan(planModal.planId, {

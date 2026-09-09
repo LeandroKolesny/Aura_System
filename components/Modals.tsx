@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import SignatureCanvas from 'react-signature-canvas';
 import { X, Calendar, User as UserIcon, Clock, DollarSign, CheckCircle, Syringe, TrendingUp, Building, AlertTriangle, UserPlus, Trash2, Check, XCircle, Stethoscope, Plus, Package, FileText, Lock, Mail, Send, Camera, Image as ImageIcon, Upload, Link as LinkIcon, CreditCard, MapPin, Info, ExternalLink, ChevronDown, ChevronUp, CalendarOff, RefreshCw, Eraser, PenTool, Loader2 } from 'lucide-react';
 import { Patient, Appointment, UserRole, User, Procedure, Supply, PhotoRecord, SystemAlert, BusinessHours, InventoryItem, Transaction } from '../types';
 import { useApp } from '../context/AppContext';
@@ -918,7 +919,7 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
     role: initialData?.role || UserRole.ESTHETICIAN,
     title: initialData?.title || '',
     phone: initialData?.phone || '',
-    contractType: initialData?.contractType || 'PJ',
+    contractType: initialData?.contractType || 'pj',
     remunerationType: initialData?.remunerationType || 'comissao',
     commissionRate: initialData?.commissionRate || 0,
     fixedSalary: initialData?.fixedSalary || 0,
@@ -1036,7 +1037,7 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
         <div className="border-t border-slate-100 pt-4">
           <h4 className="font-bold text-slate-800 text-sm mb-3">Remuneração & Contrato</h4>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Contrato</label><select className="w-full p-2 border rounded-lg" value={formData.contractType} onChange={e => setFormData({ ...formData, contractType: e.target.value as 'PJ' | 'CLT' | 'Freelancer' })}><option value="PJ">PJ</option><option value="CLT">CLT</option><option value="Freelancer">Freelancer</option></select></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Contrato</label><select className="w-full p-2 border rounded-lg" value={formData.contractType} onChange={e => setFormData({ ...formData, contractType: e.target.value as 'pj' | 'clt' | 'freelancer' })}><option value="pj">PJ</option><option value="clt">CLT</option><option value="freelancer">Freelancer</option></select></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Modelo de Pagamento</label><select className="w-full p-2 border rounded-lg" value={formData.remunerationType} onChange={e => setFormData({ ...formData, remunerationType: e.target.value as 'fixo' | 'comissao' | 'misto' })}><option value="fixo">Apenas Salário Fixo</option><option value="comissao">Apenas Comissão</option><option value="misto">Misto (Fixo + Comissão)</option></select></div>
             {(formData.remunerationType === 'fixo' || formData.remunerationType === 'misto') && (<div><label className="block text-sm font-medium text-slate-700 mb-1">Salário Fixo Mensal</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span><input type="number" className="w-full pl-9 p-2 border rounded-lg" value={formData.fixedSalary} onChange={e => setFormData({ ...formData, fixedSalary: Number(e.target.value) })} /></div></div>)}
             {(formData.remunerationType === 'comissao' || formData.remunerationType === 'misto') && (<div><label className="block text-sm font-medium text-slate-700 mb-1">Comissão (%)</label><div className="relative"><span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">%</span><input type="number" className="w-full p-2 border rounded-lg pr-8" value={formData.commissionRate} onChange={e => setFormData({ ...formData, commissionRate: Number(e.target.value) })} /></div></div>)}
@@ -1205,35 +1206,69 @@ export const NewPhotoModal: React.FC<{
 };
 
 export const SignatureModal: React.FC<{ onClose: () => void; onSave: (base64: string) => void }> = ({ onClose, onSave }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (ctx) { ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = '#000'; }
-    }
+  // Usa react-signature-canvas (wrapper da signature_pad) em vez de canvas
+  // manual: a implementação anterior desenhava na posição do mouse (em
+  // pixels de CSS, já que o canvas era esticado via `w-full`) diretamente
+  // nas coordenadas do buffer interno do canvas (resolução fixa 400x200) —
+  // sem nenhuma conversão de escala entre os dois, o traço saía cada vez
+  // mais deslocado do cursor quanto mais longe do canto superior esquerdo.
+  // A biblioteca cuida de mouse/touch/caneta de forma unificada; o container
+  // abaixo cuida do redimensionamento (crítico: se o canvas.width mudar,
+  // o conteúdo já desenhado é perdido, então recalculamos só no mount/resize
+  // e limpamos o traço nesse momento, igual à recomendação oficial da libnfy).
+  const sigPadRef = useRef<SignatureCanvas>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isEmpty, setIsEmpty] = useState(true);
+
+  const resizeCanvas = useCallback(() => {
+    const container = containerRef.current;
+    const sigPad = sigPadRef.current;
+    if (!container || !sigPad) return;
+    const canvas = sigPad.getCanvas();
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const { width, height } = container.getBoundingClientRect();
+    if (width === 0 || height === 0) return;
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.getContext('2d')?.scale(ratio, ratio);
+    sigPad.clear();
+    setIsEmpty(true);
   }, []);
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsDrawing(true);
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d', { willReadFrequently: true });
-    if (canvas && ctx) { const rect = canvas.getBoundingClientRect(); const x = ('touches' in e) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const y = ('touches' in e) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; ctx.beginPath(); ctx.moveTo(x, y); }
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, [resizeCanvas]);
+
+  const clear = () => { sigPadRef.current?.clear(); setIsEmpty(true); };
+  const handleSave = () => {
+    if (!sigPadRef.current || sigPadRef.current.isEmpty()) return;
+    onSave(sigPadRef.current.toDataURL('image/png'));
+    onClose();
   };
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d', { willReadFrequently: true });
-    if (canvas && ctx) { const rect = canvas.getBoundingClientRect(); const x = ('touches' in e) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const y = ('touches' in e) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; ctx.lineTo(x, y); ctx.stroke(); }
-  };
-  const stopDrawing = () => setIsDrawing(false);
-  const clear = () => { const canvas = canvasRef.current; const ctx = canvas?.getContext('2d', { willReadFrequently: true }); if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); };
-  const handleSave = () => { const canvas = canvasRef.current; if (canvas) { onSave(canvas.toDataURL()); onClose(); } };
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2"><PenTool className="w-5 h-5" /> Assinatura Digital</h3><button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400" /></button></div>
-        <div className="p-6"><p className="text-sm text-slate-500 mb-4">Desenhe sua assinatura no campo abaixo:</p><div className="border-2 border-slate-200 rounded-xl bg-slate-50 relative overflow-hidden touch-none"><canvas ref={canvasRef} width={400} height={200} className="w-full cursor-crosshair" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /><button onClick={clear} className="absolute bottom-4 right-4 p-2 bg-white text-slate-400 hover:text-red-500 rounded-lg shadow border border-slate-100 transition-colors flex items-center gap-1 text-xs font-bold"><Eraser className="w-4 h-4" /> Limpar</button></div><div className="mt-6 flex gap-3"><button onClick={onClose} className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50">Cancelar</button><button onClick={handleSave} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black shadow-lg">Confirmar Assinatura</button></div></div>
+        <div className="p-6">
+          <p className="text-sm text-slate-500 mb-4">Desenhe sua assinatura no campo abaixo:</p>
+          <div ref={containerRef} className="border-2 border-slate-200 rounded-xl bg-slate-50 relative overflow-hidden touch-none h-[200px]">
+            <SignatureCanvas
+              ref={sigPadRef}
+              penColor="#000"
+              minWidth={1.5}
+              maxWidth={3}
+              onEnd={() => setIsEmpty(sigPadRef.current?.isEmpty() ?? true)}
+              canvasProps={{ className: 'w-full h-full cursor-crosshair' }}
+            />
+            <button onClick={clear} className="absolute bottom-4 right-4 p-2 bg-white text-slate-400 hover:text-red-500 rounded-lg shadow border border-slate-100 transition-colors flex items-center gap-1 text-xs font-bold"><Eraser className="w-4 h-4" /> Limpar</button>
+          </div>
+          <div className="mt-6 flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50">Cancelar</button>
+            <button onClick={handleSave} disabled={isEmpty} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">Confirmar Assinatura</button>
+          </div>
+        </div>
       </div>
     </div>
   );
