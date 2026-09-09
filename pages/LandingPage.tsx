@@ -13,7 +13,7 @@ import { SAAS_COMPANY_NAME } from '../constants';
 
 const LandingDemoPlayer = React.lazy(() => import('../components/LandingDemoPlayer'));
 const demoPlayerFallback = (
-  <div style={{ width: '100%', aspectRatio: '720 / 440', background: '#f0edea' }} />
+  <div style={{ width: '100%', aspectRatio: '720 / 440', background: '#e2d9d0' }} />
 );
 import { useApp } from '../context/AppContext';
 
@@ -81,7 +81,7 @@ const ROICalculator: React.FC<{ S: ColorPalette; serif: StyleFn; sans: StyleFn }
 /* ══ Hero Blobs ════════════════════════════════════════════════ */
 const HeroBlobs: React.FC = () => (
   <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
-    <div className="blob-b absolute" style={{ left: '-10%', top: '-20%', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle at 30% 30%, rgba(189,123,101,0.18) 0%, rgba(189,123,101,0.06) 40%, transparent 70%)', filter: 'blur(40px)' }} />
+    <div className="blob-b absolute" style={{ left: '-10%', top: '-20%', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle at 30% 30%, rgba(155,107,80,0.18) 0%, rgba(155,107,80,0.06) 40%, transparent 70%)', filter: 'blur(40px)' }} />
     <div className="blob-c absolute" style={{ right: '-5%', top: '10%', width: '500px', height: '500px', borderRadius: '50%', background: 'radial-gradient(circle at 70% 30%, rgba(124,92,191,0.14) 0%, rgba(124,92,191,0.04) 40%, transparent 70%)', filter: 'blur(40px)' }} />
     <div className="blob-a absolute" style={{ left: '20%', bottom: '-20%', width: '700px', height: '700px', borderRadius: '50%', background: 'radial-gradient(circle at 50% 50%, rgba(43,158,94,0.07) 0%, rgba(43,158,94,0.02) 40%, transparent 70%)', filter: 'blur(60px)' }} />
   </div>
@@ -115,10 +115,10 @@ const AnimatedCounter: React.FC<{ value: number; prefix?: string; suffix?: strin
 
 /* ══ LP Styles ═════════════════════════════════════════════════ */
 const LP_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
 
-  .lp { font-family: 'Inter', system-ui, sans-serif; background: #fdfbf9; color: #1a1512; }
-  .lp h1, .lp h2, .lp h3, .lp h4 { font-family: 'Outfit', sans-serif; }
+  .lp { font-family: 'Archivo', system-ui, sans-serif; background: #f5f3ef; color: #1c1612; }
+  .lp h1, .lp h2, .lp h3, .lp h4 { font-family: 'Archivo', sans-serif; }
 
   .reveal {
     opacity: 0; transform: translateY(28px);
@@ -130,38 +130,38 @@ const LP_STYLES = `
 
   .lp-btn-solid {
     display: inline-flex; align-items: center; gap: 0.55rem;
-    background: #bd7b65; color: #fff;
-    font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600;
-    padding: 1rem 2.5rem; border: none; border-radius: 9999px;
+    background: #d9a582; color: #1c1612;
+    font-family: 'Archivo', sans-serif; font-size: 0.88rem; font-weight: 600;
+    padding: 1rem 2.5rem; border: none; border-radius: 4px;
     cursor: pointer; text-decoration: none;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 14px rgba(189,123,101,0.30);
+    box-shadow: 0 4px 14px rgba(155,107,80,0.30);
   }
-  .lp-btn-solid:hover { background: #a66550; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(189,123,101,0.40); }
+  .lp-btn-solid:hover { background: #c99368; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(155,107,80,0.40); }
 
   .lp-btn-outline {
     display: inline-flex; align-items: center; gap: 0.55rem;
-    background: transparent; color: #1a1512;
-    font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600;
-    padding: 1rem 2.5rem; border: 2px solid #e8e0da; border-radius: 9999px;
+    background: transparent; color: #1c1612;
+    font-family: 'Archivo', sans-serif; font-size: 0.88rem; font-weight: 600;
+    padding: 1rem 2.5rem; border: 2px solid #ddd0c4; border-radius: 4px;
     cursor: pointer; text-decoration: none; transition: all 0.3s ease;
   }
-  .lp-btn-outline:hover { border-color: #bd7b65; color: #bd7b65; transform: translateY(-2px); }
+  .lp-btn-outline:hover { border-color: #9b6b50; color: #9b6b50; transform: translateY(-2px); }
 
   .lp-card {
     background: #ffffff; border-radius: 28px; padding: 1.8rem 2.2rem;
-    border: 1px solid #f0edea;
+    border: 1px solid #e2d9d0;
     transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 8px 30px rgba(26,21,18,0.03);
+    box-shadow: 0 8px 30px rgba(28,22,18,0.03);
   }
-  .lp-card:hover { transform: translateY(-8px); box-shadow: 0 25px 50px rgba(189,123,101,0.12); border-color: rgba(189,123,101,0.25); }
+  .lp-card:hover { transform: translateY(-8px); box-shadow: 0 25px 50px rgba(155,107,80,0.12); border-color: rgba(155,107,80,0.25); }
 
   .lp-card-dark {
-    background: #1a1512; border-radius: 28px; padding: 2.2rem;
-    color: #ffffff; border: 1px solid #2a2420;
+    background: #171310; border-radius: 28px; padding: 2.2rem;
+    color: #ffffff; border: 1px solid #332c26;
     transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .lp-card-dark:hover { transform: translateY(-8px); box-shadow: 0 25px 50px rgba(0,0,0,0.3); border-color: rgba(189,123,101,0.25); }
+  .lp-card-dark:hover { transform: translateY(-8px); box-shadow: 0 25px 50px rgba(0,0,0,0.3); border-color: rgba(155,107,80,0.25); }
 
   .vibrant-blob {
     position: absolute; border-radius: 50%;
@@ -169,13 +169,13 @@ const LP_STYLES = `
   }
 
   .sec-label {
-    display: block; font-family: 'Inter', sans-serif;
+    display: block; font-family: 'Archivo', sans-serif;
     font-size: 0.62rem; font-weight: 600; letter-spacing: 0.24em;
-    text-transform: uppercase; color: #bd7b65; margin-bottom: 0.9rem;
+    text-transform: uppercase; color: #9b6b50; margin-bottom: 0.9rem;
   }
 
   .lp-tab {
-    font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 500;
+    font-family: 'Archivo', sans-serif; font-size: 0.7rem; font-weight: 500;
     letter-spacing: 0.15em; text-transform: uppercase;
     padding: 0.8rem 0; border: none; background: none;
     color: #b0a49e; cursor: pointer; position: relative;
@@ -183,20 +183,20 @@ const LP_STYLES = `
   }
   .lp-tab::after {
     content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-    height: 1.5px; background: #bd7b65;
+    height: 1.5px; background: #9b6b50;
     transform: scaleX(0); transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
   }
-  .lp-tab.active, .lp-tab:hover { color: #1a1512; }
+  .lp-tab.active, .lp-tab:hover { color: #1c1612; }
   .lp-tab.active::after { transform: scaleX(1); }
 
   .lp-nav-link {
-    font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 500;
+    font-family: 'Archivo', sans-serif; font-size: 0.88rem; font-weight: 500;
     color: #6b5e54; background: none; border: none; cursor: pointer;
     transition: color 0.2s; text-decoration: none;
   }
-  .lp-nav-link:hover { color: #bd7b65; }
+  .lp-nav-link:hover { color: #9b6b50; }
 
-  .faq-row { border-bottom: 1px solid #e8e0da; }
+  .faq-row { border-bottom: 1px solid #ddd0c4; }
   .faq-btn {
     width: 100%; display: flex; align-items: center; justify-content: space-between;
     padding: 1.4rem 0; background: none; border: none; cursor: pointer; text-align: left;
@@ -293,14 +293,18 @@ const LandingPage: React.FC = () => {
     });
 
   const S: ColorPalette = {
-    cream: '#fdfbf9', ink: '#1a1512', rose: '#bd7b65', roseLight: '#fdf8f6',
-    muted: '#4a4440', faint: '#a39c97', border: '#f0edea', borderLight: '#f7f4f2',
-    white: '#ffffff', dark: '#1a1512', darkBorder: '#2a2420',
-    darkMuted: '#a39c97', darkFaint: '#7a7470',
+    cream: '#f5f3ef', ink: '#1c1612', rose: '#9b6b50', roseLight: '#faf3ee',
+    muted: '#5c5049', faint: '#948578', border: '#e2d9d0', borderLight: '#ece4dc',
+    white: '#ffffff', dark: '#171310', darkBorder: '#332c26',
+    darkMuted: '#c9bcae', darkFaint: '#8f8276',
   };
 
-  const serif: StyleFn = (size, weight = 400, extra = {}) => ({ fontFamily: "'Outfit', sans-serif", fontSize: size, fontWeight: weight, ...extra });
-  const sans:  StyleFn = (size, weight = 400, extra = {}) => ({ fontFamily: "'Inter', sans-serif",  fontSize: size, fontWeight: weight, ...extra });
+  // Acento itálico (fonte "Instrument Serif") usado nas palavras de destaque,
+  // reproduzindo o mesmo padrão do design de referência.
+  const accentItalic = (color: string = S.rose, extra: React.CSSProperties = {}): React.CSSProperties => ({ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', color, ...extra });
+
+  const serif: StyleFn = (size, weight = 400, extra = {}) => ({ fontFamily: "'Archivo', sans-serif", fontSize: size, fontWeight: weight, ...extra });
+  const sans:  StyleFn = (size, weight = 400, extra = {}) => ({ fontFamily: "'Archivo', sans-serif", fontSize: size, fontWeight: weight, ...extra });
 
   /* ── helpers rápidos ──────────────────────────────────────── */
   const isPro     = (plan: typeof saasPlans[0]) => plan.id === 'pro'    || plan.name.toLowerCase().includes('pro');
@@ -363,39 +367,48 @@ const LandingPage: React.FC = () => {
           )}
         </nav>
 
-        {/* ══════════ HERO ════════════════════════════════════════ */}
-        <section className="relative pt-36 pb-20 overflow-hidden" style={{ background: S.cream }}>
-          <HeroBlobs />
+        {/* ══════════ HERO ════════════════════════════════════════
+            Foto de fundo (estilo editorial, referência do usuário) com
+            camada escura em gradiente para manter o texto legível.
+        ══════════════════════════════════════════════════════════════ */}
+        <section
+          className="relative pt-36 pb-20 overflow-hidden"
+          style={{
+            backgroundImage: `linear-gradient(180deg, rgba(23,19,16,0.80) 0%, rgba(23,19,16,0.88) 100%), url('/hero-clinic.webp')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12 w-full relative z-10 text-center">
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8" style={{ background: `${S.rose}10`, border: `1px solid ${S.rose}20` }}>
-                <Sparkles size={14} color={S.rose} />
-                <span style={{ ...sans('0.75rem', 600), color: S.rose, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8" style={{ background: 'rgba(245,239,231,0.08)', border: '1px solid rgba(245,239,231,0.2)' }}>
+                <Sparkles size={14} color="#d9a582" />
+                <span style={{ ...sans('0.75rem', 600), color: '#d9a582', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   #1 Plataforma para Clínicas de Estética
                 </span>
               </div>
-              <h1 style={{ ...serif('clamp(2.8rem, 8vw, 5.2rem)', 800), color: S.ink, lineHeight: 1, letterSpacing: '-0.04em', maxWidth: '1000px', margin: '0 auto 2rem' }}>
+              <h1 style={{ ...serif('clamp(2.8rem, 8vw, 5.2rem)', 800), color: '#f5efe7', lineHeight: 1, letterSpacing: '-0.04em', maxWidth: '1000px', margin: '0 auto 2rem' }}>
                 Não somos apenas uma agenda.<br />
-                Somos um <span style={{ color: S.rose }}>Ecossistema.</span>
+                Somos um <span style={accentItalic('#d9a582', { fontWeight: 400 })}>Ecossistema.</span>
               </h1>
-              <p style={{ ...sans('clamp(1.1rem, 2vw, 1.3rem)', 300), color: S.muted, maxWidth: '680px', margin: '0 auto 3.5rem', lineHeight: 1.65 }}>
+              <p style={{ ...sans('clamp(1.1rem, 2vw, 1.3rem)', 300), color: 'rgba(245,239,231,0.78)', maxWidth: '680px', margin: '0 auto 3.5rem', lineHeight: 1.65 }}>
                 Do agendamento à construção da sua marca: a única plataforma que une gestão, design e inteligência artificial para clínicas premium.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-20">
                 <Link to="/login" className="lp-btn-solid" style={{ fontSize: '1rem', padding: '1.25rem 3rem' }}>
                   Começar Agora — É Grátis
                 </Link>
-                <button onClick={() => scrollToSection('features')} className="lp-btn-outline" style={{ background: S.white, fontSize: '1rem', padding: '1.25rem 3rem' }}>
+                <button onClick={() => scrollToSection('features')} className="lp-btn-outline" style={{ background: 'transparent', borderColor: 'rgba(245,239,231,0.3)', color: '#f5efe7', fontSize: '1rem', padding: '1.25rem 3rem' }}>
                   <Play size={18} fill="currentColor" /> Ver Demonstração
                 </button>
               </div>
-              <div className="pt-16 border-t" style={{ borderColor: S.border }}>
-                <p style={{ ...sans('0.75rem', 600), color: S.faint, marginBottom: '2.5rem', textTransform: 'uppercase', letterSpacing: '0.2em' }}>
+              <div className="pt-16 border-t" style={{ borderColor: 'rgba(245,239,231,0.15)' }}>
+                <p style={{ ...sans('0.75rem', 600), color: 'rgba(245,239,231,0.5)', marginBottom: '2.5rem', textTransform: 'uppercase', letterSpacing: '0.2em' }}>
                   Confiado por clínicas de estética em todo o Brasil
                 </p>
-                <div className="flex flex-wrap justify-center items-center gap-x-16 gap-y-8 opacity-25 grayscale">
+                <div className="flex flex-wrap justify-center items-center gap-x-16 gap-y-8 opacity-40 grayscale">
                   {['VOGUE BEAUTY', 'GLAMOUR', 'SAÚDE & ESTÉTICA', 'BEAUTY BUSINESS', 'FORBES'].map(brand => (
-                    <span key={brand} style={{ ...serif('1.4rem', 800), color: S.ink, letterSpacing: '-0.02em' }}>{brand}</span>
+                    <span key={brand} style={{ ...serif('1.4rem', 800), color: '#f5efe7', letterSpacing: '-0.02em' }}>{brand}</span>
                   ))}
                 </div>
               </div>
@@ -473,7 +486,7 @@ const LandingPage: React.FC = () => {
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              <div className="md:col-span-2 lg:col-span-2 row-span-2 lp-card-dark p-10 flex flex-col justify-between" style={{ background: '#2a2420', border: '1px solid #3a3430' }}>
+              <div className="md:col-span-2 lg:col-span-2 row-span-2 lp-card-dark p-10 flex flex-col justify-between" style={{ background: '#332c26', border: '1px solid #3a3430' }}>
                 <div>
                   <div style={{ background: `${S.rose}20`, padding: '0.75rem', borderRadius: '12px', width: 'fit-content', marginBottom: '2rem' }}>
                     <Calendar style={{ color: S.rose }} size={28} />
@@ -497,7 +510,7 @@ const LandingPage: React.FC = () => {
                 { Icon: TrendingUp, color: '#7c5cbf', bg: '#7c5cbf20', title: 'CRM de Vendas', desc: 'Recupere clientes inativos e gerencie leads automaticamente.' },
                 { Icon: BarChart3, color: '#3d7ea6', bg: '#3d7ea620', title: 'Financeiro Real', desc: 'DRE, fluxo de caixa e comissões calculadas em tempo real. Sem planilhas.' },
               ].map(item => (
-                <div key={item.title} className="lp-card-dark p-8" style={{ background: '#2a2420', border: '1px solid #3a3430' }}>
+                <div key={item.title} className="lp-card-dark p-8" style={{ background: '#332c26', border: '1px solid #3a3430' }}>
                   <div style={{ background: item.bg, padding: '0.6rem', borderRadius: '10px', width: 'fit-content', marginBottom: '1.5rem' }}>
                     <item.Icon style={{ color: item.color }} size={20} />
                   </div>
@@ -505,7 +518,7 @@ const LandingPage: React.FC = () => {
                   <p style={{ ...sans('0.9rem', 300), color: S.darkMuted, lineHeight: 1.5 }}>{item.desc}</p>
                 </div>
               ))}
-              <div className="md:col-span-2 lp-card-dark p-8 flex items-center gap-8" style={{ background: '#2a2420', border: '1px solid #3a3430' }}>
+              <div className="md:col-span-2 lp-card-dark p-8 flex items-center gap-8" style={{ background: '#332c26', border: '1px solid #3a3430' }}>
                 <div style={{ background: '#2b9e5e20', padding: '1rem', borderRadius: '16px' }}>
                   <Shield style={{ color: '#2b9e5e' }} size={32} />
                 </div>
@@ -535,33 +548,33 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* ══════════ CTA CENTRAL ═══════════════════════════════════
-            Cores originais (#1a1512 bg, #bd7b65 rose) + fonte Outfit/Inter
+            Paleta terracota/creme (#171310 bg, #9b6b50 rose) + fonte Archivo/Instrument Serif
         ══════════════════════════════════════════════════════════════ */}
-        <section style={{ background: '#1a1512', padding: '5rem 1.5rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(189,123,101,0.12) 0%, transparent 65%)', pointerEvents: 'none' }} />
+        <section style={{ background: '#171310', padding: '5rem 1.5rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '600px', height: '600px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(155,107,80,0.12) 0%, transparent 65%)', pointerEvents: 'none' }} />
           <div style={{ maxWidth: '820px', margin: '0 auto', textAlign: 'center', position: 'relative' }}>
-            <span className="sec-label" style={{ color: 'rgba(189,123,101,0.8)' }}>Comece hoje</span>
-            <h2 className="reveal" style={{ fontFamily: "'Outfit', sans-serif", fontSize: 'clamp(2.2rem,5vw,4rem)', fontWeight: 700, color: '#fdfbf9', lineHeight: 1.1, marginBottom: '1.25rem', letterSpacing: '-0.03em' }}>
+            <span className="sec-label" style={{ color: 'rgba(155,107,80,0.8)' }}>Comece hoje</span>
+            <h2 className="reveal" style={{ fontFamily: "'Archivo', sans-serif", fontSize: 'clamp(2.2rem,5vw,4rem)', fontWeight: 700, color: '#f5f3ef', lineHeight: 1.1, marginBottom: '1.25rem', letterSpacing: '-0.03em' }}>
               Pare de perder dinheiro.<br />
-              <em style={{ color: '#bd7b65', fontStyle: 'italic', fontWeight: 800 }}>Comece agora, em 3 minutos.</em>
+              <em style={{ fontFamily: "'Instrument Serif', serif", color: '#d9a582', fontStyle: 'italic', fontWeight: 400 }}>Comece agora, em 3 minutos.</em>
             </h2>
-            <p className="reveal rd1" style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.95rem', fontWeight: 300, color: '#a39c97', lineHeight: 1.8, maxWidth: '48ch', margin: '0 auto 2rem' }}>
+            <p className="reveal rd1" style={{ fontFamily: "'Archivo', sans-serif", fontSize: '0.95rem', fontWeight: 300, color: '#c9bcae', lineHeight: 1.8, maxWidth: '48ch', margin: '0 auto 2rem' }}>
               7 dias grátis, sem cartão de crédito. Configure sua clínica em minutos e veja a agenda cheia ainda essa semana.
             </p>
             <div className="reveal rd1" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.25rem', marginBottom: '2rem' }}>
               {['✓ Sem fidelidade', '✓ Cancele quando quiser', '✓ Dados sempre seus', '✓ Suporte humanizado'].map(s => (
-                <span key={s} style={{ fontFamily: "'Inter',sans-serif", fontSize: '0.72rem', color: '#7a7470', letterSpacing: '0.08em' }}>{s}</span>
+                <span key={s} style={{ fontFamily: "'Archivo',sans-serif", fontSize: '0.72rem', color: '#8f8276', letterSpacing: '0.08em' }}>{s}</span>
               ))}
             </div>
             <div className="reveal rd2" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center' }}>
               <Link to="/login" className="lp-btn-solid" style={{ borderRadius: '9999px', fontSize: '0.9rem', padding: '1rem 2.5rem' }}>
                 Testar 7 Dias Grátis <ArrowRight className="w-4 h-4" />
               </Link>
-              <button onClick={() => scrollToSection('plans')} className="lp-btn-outline" style={{ borderRadius: '9999px', borderColor: 'rgba(255,255,255,0.12)', color: '#a39c97', fontSize: '0.9rem', padding: '1rem 2.5rem' }}>
+              <button onClick={() => scrollToSection('plans')} className="lp-btn-outline" style={{ borderRadius: '9999px', borderColor: 'rgba(255,255,255,0.12)', color: '#c9bcae', fontSize: '0.9rem', padding: '1rem 2.5rem' }}>
                 Ver Planos & Preços
               </button>
             </div>
-            <p className="reveal rd3" style={{ fontFamily: "'Inter',sans-serif", fontSize: '0.65rem', color: '#4a4440', marginTop: '1.25rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <p className="reveal rd3" style={{ fontFamily: "'Archivo',sans-serif", fontSize: '0.65rem', color: '#5c5049', marginTop: '1.25rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               847 clínicas já transformaram sua gestão
             </p>
           </div>
@@ -581,7 +594,7 @@ const LandingPage: React.FC = () => {
                 <div className="text-center reveal">
                   <span className="sec-label">Visão 360°</span>
                   <h2 style={{ ...serif('clamp(2rem,4vw,3.2rem)', 700), color: S.ink }}>
-                    Tour pelas <em style={{ color: S.rose, fontStyle: 'italic' }}>Funcionalidades</em>
+                    Tour pelas <em style={accentItalic()}>Funcionalidades</em>
                   </h2>
                 </div>
                 <div className="flex flex-wrap justify-center gap-8 mt-10" style={{ borderBottom: `1px solid ${S.border}` }}>
@@ -618,7 +631,7 @@ const LandingPage: React.FC = () => {
                   </div>
                   <div style={{ position: 'sticky', top: '96px' }}>
                     <motion.div key={activeFeature} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                      style={{ borderRadius: '16px', overflow: 'hidden', boxShadow: '0 32px 64px rgba(26,21,18,0.13), 0 4px 16px rgba(26,21,18,0.07)', border: `1px solid ${S.border}` }}>
+                      style={{ borderRadius: '16px', overflow: 'hidden', boxShadow: '0 32px 64px rgba(28,22,18,0.13), 0 4px 16px rgba(28,22,18,0.07)', border: `1px solid ${S.border}` }}>
                       <React.Suspense fallback={demoPlayerFallback}>
                         <LandingDemoPlayer key={activeFeature} tabIndex={activeFeature} />
                       </React.Suspense>
@@ -638,7 +651,7 @@ const LandingPage: React.FC = () => {
                       <h3 style={{ ...serif('2rem', 700), color: S.ink, lineHeight: 1.15, marginBottom: '0.9rem', letterSpacing: '-0.03em' }}>{f.title}</h3>
                       <p style={{ ...sans('0.9rem', 300), color: S.muted, lineHeight: 1.8, marginBottom: '1.5rem' }}>{f.desc}</p>
                       {/* Demo animado no mobile */}
-                      <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: '0 16px 40px rgba(26,21,18,0.10), 0 2px 8px rgba(26,21,18,0.06)', border: `1px solid ${S.border}` }}>
+                      <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: '0 16px 40px rgba(28,22,18,0.10), 0 2px 8px rgba(28,22,18,0.06)', border: `1px solid ${S.border}` }}>
                         <React.Suspense fallback={demoPlayerFallback}>
                           <LandingDemoPlayer tabIndex={i} />
                         </React.Suspense>
@@ -662,12 +675,12 @@ const LandingPage: React.FC = () => {
         })()}
 
         {/* ══════════ ANTES vs DEPOIS ═══════════════════════════════ */}
-        <section className="hidden md:block py-28" style={{ background: 'rgba(189,123,101,0.055)', borderTop: `1px solid rgba(189,123,101,0.12)` }}>
+        <section className="hidden md:block py-28" style={{ background: 'rgba(155,107,80,0.055)', borderTop: `1px solid rgba(155,107,80,0.12)` }}>
           <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
             <div className="text-center mb-16 reveal">
               <span className="sec-label">Realidade vs Transformação</span>
               <h2 style={{ ...serif('clamp(2rem,4vw,3.2rem)', 700), color: S.ink, lineHeight: 1.2 }}>
-                Antes vs Depois do <em style={{ color: S.rose }}>{SAAS_COMPANY_NAME}</em>
+                Antes vs Depois do <em style={accentItalic()}>{SAAS_COMPANY_NAME}</em>
               </h2>
               <p style={{ ...sans('0.92rem', 300), color: S.muted, marginTop: '0.9rem' }}>
                 Veja a diferença clara na rotina de quem profissionalizou a gestão.
@@ -699,7 +712,7 @@ const LandingPage: React.FC = () => {
                   </ul>
                 </div>
                 <div className="p-9 md:p-12 relative" style={{ background: S.white }}>
-                  <div style={{ position: 'absolute', top: 0, right: 0, background: S.rose, color: S.white, fontSize: '0.52rem', fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', padding: '0.3rem 0.85rem' }}>
+                  <div style={{ position: 'absolute', top: 0, right: 0, background: S.rose, color: S.white, fontSize: '0.52rem', fontFamily: "'Archivo',sans-serif", fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', padding: '0.3rem 0.85rem' }}>
                     {SAAS_COMPANY_NAME}
                   </div>
                   <h3 className="flex items-center gap-2 mb-8" style={{ ...sans('0.62rem', 700), letterSpacing: '0.22em', textTransform: 'uppercase', color: S.rose }}>
@@ -731,17 +744,17 @@ const LandingPage: React.FC = () => {
 
         {/* ══════════ DEPOIMENTOS ═══════════════════════════════════ */}
         <section className="py-12 md:py-28 relative overflow-hidden" style={{ background: `linear-gradient(175deg, ${S.cream} 0%, #f8f2ee 50%, ${S.cream} 100%)`, borderTop: `1px solid ${S.borderLight}` }}>
-          <div className="blob-a absolute pointer-events-none" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: '80vw', height: '70%', borderRadius: '50% 50% 40% 60% / 40% 60% 40% 60%', background: 'radial-gradient(ellipse at 50% 50%, rgba(189,123,101,0.06) 0%, transparent 65%)' }} />
+          <div className="blob-a absolute pointer-events-none" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: '80vw', height: '70%', borderRadius: '50% 50% 40% 60% / 40% 60% 40% 60%', background: 'radial-gradient(ellipse at 50% 50%, rgba(155,107,80,0.06) 0%, transparent 65%)' }} />
           <div className="max-w-[1400px] mx-auto px-6 lg:px-12" style={{ position: 'relative', zIndex: 1 }}>
             <div className="text-center mb-10 md:mb-16 reveal">
               <span className="sec-label">Premium Testimonials</span>
               <h2 style={{ ...serif('clamp(2rem,4vw,3.2rem)', 700), color: S.ink }}>
-                Clínicas que <em style={{ color: S.rose }}>cresceram</em> com o Aura
+                Clínicas que <em style={accentItalic()}>cresceram</em> com o Aura
               </h2>
             </div>
             {(() => {
               const testimonials = [
-                { quote: 'Antes eu perdia em média 8 consultas por mês por faltas. Hoje, com a confirmação automática, praticamente zerou. Em 3 meses recuperei o investimento do plano.', name: 'Dra. Carolina Menezes', role: 'Clínica de Estética · São Paulo, SP', result: '−92% em faltas', initials: 'CM', avatarColors: ['rgba(189,123,101,0.28)', 'rgba(189,123,101,0.08)'] },
+                { quote: 'Antes eu perdia em média 8 consultas por mês por faltas. Hoje, com a confirmação automática, praticamente zerou. Em 3 meses recuperei o investimento do plano.', name: 'Dra. Carolina Menezes', role: 'Clínica de Estética · São Paulo, SP', result: '−92% em faltas', initials: 'CM', avatarColors: ['rgba(155,107,80,0.28)', 'rgba(155,107,80,0.08)'] },
                 { quote: 'O módulo de Resgate com IA foi surreal. Mandei mensagem para 15 pacientes inativas e 9 voltaram na mesma semana. É como ter uma recepcionista trabalhando 24h.', name: 'Renata Oliveira', role: 'Studio de Beleza · Curitiba, PR', result: '60% de retorno', initials: 'RO', avatarColors: ['rgba(124,92,191,0.24)', 'rgba(124,92,191,0.07)'] },
                 { quote: 'Finalmente sei exatamente quanto lucrei, quanto gastei e quanto cada profissional produziu. O financeiro automático mudou completamente a gestão do meu negócio.', name: 'Juliana Ferreira', role: 'Espaço de Dermato Estética · Belo Horizonte, MG', result: '+35% de receita', initials: 'JF', avatarColors: ['rgba(61,126,166,0.26)', 'rgba(61,126,166,0.08)'] },
               ];
@@ -754,21 +767,21 @@ const LandingPage: React.FC = () => {
                       return (
                         <div key={i} className={`tcard ${dist === 0 ? 'tcard-active' : dist === 1 ? 'tcard-side' : 'tcard-far'}`}
                           onClick={() => setTestimonialIndex(i)}
-                          style={{ flexShrink: 0, width: isActive ? 'min(420px, 44vw)' : 'min(280px, 28vw)', background: S.white, border: isActive ? `1.5px solid rgba(189,123,101,0.35)` : `1px solid ${S.border}`, borderRadius: '20px', padding: isActive ? '2.25rem' : '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.1rem', boxShadow: isActive ? '0 24px 60px rgba(26,21,18,0.10), 0 4px 16px rgba(189,123,101,0.12)' : '0 4px 16px rgba(26,21,18,0.04)', cursor: !isActive ? 'pointer' : 'default', position: 'relative', overflow: 'hidden' }}>
-                          {isActive && <div style={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', borderRadius: '0 20px 0 120px', background: 'radial-gradient(ellipse at 80% 20%, rgba(189,123,101,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />}
+                          style={{ flexShrink: 0, width: isActive ? 'min(420px, 44vw)' : 'min(280px, 28vw)', background: S.white, border: isActive ? `1.5px solid rgba(155,107,80,0.35)` : `1px solid ${S.border}`, borderRadius: '20px', padding: isActive ? '2.25rem' : '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.1rem', boxShadow: isActive ? '0 24px 60px rgba(28,22,18,0.10), 0 4px 16px rgba(155,107,80,0.12)' : '0 4px 16px rgba(28,22,18,0.04)', cursor: !isActive ? 'pointer' : 'default', position: 'relative', overflow: 'hidden' }}>
+                          {isActive && <div style={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', borderRadius: '0 20px 0 120px', background: 'radial-gradient(ellipse at 80% 20%, rgba(155,107,80,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />}
                           <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <div style={{ width: isActive ? '64px' : '48px', height: isActive ? '64px' : '48px', borderRadius: '50%', background: `radial-gradient(135deg, ${t.avatarColors[0]} 0%, ${t.avatarColors[1]} 100%)`, border: isActive ? `2px solid rgba(189,123,101,0.3)` : `1.5px solid ${S.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Outfit',sans-serif", fontSize: isActive ? '1.35rem' : '1rem', fontWeight: 700, color: S.rose, boxShadow: isActive ? '0 4px 20px rgba(189,123,101,0.18)' : 'none', transition: 'all 0.55s cubic-bezier(0.16,1,0.3,1)' }}>{t.initials}</div>
+                            <div style={{ width: isActive ? '64px' : '48px', height: isActive ? '64px' : '48px', borderRadius: '50%', background: `radial-gradient(135deg, ${t.avatarColors[0]} 0%, ${t.avatarColors[1]} 100%)`, border: isActive ? `2px solid rgba(155,107,80,0.3)` : `1.5px solid ${S.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo',sans-serif", fontSize: isActive ? '1.35rem' : '1rem', fontWeight: 700, color: S.rose, boxShadow: isActive ? '0 4px 20px rgba(155,107,80,0.18)' : 'none', transition: 'all 0.55s cubic-bezier(0.16,1,0.3,1)' }}>{t.initials}</div>
                           </div>
                           {isActive && <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>{Array.from({ length: 5 }).map((_, si) => <Star key={si} className="w-3.5 h-3.5" style={{ color: '#f4b942', fill: '#f4b942' }} />)}</div>}
-                          <blockquote style={{ fontFamily: "'Inter',sans-serif", fontSize: isActive ? '0.9rem' : '0.78rem', fontWeight: 300, color: S.muted, lineHeight: 1.8, margin: 0, textAlign: isActive ? 'center' : 'left', display: '-webkit-box', WebkitLineClamp: isActive ? 99 : 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>"{t.quote}"</blockquote>
+                          <blockquote style={{ fontFamily: "'Archivo',sans-serif", fontSize: isActive ? '0.9rem' : '0.78rem', fontWeight: 300, color: S.muted, lineHeight: 1.8, margin: 0, textAlign: isActive ? 'center' : 'left', display: '-webkit-box', WebkitLineClamp: isActive ? 99 : 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>"{t.quote}"</blockquote>
                           <div style={{ textAlign: 'center', paddingTop: isActive ? '0.75rem' : '0.25rem', borderTop: `1px solid ${S.borderLight}` }}>
-                            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: isActive ? '0.88rem' : '0.78rem', fontWeight: 600, color: S.ink }}>{t.name}</div>
-                            {isActive && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '0.72rem', fontWeight: 300, color: S.faint, marginTop: '0.2rem' }}>{t.role}</div>}
+                            <div style={{ fontFamily: "'Archivo',sans-serif", fontSize: isActive ? '0.88rem' : '0.78rem', fontWeight: 600, color: S.ink }}>{t.name}</div>
+                            {isActive && <div style={{ fontFamily: "'Archivo',sans-serif", fontSize: '0.72rem', fontWeight: 300, color: S.faint, marginTop: '0.2rem' }}>{t.role}</div>}
                           </div>
                           {isActive && (
                             <div style={{ display: 'flex', justifyContent: 'center' }}>
                               <div style={{ background: `${S.rose}15`, border: `1px solid ${S.rose}30`, borderRadius: '20px', padding: '0.3rem 0.9rem' }}>
-                                <span style={{ fontFamily: "'Inter',sans-serif", fontSize: '0.62rem', fontWeight: 700, color: S.rose, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.result}</span>
+                                <span style={{ fontFamily: "'Archivo',sans-serif", fontSize: '0.62rem', fontWeight: 700, color: S.rose, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.result}</span>
                               </div>
                             </div>
                           )}
@@ -810,7 +823,7 @@ const LandingPage: React.FC = () => {
                 {sortedPlans.map((plan, idx) => {
                   const highlight = isHighlight(plan, idx);
                   return (
-                    <div key={plan.id} className={highlight ? 'lp-card' : 'lp-card-dark'} style={{ display: 'flex', flexDirection: 'column', background: highlight ? S.rose : '#1a1512', borderColor: highlight ? S.rose : '#2a2420', color: '#fff', padding: '3.5rem 2.5rem', position: 'relative', overflow: 'hidden' }}>
+                    <div key={plan.id} className={highlight ? 'lp-card' : 'lp-card-dark'} style={{ display: 'flex', flexDirection: 'column', background: highlight ? S.rose : '#171310', borderColor: highlight ? S.rose : '#332c26', color: '#fff', padding: '3.5rem 2.5rem', position: 'relative', overflow: 'hidden' }}>
                       {highlight && (
                         <div style={{ position: 'absolute', top: '1.5rem', right: '-2.5rem', background: '#fff', color: S.rose, padding: '0.25rem 3rem', transform: 'rotate(45deg)', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>POPULAR</div>
                       )}
@@ -895,9 +908,9 @@ const LandingPage: React.FC = () => {
                 </p>
                 <div className="flex gap-4">
                   {[Instagram, Twitter, Linkedin, Facebook].map((Icon, idx) => (
-                    <a key={idx} href="#" style={{ width: 40, height: 40, borderRadius: '50%', background: '#2a2420', display: 'flex', alignItems: 'center', justifyContent: 'center', color: S.darkMuted, transition: 'all 0.3s' }}
+                    <a key={idx} href="#" style={{ width: 40, height: 40, borderRadius: '50%', background: '#332c26', display: 'flex', alignItems: 'center', justifyContent: 'center', color: S.darkMuted, transition: 'all 0.3s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = S.rose; e.currentTarget.style.color = '#fff'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = '#2a2420'; e.currentTarget.style.color = S.darkMuted; }}>
+                      onMouseLeave={e => { e.currentTarget.style.background = '#332c26'; e.currentTarget.style.color = S.darkMuted; }}>
                       <Icon size={18} />
                     </a>
                   ))}
@@ -909,7 +922,7 @@ const LandingPage: React.FC = () => {
                 { title: 'Legal', items: ['Privacidade', 'Termos de Uso', 'LGPD', 'Segurança'] },
               ].map(col => (
                 <div key={col.title}>
-                  <h4 style={{ fontFamily: "'Outfit', sans-serif", fontSize: '1.1rem', fontWeight: 700, marginBottom: '2rem' }}>{col.title}</h4>
+                  <h4 style={{ fontFamily: "'Archivo', sans-serif", fontSize: '1.1rem', fontWeight: 700, marginBottom: '2rem' }}>{col.title}</h4>
                   <ul className="space-y-4">
                     {col.items.map(item => (
                       <li key={item}>
@@ -922,7 +935,7 @@ const LandingPage: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="pt-12 border-t" style={{ borderColor: '#2a2420', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '2rem' }}>
+            <div className="pt-12 border-t" style={{ borderColor: '#332c26', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '2rem' }}>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.85rem', color: S.darkFaint }}>© 2026 {SAAS_COMPANY_NAME}. Todos os direitos reservados.</p>
               <div className="flex items-center gap-2">
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2b9e5e' }} />
