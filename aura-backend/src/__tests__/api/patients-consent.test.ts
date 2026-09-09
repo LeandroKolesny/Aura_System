@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/prisma', () => ({
   default: {
     patient: { findFirst: vi.fn(), update: vi.fn() },
-    patientConsentSignatureHistory: { create: vi.fn() },
+    patientConsentSignatureHistory: { create: vi.fn(), count: vi.fn() },
     activity: { create: vi.fn() },
     $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)) as unknown,
   },
@@ -40,6 +40,9 @@ function makeParams(id = 'p1') {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(prisma.$transaction).mockImplementation(((ops: Promise<unknown>[]) => Promise.all(ops)) as never)
+  // Por padrão, simula que já existe histórico (não é o caso "assinatura
+  // legada nunca migrada") — os testes de backfill sobrescrevem isso.
+  vi.mocked(prisma.patientConsentSignatureHistory.count).mockResolvedValue(1)
 })
 
 describe('POST /api/patients/[id]/consent', () => {
@@ -179,6 +182,51 @@ describe('POST /api/patients/[id]/consent', () => {
     )
     expect(prisma.activity.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ type: 'CONSENT_CORRECTED' }) })
+    )
+  })
+
+  it('REGRESSÃO: corrigir uma assinatura legada (assinada antes deste recurso existir, sem nenhuma linha de histórico) faz backfill da versão antiga antes de registrar a nova', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({
+      ...MOCK_ALREADY_SIGNED_PATIENT,
+      consentSignedAt: new Date('2026-01-01'),
+      consentMetadata: { ipAddress: '9.9.9.9', userAgent: 'OldAgent/1.0', documentVersion: '1.0', signedBy: 'u-old' },
+    } as never)
+    // Nenhuma linha de histórico existe ainda pra este paciente — sinal de
+    // que a assinatura atual é de antes deste recurso ter sido criado.
+    vi.mocked(prisma.patientConsentSignatureHistory.count).mockResolvedValue(0)
+    vi.mocked(prisma.patient.update).mockResolvedValue({
+      id: 'p1',
+      consentSignedAt: new Date(),
+      consentSignatureUrl: 'data:image/png;base64,nova',
+      consentCorrectionCount: 1,
+      lastConsentCorrectionAt: new Date(),
+      lastConsentCorrectionReason: 'Assinatura ilegível',
+    } as never)
+    vi.mocked(prisma.patientConsentSignatureHistory.create).mockResolvedValue({ id: 'hist-x' } as never)
+
+    const res = await POST(
+      makePostRequest({ signatureUrl: 'data:image/png;base64,nova', correctionReason: 'Assinatura ilegível' }),
+      makeParams()
+    )
+
+    expect(res.status).toBe(200)
+    // Uma chamada de backfill com a assinatura ANTIGA (a que já estava salva)...
+    expect(prisma.patientConsentSignatureHistory.create).toHaveBeenNthCalledWith(1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          signatureUrl: 'data:image/png;base64,assinatura-antiga',
+          ipAddress: '9.9.9.9',
+          userAgent: 'OldAgent/1.0',
+          correctionReason: null,
+        }),
+      })
+    )
+    // ...seguida da chamada normal registrando a NOVA assinatura com o motivo.
+    expect(prisma.patientConsentSignatureHistory.create).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        data: expect.objectContaining({ signatureUrl: 'data:image/png;base64,nova', correctionReason: 'Assinatura ilegível' }),
+      })
     )
   })
 

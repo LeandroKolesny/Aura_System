@@ -70,6 +70,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Assinaturas feitas antes deste recurso existir nunca ganharam uma linha
+    // no histórico — se for corrigir uma dessas agora, faz um "backfill":
+    // registra a versão antiga (que está pra ser sobrescrita) antes de
+    // registrar a nova, senão ela se perde pra sempre sem deixar rastro.
+    const existingHistoryCount = isCorrection
+      ? await prisma.appointmentSignatureHistory.count({ where: { appointmentId: id } })
+      : 0;
+    const needsBackfill = isCorrection && existingHistoryCount === 0;
+
     const ipAddress = request.headers.get("x-forwarded-for") ||
                       request.headers.get("x-real-ip") ||
                       "unknown";
@@ -84,7 +93,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       signedBy: user.id,
     };
 
-    const [, updated] = await prisma.$transaction([
+    const oldMetadata = appointment.signatureMetadata as { signedAt?: string; ipAddress?: string; userAgent?: string; documentVersion?: string; signedBy?: string } | null;
+
+    const transactionOps = [
+      ...(needsBackfill
+        ? [
+            prisma.appointmentSignatureHistory.create({
+              data: {
+                appointmentId: id,
+                signatureUrl: appointment.signatureUrl!,
+                signedAt: oldMetadata?.signedAt ? new Date(oldMetadata.signedAt) : signedAt,
+                ipAddress: oldMetadata?.ipAddress ?? "unknown",
+                userAgent: oldMetadata?.userAgent ?? "unknown",
+                documentVersion: oldMetadata?.documentVersion ?? "v1.0-appt-consent",
+                signedByUserId: oldMetadata?.signedBy ?? user.id,
+                correctionReason: null,
+              },
+            }),
+          ]
+        : []),
       // Preserva a versão anterior (ou a primeira assinatura) na trilha de auditoria.
       prisma.appointmentSignatureHistory.create({
         data: {
@@ -112,7 +139,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             : {}),
         },
       }),
-    ]);
+    ];
+
+    const transactionResults = await prisma.$transaction(transactionOps);
+    const updated = transactionResults[transactionResults.length - 1] as Awaited<ReturnType<typeof prisma.appointment.update>>;
 
     await prisma.activity.create({
       data: {

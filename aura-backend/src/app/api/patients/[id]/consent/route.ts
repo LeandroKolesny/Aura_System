@@ -61,6 +61,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Assinaturas feitas antes deste recurso existir nunca ganharam uma linha
+    // no histórico — se for corrigir uma dessas agora, faz um "backfill":
+    // registra a versão antiga (que está pra ser sobrescrita) antes de
+    // registrar a nova, senão ela se perde pra sempre sem deixar rastro.
+    const existingHistoryCount = isCorrection
+      ? await prisma.patientConsentSignatureHistory.count({ where: { patientId: id } })
+      : 0;
+    const needsBackfill = isCorrection && existingHistoryCount === 0;
+
     // Capturar metadados de segurança
     const ipAddress = request.headers.get("x-forwarded-for") ||
                       request.headers.get("x-real-ip") ||
@@ -76,7 +85,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       signedBy: user.id,
     };
 
-    const [, updatedPatient] = await prisma.$transaction([
+    const oldMetadata = patient.consentMetadata as { ipAddress?: string; userAgent?: string; documentVersion?: string; signedBy?: string } | null;
+
+    const transactionOps = [
+      ...(needsBackfill
+        ? [
+            prisma.patientConsentSignatureHistory.create({
+              data: {
+                patientId: id,
+                signatureUrl: patient.consentSignatureUrl!,
+                signedAt: patient.consentSignedAt ?? signedAt,
+                ipAddress: oldMetadata?.ipAddress ?? "unknown",
+                userAgent: oldMetadata?.userAgent ?? "unknown",
+                documentVersion: oldMetadata?.documentVersion ?? "1.0",
+                signedByUserId: oldMetadata?.signedBy ?? user.id,
+                correctionReason: null,
+              },
+            }),
+          ]
+        : []),
       // Preserva a versão anterior (ou a primeira assinatura) na trilha de auditoria.
       prisma.patientConsentSignatureHistory.create({
         data: {
@@ -105,7 +132,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             : {}),
         },
       }),
-    ]);
+    ];
+
+    const transactionResults = await prisma.$transaction(transactionOps);
+    const updatedPatient = transactionResults[transactionResults.length - 1] as Awaited<ReturnType<typeof prisma.patient.update>>;
 
     // Log de atividade (auditoria)
     await prisma.activity.create({

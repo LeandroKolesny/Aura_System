@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/prisma', () => ({
   default: {
     appointment: { findFirst: vi.fn(), update: vi.fn() },
-    appointmentSignatureHistory: { create: vi.fn() },
+    appointmentSignatureHistory: { create: vi.fn(), count: vi.fn() },
     activity: { create: vi.fn() },
     // Simula uma transação real: executa as operações (já invocadas, portanto
     // promises) em paralelo e retorna os resultados na mesma ordem.
@@ -48,6 +48,9 @@ function makeParams(id = 'appt-1') {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(prisma.$transaction).mockImplementation(((ops: Promise<unknown>[]) => Promise.all(ops)) as never)
+  // Por padrão, simula que já existe histórico (não é o caso "assinatura
+  // legada nunca migrada") — os testes de backfill sobrescrevem isso.
+  vi.mocked(prisma.appointmentSignatureHistory.count).mockResolvedValue(1)
 })
 
 describe('POST /api/appointments/[id]/consent', () => {
@@ -199,6 +202,49 @@ describe('POST /api/appointments/[id]/consent', () => {
     )
     expect(prisma.activity.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ type: 'CONSENT_CORRECTED' }) })
+    )
+  })
+
+  it('REGRESSÃO: corrigir uma assinatura legada (assinada antes deste recurso existir, sem nenhuma linha de histórico) faz backfill da versão antiga antes de registrar a nova', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(STAFF as never)
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+      ...MOCK_ALREADY_SIGNED_APPOINTMENT,
+      signatureMetadata: { signedAt: '2026-01-01T00:00:00.000Z', ipAddress: '9.9.9.9', userAgent: 'OldAgent/1.0', documentVersion: 'v1.0-appt-consent', signedBy: 'u-old' },
+    } as never)
+    // Nenhuma linha de histórico existe ainda pra este agendamento — sinal
+    // de que a assinatura atual é de antes deste recurso ter sido criado.
+    vi.mocked(prisma.appointmentSignatureHistory.count).mockResolvedValue(0)
+    vi.mocked(prisma.appointment.update).mockResolvedValue({
+      signatureUrl: 'data:image/png;base64,nova',
+      signatureMetadata: {},
+      signatureCorrectionCount: 1,
+      lastSignatureCorrectionAt: new Date(),
+      lastSignatureCorrectionReason: 'Assinatura ilegível',
+    } as never)
+    vi.mocked(prisma.appointmentSignatureHistory.create).mockResolvedValue({ id: 'hist-x' } as never)
+
+    const res = await POST(
+      makePostRequest({ signatureUrl: 'data:image/png;base64,nova', correctionReason: 'Assinatura ilegível' }),
+      makeParams()
+    )
+
+    expect(res.status).toBe(200)
+    // Uma chamada de backfill com a assinatura ANTIGA (a que já estava salva)...
+    expect(prisma.appointmentSignatureHistory.create).toHaveBeenNthCalledWith(1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          signatureUrl: 'data:image/png;base64,assinatura-antiga',
+          ipAddress: '9.9.9.9',
+          userAgent: 'OldAgent/1.0',
+          correctionReason: null,
+        }),
+      })
+    )
+    // ...seguida da chamada normal registrando a NOVA assinatura com o motivo.
+    expect(prisma.appointmentSignatureHistory.create).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        data: expect.objectContaining({ signatureUrl: 'data:image/png;base64,nova', correctionReason: 'Assinatura ilegível' }),
+      })
     )
   })
 
