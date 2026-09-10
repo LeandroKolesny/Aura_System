@@ -119,8 +119,11 @@ export function isReadOnlyMode(company: CompanyInfo): boolean {
     return true;
   }
 
-  // Assinatura vencida
-  if (company.subscriptionStatus === "OVERDUE") {
+  // Assinatura vencida ou cancelada (webhook Asaas: PAYMENT_OVERDUE /
+  // SUBSCRIPTION_INACTIVATED). Sem cancelada aqui, uma empresa CANCELED
+  // continuava com escrita liberada em checkWriteAccess (apiGuards) apesar de
+  // hasModuleAccess já negar tudo — divergência que confundia o frontend.
+  if (company.subscriptionStatus === "OVERDUE" || company.subscriptionStatus === "CANCELED") {
     return true;
   }
 

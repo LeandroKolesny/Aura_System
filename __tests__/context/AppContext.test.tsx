@@ -1643,3 +1643,57 @@ describe('AppContext > markNotificationAsRead / completeOnboarding', () => {
     expect(companiesApi.update).toHaveBeenCalledWith('c1', { onboardingCompleted: true });
   });
 });
+
+describe('AppContext > isReadOnly (modo somente leitura por status de assinatura)', () => {
+  // REGRESSÃO: isReadOnly só olhava a data de expiração. O webhook Asaas
+  // PAYMENT_OVERDUE marca subscriptionStatus 'OVERDUE' SEM mexer na data —
+  // o backend já bloqueava com 403, mas o frontend mostrava tudo liberado.
+  async function renderWithCompany(over: { plan?: string; subscriptionStatus?: string; subscriptionExpiresAt?: string; role?: 'ADMIN' | 'OWNER' }) {
+    vi.mocked(authApi.me).mockResolvedValue({
+      success: true,
+      data: {
+        user: {
+          id: 'u1', name: 'Admin', email: 'admin@teste.com', role: over.role ?? 'ADMIN',
+          company: {
+            id: 'c1', name: 'Clínica X', slug: 'clinica-x',
+            plan: over.plan ?? 'STARTER',
+            subscriptionStatus: over.subscriptionStatus ?? 'ACTIVE',
+            subscriptionExpiresAt: over.subscriptionExpiresAt,
+          },
+        },
+      },
+    } as never);
+    const view = renderHook(() => useApp(), { wrapper });
+    await waitFor(() => expect(view.result.current.isInitializing).toBe(false));
+    await waitFor(() => expect(view.result.current.companies).toHaveLength(1));
+    return view;
+  }
+
+  const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const PAST = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  it('retorna true quando subscriptionStatus é "overdue" mesmo com data de expiração no futuro', async () => {
+    const { result } = await renderWithCompany({ subscriptionStatus: 'OVERDUE', subscriptionExpiresAt: FUTURE });
+    expect(result.current.isReadOnly).toBe(true);
+  });
+
+  it('retorna true quando subscriptionStatus é "canceled" com data no futuro', async () => {
+    const { result } = await renderWithCompany({ subscriptionStatus: 'CANCELED', subscriptionExpiresAt: FUTURE });
+    expect(result.current.isReadOnly).toBe(true);
+  });
+
+  it('retorna false para assinatura ACTIVE com data futura', async () => {
+    const { result } = await renderWithCompany({ subscriptionStatus: 'ACTIVE', subscriptionExpiresAt: FUTURE });
+    expect(result.current.isReadOnly).toBe(false);
+  });
+
+  it('retorna true quando a data de expiração já passou, mesmo com status ACTIVE', async () => {
+    const { result } = await renderWithCompany({ subscriptionStatus: 'ACTIVE', subscriptionExpiresAt: PAST });
+    expect(result.current.isReadOnly).toBe(true);
+  });
+
+  it('OWNER nunca fica em modo somente leitura, mesmo com assinatura vencida', async () => {
+    const { result } = await renderWithCompany({ subscriptionStatus: 'OVERDUE', subscriptionExpiresAt: PAST, role: 'OWNER' });
+    expect(result.current.isReadOnly).toBe(false);
+  });
+});

@@ -246,12 +246,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const isReadOnly = React.useMemo(() => {
       if (!currentCompany) return false;
-      if (user?.role === UserRole.OWNER) return false; 
-      
+      if (user?.role === UserRole.OWNER) return false;
+
+      // O webhook do Asaas (PAYMENT_OVERDUE / SUBSCRIPTION_INACTIVATED) marca
+      // subscriptionStatus como OVERDUE/CANCELED SEM mexer em subscriptionExpiresAt.
+      // O backend (isReadOnlyMode/checkWriteAccess) já bloqueia escrita com 403
+      // nesses casos — o frontend precisa refletir o mesmo estado para mostrar o
+      // banner de "Plano expirado" em vez de deixar o usuário tomar um 403 seco.
+      const status = currentCompany.subscriptionStatus?.toLowerCase();
+      if (status === 'overdue' || status === 'canceled') return true;
+
       const isExpired = new Date(currentCompany.subscriptionExpiresAt) < new Date();
-      const isBasic = currentCompany.plan === 'basic';
-      
-      return isExpired || (isBasic && isExpired); 
+      return isExpired;
   }, [currentCompany, user]);
 
   const checkModuleAccess = (module: SystemModule): boolean => {

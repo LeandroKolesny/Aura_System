@@ -21,6 +21,7 @@ vi.mock('@/lib/asaas', () => ({
   createCustomer: vi.fn(),
   createSubscription: vi.fn(),
   getSubscriptionPayments: vi.fn(),
+  cancelSubscription: vi.fn(),
 }))
 
 import { POST } from '../../app/api/billing/checkout/route'
@@ -31,6 +32,7 @@ import {
   createCustomer,
   createSubscription,
   getSubscriptionPayments,
+  cancelSubscription,
 } from '@/lib/asaas'
 
 const ADMIN = { id: 'u1', email: 'admin@clinica.com', role: 'ADMIN', companyId: 'c1' }
@@ -272,5 +274,97 @@ describe('POST /api/billing/checkout', () => {
     expect(res.status).toBe(500)
     expect(body.error).not.toContain('xyz123')
     expect(body.error).toBeTruthy()
+  })
+
+  it('retorna 500 genérico quando getSubscriptionPayments lança (sem vazar detalhes da Asaas)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue(SAAS_PLAN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(COMPANY_WITH_ASAAS as never)
+    vi.mocked(getSubscriptionPayments).mockRejectedValue(new Error('Asaas API error 502: upstream boom token=abc'))
+
+    const res = await POST(makeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(body.error).not.toContain('abc')
+    expect(body.error).toBe('Erro ao processar pagamento. Tente novamente.')
+  })
+})
+
+describe('POST /api/billing/checkout — troca de plano com assinatura anterior', () => {
+  const COMPANY_WITH_OLD_SUB = {
+    ...COMPANY_NO_ASAAS,
+    asaasCustomerId: 'cus_existing123',
+    asaasSubscriptionId: 'sub_old',
+  }
+
+  it('cancela a assinatura Asaas anterior ANTES de criar a nova', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue({ ...SAAS_PLAN, name: 'Pro' } as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(COMPANY_WITH_OLD_SUB as never)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(cancelSubscription).toHaveBeenCalledWith('sub_old')
+    // ordem: cancelamento da antiga acontece antes da criação da nova
+    const cancelOrder = vi.mocked(cancelSubscription).mock.invocationCallOrder[0]
+    const createOrder = vi.mocked(createSubscription).mock.invocationCallOrder[0]
+    expect(cancelOrder).toBeLessThan(createOrder)
+    // e o novo id é persistido
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { asaasSubscriptionId: 'sub_123' } })
+    )
+  })
+
+  it('se o cancelamento da assinatura anterior falhar, o checkout NÃO falha — cria a nova mesmo assim', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue(SAAS_PLAN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(COMPANY_WITH_OLD_SUB as never)
+    vi.mocked(cancelSubscription).mockRejectedValue(new Error('Asaas API error 404: subscription not found'))
+
+    const res = await POST(makeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.success).toBe(true)
+    expect(createSubscription).toHaveBeenCalledTimes(1)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { asaasSubscriptionId: 'sub_123' } })
+    )
+  })
+
+  it('sem asaasSubscriptionId anterior, não tenta cancelar nada', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue(SAAS_PLAN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(COMPANY_WITH_ASAAS as never)
+
+    await POST(makeRequest())
+
+    expect(cancelSubscription).not.toHaveBeenCalled()
+  })
+
+  it('CARACTERIZAÇÃO: downgrade é aceito incondicionalmente — nenhuma checagem de profissionais/pacientes acima do limite do plano destino', async () => {
+    // Hoje o checkout NÃO consulta contagem de profissionais/pacientes nem
+    // compara com maxProfessionals/maxPatients do plano destino. Trocar de
+    // PREMIUM para STARTER (limite menor) com a base cheia passa direto.
+    // Decisão de produto: manter permissivo (ver TODO no route). Este teste
+    // trava o comportamento atual — se um bloqueio de downgrade for adicionado,
+    // ele deve ser atualizado deliberadamente.
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue({ ...SAAS_PLAN, name: 'Starter', maxProfessionals: 1, maxPatients: 50 } as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      ...COMPANY_WITH_ASAAS,
+      plan: 'PREMIUM',
+      professionalCount: 12,
+      patientCount: 4000,
+    } as never)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(createSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({ externalReference: 'STARTER' })
+    )
   })
 })

@@ -87,15 +87,33 @@ export async function POST(request: NextRequest) {
   }
 
   if (event === 'SUBSCRIPTION_INACTIVATED' || event === 'PAYMENT_DELETED') {
-    await prisma.company.update({
-      where: { id: company.id },
-      data: {
-        subscriptionStatus: 'CANCELED',
-        asaasSubscriptionId: null,
-      },
-    });
+    // O checkout cancela a assinatura Asaas anterior ao trocar de plano — isso
+    // dispara um SUBSCRIPTION_INACTIVATED da assinatura ANTIGA. Se o evento é de
+    // uma assinatura que não é mais a atual da empresa, ignorar: cancelar aqui
+    // apagaria a assinatura nova recém-criada e marcaria a empresa como CANCELED
+    // por engano. Só cancelamos quando o evento é da assinatura vigente (ou
+    // quando o evento não traz id de assinatura para comparar).
+    const eventSubscriptionId = subscription?.id ?? payment?.subscription ?? null;
 
-    console.log(`[Asaas Webhook] Assinatura cancelada — empresa ${company.id}`);
+    if (
+      eventSubscriptionId &&
+      company.asaasSubscriptionId &&
+      eventSubscriptionId !== company.asaasSubscriptionId
+    ) {
+      console.log(
+        `[Asaas Webhook] Ignorando cancelamento de assinatura antiga ${eventSubscriptionId} — atual é ${company.asaasSubscriptionId} (empresa ${company.id})`
+      );
+    } else {
+      await prisma.company.update({
+        where: { id: company.id },
+        data: {
+          subscriptionStatus: 'CANCELED',
+          asaasSubscriptionId: null,
+        },
+      });
+
+      console.log(`[Asaas Webhook] Assinatura cancelada — empresa ${company.id}`);
+    }
   }
 
   // Pagamento de assinatura de clube — reinicia sessões do ciclo

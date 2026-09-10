@@ -4,19 +4,32 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, ExternalLink, WifiOff } from 'lucide-react';
 import { api } from '../../services/api';
 
 const POLL_INTERVAL_MS = 10_000;   // 10 segundos
 const TIMEOUT_MS = 30 * 60_000;   // 30 minutos
+const MAX_CONSECUTIVE_FAILURES = 3; // avisa o usuário após 3 falhas seguidas
 
 const BillingPending: React.FC = () => {
   const navigate = useNavigate();
   const [timedOut, setTimedOut] = useState(false);
+  // Mensagem discreta quando o polling falha várias vezes seguidas (rede caída,
+  // sessão expirada durante a espera). O polling NÃO para — só informamos que
+  // não estamos conseguindo verificar, em vez de deixar a falha silenciosa.
+  const [pollError, setPollError] = useState(false);
   const startTime = useRef(Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const consecutiveFailures = useRef(0);
 
   useEffect(() => {
+    const registerFailure = () => {
+      consecutiveFailures.current += 1;
+      if (consecutiveFailures.current >= MAX_CONSECUTIVE_FAILURES) {
+        setPollError(true);
+      }
+    };
+
     const poll = async () => {
       // Timeout após 30 minutos
       if (Date.now() - startTime.current >= TIMEOUT_MS) {
@@ -27,13 +40,27 @@ const BillingPending: React.FC = () => {
 
       try {
         const res = await api.billing.getStatus();
-        const statusData = (res.data as any)?.data;
-        if (res.success && statusData?.status === 'ACTIVE') {
+
+        // Resposta HTTP de erro (ex: 401 por sessão expirada durante a espera):
+        // não vem exceção, mas também não podemos confiar no resultado.
+        if (!res.success) {
+          registerFailure();
+          return;
+        }
+
+        const statusData = (res.data as { data?: { status?: string } } | undefined)?.data;
+
+        // Poll bem-sucedido — zera o contador de falhas e limpa o aviso.
+        consecutiveFailures.current = 0;
+        setPollError(false);
+
+        if (statusData?.status === 'ACTIVE') {
           if (intervalRef.current) clearInterval(intervalRef.current);
           navigate('/dashboard', { replace: true, state: { paymentSuccess: true } });
         }
       } catch {
-        // Falha silenciosa — continua tentando
+        // Falha de rede — continua tentando, mas conta a falha para avisar o usuário.
+        registerFailure();
       }
     };
 
@@ -68,6 +95,8 @@ const BillingPending: React.FC = () => {
           <button
             onClick={() => {
               startTime.current = Date.now();
+              consecutiveFailures.current = 0;
+              setPollError(false);
               setTimedOut(false);
             }}
             className="px-4 py-2 bg-primary-500 text-white rounded-xl text-sm font-medium hover:bg-primary-600 transition-colors"
@@ -93,6 +122,13 @@ const BillingPending: React.FC = () => {
       <p className="text-slate-400 text-xs mb-8">
         Verificando a cada 10 segundos...
       </p>
+
+      {pollError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 text-sm text-amber-800 max-w-sm w-full mb-6">
+          <WifiOff className="w-4 h-4 shrink-0" />
+          Não conseguimos verificar o pagamento — verifique sua conexão. Continuaremos tentando.
+        </div>
+      )}
 
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left max-w-sm w-full space-y-2 mb-6">
         <div className="flex items-center gap-2 text-sm text-slate-600">

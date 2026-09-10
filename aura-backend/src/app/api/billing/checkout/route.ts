@@ -7,6 +7,7 @@ import {
   createCustomer,
   createSubscription,
   getSubscriptionPayments,
+  cancelSubscription,
 } from '@/lib/asaas';
 import { SAAS_COMPANY_NAME } from '@/lib/constants';
 
@@ -87,6 +88,31 @@ export async function POST(request: NextRequest) {
     // planEnum é o valor que será salvo no externalReference do Asaas
     // para que o webhook identifique o plano sem depender do valor monetário
     const planEnum = PLAN_NAME_MAP[saasPlan.name] ?? 'STARTER';
+
+    // TODO(produto): não há validação de downgrade contra os dados atuais da
+    // empresa — trocar para um plano com maxProfessionals/maxPatients menor que
+    // a contagem atual é aceito incondicionalmente. Definir se deve bloquear,
+    // pedir confirmação, ou apenas avisar antes de aplicar a troca.
+
+    // Ao trocar de plano com uma assinatura Asaas já ativa, cancelar a anterior
+    // ANTES de criar a nova. Sem isso a assinatura antiga continua cobrando e um
+    // pagamento confirmado dela reverte o plano no webhook (PAYMENT_CONFIRMED
+    // resolve pelo externalReference/valor do pagamento antigo). Se o
+    // cancelamento falhar (assinatura já removida no Asaas, indisponibilidade
+    // temporária, etc.), seguimos em frente criando a nova — deixar o usuário
+    // sem conseguir assinar por causa de um cleanup é pior que uma assinatura
+    // órfã, que pode ser cancelada manualmente depois.
+    if (company.asaasSubscriptionId) {
+      try {
+        await cancelSubscription(company.asaasSubscriptionId);
+        console.log(`[Checkout] Assinatura anterior ${company.asaasSubscriptionId} cancelada (empresa ${company.id})`);
+      } catch (cancelErr) {
+        console.error(
+          `[Checkout] Falha ao cancelar assinatura anterior ${company.asaasSubscriptionId} — seguindo com a nova:`,
+          cancelErr instanceof Error ? cancelErr.message : cancelErr
+        );
+      }
+    }
 
     // Criar assinatura — UNDEFINED permite que o cliente escolha PIX ou cartão no checkout
     const subscription = await createSubscription({
