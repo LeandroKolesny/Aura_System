@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { cpf, cnpj as cnpjValidator } from "cpf-cnpj-validator";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
@@ -11,13 +12,50 @@ const dayHoursSchema = z.object({
   end: z.string().regex(/^\d{2}:\d{2}$/),
 });
 
+// Logo é enviado pelo frontend (handleLogoUpload em Settings.tsx) como data URL
+// base64 da imagem — não como URL hospedada. O schema antigo exigia
+// `.url().max(500)`, o que rejeitava qualquer upload real (400 "Dados inválidos").
+// Aceita agora URL http(s) OU data URL de imagem, mesmo padrão de photos/route.ts.
+const DATA_URL_IMAGE_REGEX = /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/;
+const isValidLogo = (v: string): boolean =>
+  v === "" ||
+  v.startsWith("https://") ||
+  v.startsWith("http://") ||
+  DATA_URL_IMAGE_REGEX.test(v);
+
+// CNPJ/CPF: até então o schema aceitava qualquer string (`z.string().max(20)`) —
+// a validação de dígito verificador só existia no frontend (utils/maskUtils.ts),
+// então uma chamada direta à API gravava documento inválido. O campo aceita CPF
+// (pessoa física) OU CNPJ, espelhando `validateCpfCnpj` do frontend. `null`/vazio
+// continua válido (documento é opcional).
+const isValidCpfOrCnpj = (v: string): boolean => {
+  const trimmed = v.trim();
+  if (trimmed === "") return true;
+  // Remove só a máscara oficial (. - /) e espaços — NÃO todos os não-dígitos,
+  // porque o CNPJ no novo formato da RFB (NT 49/2024) pode conter letras.
+  const bare = trimmed.replace(/[.\-/\s]/g, "");
+  if (bare.length === 11) return cpf.isValid(v);
+  if (bare.length === 14) return cnpjValidator.isValid(v);
+  return false;
+};
+
 const updateCompanySchema = z.object({
   name: z.string().min(2).max(100).optional(),
-  logo: z.string().url().max(500).nullable().optional(),
+  logo: z
+    .string()
+    .max(8_000_000)
+    .refine(isValidLogo, { message: "Logo deve ser uma URL http(s) ou data URL de imagem" })
+    .nullable()
+    .optional(),
   address: z.string().max(200).nullable().optional(),
   city: z.string().max(100).nullable().optional(),
   state: z.string().length(2).nullable().optional(),
-  cnpj: z.string().max(20).nullable().optional(),
+  cnpj: z
+    .string()
+    .max(20)
+    .refine(isValidCpfOrCnpj, { message: "CNPJ/CPF inválido" })
+    .nullable()
+    .optional(),
   presentation: z.string().max(1000).nullable().optional(),
   phones: z.array(z.string().max(20)).max(5).optional(),
   website: z.string().url().max(200).nullable().optional(),

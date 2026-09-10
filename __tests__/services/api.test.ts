@@ -20,6 +20,8 @@ import {
   transactionsApi,
   proceduresApi,
   inventoryApi,
+  companiesApi,
+  whatsappApi,
   setAuthToken,
 } from '../../services/api';
 
@@ -243,6 +245,98 @@ describe('calendarApi (Google Calendar)', () => {
     const result = await calendarApi.sync();
 
     expect(result).toEqual({ success: false, error: 'Sessão do Google expirada. Reconecte sua agenda.' });
+  });
+});
+
+describe('companiesApi (Perfil do Negócio — Settings.tsx)', () => {
+  it('get chama GET /api/companies/:id e repassa os dados', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { company: { id: 'c1', name: 'Clínica X' } }));
+
+    const result = await companiesApi.get('c1');
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/companies/c1'),
+      expect.objectContaining({ credentials: 'include' })
+    );
+    expect(result).toEqual({ success: true, data: { company: { id: 'c1', name: 'Clínica X' } } });
+  });
+
+  it('update chama PUT /api/companies/:id com o corpo serializado', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { company: { id: 'c1', name: 'Novo Nome' } }));
+    const payload = { name: 'Novo Nome', cnpj: '', phones: ['(11) 99999-9999'] };
+
+    const result = await companiesApi.update('c1', payload);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/companies/c1'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(payload) })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('REGRESSÃO: update repassa erro de validação do backend (ex: CNPJ inválido) em vez de fingir sucesso', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(400, { error: 'Dados inválidos' }));
+
+    const result = await companiesApi.update('c1', { cnpj: '11.111.111/1111-11' });
+
+    expect(result).toEqual({ success: false, error: 'Dados inválidos' });
+  });
+});
+
+describe('whatsappApi (Integração WhatsApp — WhatsAppSettings.tsx)', () => {
+  it('getStatus chama GET /api/whatsapp/instance', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { status: 'CONNECTED', termsAccepted: true }));
+
+    const result = await whatsappApi.getStatus();
+
+    const [url, options] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toContain('/api/whatsapp/instance');
+    expect(options?.method ?? 'GET').toBe('GET');
+    expect(result).toEqual({ success: true, data: { status: 'CONNECTED', termsAccepted: true } });
+  });
+
+  it('connect chama POST /api/whatsapp/instance com { acceptTerms } no corpo', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { qrCode: 'data:image/png;base64,x', status: 'CONNECTING' }));
+
+    const result = await whatsappApi.connect(true);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/whatsapp/instance'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ acceptTerms: true }) })
+    );
+    expect(result.data?.status).toBe('CONNECTING');
+  });
+
+  it('disconnect chama DELETE /api/whatsapp/instance', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { success: true }));
+
+    const result = await whatsappApi.disconnect();
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/whatsapp/instance'),
+      expect.objectContaining({ method: 'DELETE' })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('setChatbotEnabled chama PATCH /api/whatsapp/instance com { chatbotEnabled }', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { chatbotEnabled: false }));
+
+    const result = await whatsappApi.setChatbotEnabled(false);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/whatsapp/instance'),
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ chatbotEnabled: false }) })
+    );
+    expect(result.data?.chatbotEnabled).toBe(false);
+  });
+
+  it('REGRESSÃO: connect repassa erro do backend (ex: 403 sem permissão) em vez de fingir sucesso', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(403, { error: 'Sem permissão' }));
+
+    const result = await whatsappApi.connect(true);
+
+    expect(result).toEqual({ success: false, error: 'Sem permissão' });
   });
 });
 

@@ -123,6 +123,17 @@ describe('GET /api/auth/google/callback', () => {
       expect(encrypt).toHaveBeenCalledWith('at')
       expect(locationOf(res)).toBe(`${FRONTEND_URL}/settings?google_calendar=connected`)
     })
+
+    it('o retorno usa query string (?), não hash (#) — o app é BrowserRouter', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ id: 'u1' } as never)
+      const res = await GET(makeRequest(`?code=c&state=${signState('calendar')}`))
+      const location = locationOf(res)
+      // Settings.tsx lê `google_calendar=connected` de window.location.search;
+      // um redirect com `/#/settings?...` (HashRouter) quebraria essa detecção.
+      expect(location).toContain('/settings?google_calendar=connected')
+      expect(location).not.toContain('/#/')
+      expect(location.split('?')[0]).toBe(`${FRONTEND_URL}/settings`)
+    })
   })
 
   describe('modo login/signin', () => {

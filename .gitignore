@@ -56,3 +56,6 @@ evolution-api-local/
 .playwright-cli/
 test-results/
 playwright-report/
+
+# Anotações pessoais (nunca commitar!)
+utilizar_vendas.md

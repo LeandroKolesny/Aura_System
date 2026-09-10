@@ -20,6 +20,17 @@ const TERMS_TEXT =
 
 const TERMS_HASH = createHash("sha256").update(TERMS_TEXT).digest("hex")
 
+/**
+ * Conectar / desconectar / ligar o chatbot é ação de configuração: só ADMIN e
+ * OWNER podem. O GET (ver status) continua liberado pra qualquer papel
+ * autenticado da empresa. Antes essa restrição existia só na UI (`canManage` em
+ * WhatsAppSettings.tsx) — qualquer RECEPTIONIST/ESTHETICIAN podia chamar as
+ * rotas de escrita direto e conectar/desconectar o WhatsApp da clínica.
+ */
+function canManageWhatsapp(role: string): boolean {
+  return role === "ADMIN" || role === "OWNER"
+}
+
 async function getCompanyAndCheckModule(companyId: string) {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -83,6 +94,9 @@ export async function POST(request: NextRequest) {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
     if (!user.companyId) return NextResponse.json({ error: "Sem empresa" }, { status: 403 })
+    if (!canManageWhatsapp(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    }
 
     const { allowed } = await getCompanyAndCheckModule(user.companyId)
     if (!allowed) {
@@ -162,6 +176,9 @@ export async function DELETE(request: NextRequest) {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
     if (!user.companyId) return NextResponse.json({ error: "Sem empresa" }, { status: 403 })
+    if (!canManageWhatsapp(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    }
 
     const { allowed } = await getCompanyAndCheckModule(user.companyId)
     if (!allowed) {
@@ -188,6 +205,9 @@ export async function PATCH(request: NextRequest) {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
     if (!user.companyId) return NextResponse.json({ error: "Sem empresa" }, { status: 403 })
+    if (!canManageWhatsapp(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    }
 
     const { allowed } = await getCompanyAndCheckModule(user.companyId)
     if (!allowed) {

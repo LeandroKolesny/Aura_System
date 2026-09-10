@@ -1,0 +1,838 @@
+<!doctype html>
+<title>Auditoria de Testes — Aura System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --surface-2: #f3f2ee;
+    --border: #e2ded4;
+    --border-strong: #cbc6b8;
+    --ink: #201f1a;
+    --ink-muted: #6b675c;
+    --ink-faint: #918d80;
+    --accent: #3c6e5e;
+    --accent-strong: #294d41;
+    --accent-soft: #e6efea;
+    --crit: #b7362a;
+    --crit-soft: #fbe9e6;
+    --crit-border: #e6c3bd;
+    --high: #a8701a;
+    --high-soft: #faf0dd;
+    --high-border: #e6cd9f;
+    --med: #2c5f8f;
+    --med-soft: #e8f1f8;
+    --med-border: #bfd7ea;
+    --low: #6b6d72;
+    --low-soft: #edeeef;
+    --low-border: #d3d4d7;
+    --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181a;
+      --surface: #1e2124;
+      --surface-2: #24272b;
+      --border: #34383c;
+      --border-strong: #444a4f;
+      --ink: #ece9e2;
+      --ink-muted: #a3a096;
+      --ink-faint: #767468;
+      --accent: #6fa593;
+      --accent-strong: #8fc0af;
+      --accent-soft: #223530;
+      --crit: #e08579;
+      --crit-soft: #3a2422;
+      --crit-border: #5c332c;
+      --high: #d6a662;
+      --high-soft: #3a3122;
+      --high-border: #5c4c2c;
+      --med: #7fb1dd;
+      --med-soft: #1f2f3d;
+      --med-border: #2d4a63;
+      --low: #a3a6ab;
+      --low-soft: #26282b;
+      --low-border: #3a3d41;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181a;
+    --surface: #1e2124;
+    --surface-2: #24272b;
+    --border: #34383c;
+    --border-strong: #444a4f;
+    --ink: #ece9e2;
+    --ink-muted: #a3a096;
+    --ink-faint: #767468;
+    --accent: #6fa593;
+    --accent-strong: #8fc0af;
+    --accent-soft: #223530;
+    --crit: #e08579;
+    --crit-soft: #3a2422;
+    --crit-border: #5c332c;
+    --high: #d6a662;
+    --high-soft: #3a3122;
+    --high-border: #5c4c2c;
+    --med: #7fb1dd;
+    --med-soft: #1f2f3d;
+    --med-border: #2d4a63;
+    --low: #a3a6ab;
+    --low-soft: #26282b;
+    --low-border: #3a3d41;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; color: var(--ink); }
+  a { color: var(--accent-strong); }
+  code, .mono { font-family: var(--font-mono); }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 0;
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+
+  /* ---------- Sidebar ---------- */
+  nav.toc {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 28px 18px 40px 28px;
+    border-right: 1px solid var(--border);
+  }
+  .toc-brand {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+  }
+  .toc-title { font-size: 20px; margin-bottom: 22px; line-height: 1.25; }
+  .toc-section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--ink-faint); margin: 18px 0 8px; font-weight: 600;
+  }
+  .toc-list { list-style: none; margin: 0; padding: 0; }
+  .toc-list li a {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 8px; margin: 1px 0; border-radius: 6px;
+    text-decoration: none; color: var(--ink-muted); font-size: 13.5px;
+  }
+  .toc-list li a:hover { background: var(--surface-2); color: var(--ink); }
+  .toc-count {
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint);
+    background: var(--surface-2); border-radius: 999px; padding: 1px 7px;
+    min-width: 20px; text-align: center;
+  }
+
+  /* ---------- Main ---------- */
+  main { padding: 40px 48px 100px; min-width: 0; }
+
+  .masthead { margin-bottom: 36px; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--accent-strong); margin-bottom: 10px; font-weight: 500;
+  }
+  .masthead h1 { font-size: 34px; margin-bottom: 10px; }
+  .masthead p.lede { color: var(--ink-muted); font-size: 15.5px; max-width: 68ch; margin: 0; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 28px 0 40px; }
+  .stat-tile {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .stat-tile .n { font-family: var(--font-display); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-tile .l { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+  .stat-tile.crit .n { color: var(--crit); }
+  .stat-tile.high .n { color: var(--high); }
+
+  section.block { margin-bottom: 52px; }
+  section.block > h2 { font-size: 22px; margin-bottom: 6px; }
+  section.block > p.sub { color: var(--ink-muted); font-size: 13.5px; margin: 0 0 18px; max-width: 72ch; }
+
+  /* ---------- Severity chip ---------- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+    padding: 2px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;
+    white-space: nowrap; border: 1px solid transparent;
+  }
+  .chip.crit { background: var(--crit-soft); color: var(--crit); border-color: var(--crit-border); }
+  .chip.high { background: var(--high-soft); color: var(--high); border-color: var(--high-border); }
+  .chip.med  { background: var(--med-soft);  color: var(--med);  border-color: var(--med-border); }
+  .chip.low  { background: var(--low-soft);  color: var(--low);  border-color: var(--low-border); }
+
+  /* ---------- Critical findings table ---------- */
+  .findings-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .findings-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-faint); font-weight: 600; padding: 10px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .findings-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13.5px; vertical-align: top; }
+  .findings-table tr:last-child td { border-bottom: none; }
+  .findings-table tr:hover td { background: var(--surface-2); }
+  .findings-table .tab-tag { font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
+  .findings-table .tab-tag a { color: var(--ink-muted); text-decoration: none; }
+  .findings-table .tab-tag a:hover { color: var(--accent-strong); text-decoration: underline; }
+  .findings-table td.sev { white-space: nowrap; }
+
+  /* ---------- Tab accordion sections ---------- */
+  details.tab-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 12px; overflow: hidden;
+  }
+  details.tab-card[open] { border-color: var(--border-strong); }
+  details.tab-card > summary {
+    list-style: none; cursor: pointer; padding: 16px 20px; display: flex;
+    align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  details.tab-card > summary::-webkit-details-marker { display: none; }
+  details.tab-card > summary .twirl {
+    width: 18px; height: 18px; flex: none; color: var(--ink-faint);
+    transition: transform 0.15s ease;
+  }
+  details.tab-card[open] > summary .twirl { transform: rotate(90deg); }
+  details.tab-card > summary .tname { font-family: var(--font-display); font-size: 17px; font-weight: 600; flex: 1 1 auto; min-width: 160px; }
+  .pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cov-pill {
+    font-family: var(--font-mono); font-size: 10.5px; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--ink-muted); background: var(--surface-2);
+  }
+  .cov-pill.zero { color: var(--crit); border-color: var(--crit-border); background: var(--crit-soft); }
+  .cov-pill.some { color: var(--accent-strong); border-color: var(--accent-soft); background: var(--accent-soft); }
+
+  .tab-body { padding: 0 20px 22px; border-top: 1px solid var(--border); }
+  .tab-body .scope { font-size: 13px; color: var(--ink-muted); margin: 16px 0 18px; max-width: 78ch; }
+  .tab-body .scope b { color: var(--ink); font-weight: 600; }
+
+  .subhead {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-faint);
+    font-weight: 600; margin: 22px 0 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .subhead::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  ul.finding-list, ul.test-list { list-style: none; margin: 0; padding: 0; }
+  ul.finding-list li {
+    display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13.5px;
+  }
+  ul.finding-list li:last-child { border-bottom: none; }
+  ul.finding-list li .chip { flex: none; margin-top: 1px; }
+
+  ul.test-list li {
+    display: grid; grid-template-columns: 74px 1fr; gap: 10px; padding: 7px 0;
+    border-bottom: 1px dashed var(--border); font-size: 13.5px; align-items: baseline;
+  }
+  ul.test-list li:last-child { border-bottom: none; }
+  .test-kind {
+    font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em;
+    padding: 2px 6px; border-radius: 5px; text-align: center; height: fit-content;
+  }
+  .test-kind.be { background: var(--med-soft); color: var(--med); }
+  .test-kind.fe { background: var(--accent-soft); color: var(--accent-strong); }
+  .test-file { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-muted); }
+
+  footer.page-foot {
+    margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+    color: var(--ink-faint); font-size: 12px;
+  }
+
+  @media (max-width: 880px) {
+    .shell { grid-template-columns: 1fr; }
+    nav.toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 28px 20px 80px; }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+    .findings-table { display: block; overflow-x: auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Sumário">
+    <div class="toc-brand">AURA SYSTEM · QA</div>
+    <div class="toc-title">Auditoria de<br>Testes — Admin</div>
+    <div class="toc-section-label">Visão geral</div>
+    <ul class="toc-list">
+      <li><a href="#overview">Resumo &amp; números</a></li>
+      <li><a href="#critical">Achados mais críticos</a></li>
+    </ul>
+    <div class="toc-section-label">15 abas auditadas</div>
+    <ul class="toc-list" id="toc-tabs"></ul>
+  </nav>
+
+  <main>
+    <div class="masthead">
+      <div class="eyebrow">Relatório consolidado · 9 set 2026</div>
+      <h1>Levantamento de funcionalidades e testes — painel Admin</h1>
+      <p class="lede">15 agentes, um por aba do painel administrativo, mapearam cada funcionalidade, cruzaram com a cobertura de testes já existente e recomendaram os testes TDD (backend Vitest + frontend Vitest/RTL) que faltam para considerar cada aba 100% coberta. Recomendações de E2E foram deixadas de fora a pedido — o backlog abaixo é só TDD.</p>
+    </div>
+
+    <section class="block" id="overview">
+      <div class="stat-row">
+        <div class="stat-tile"><div class="n">15/15</div><div class="l">abas auditadas</div></div>
+        <div class="stat-tile"><div class="n">~210</div><div class="l">funcionalidades mapeadas</div></div>
+        <div class="stat-tile crit"><div class="n" id="stat-crit">–</div><div class="l">achados críticos/altos</div></div>
+        <div class="stat-tile"><div class="n" id="stat-tests">–</div><div class="l">testes TDD recomendados</div></div>
+      </div>
+      <p class="sub">Cobertura hoje, em uma frase: o <b>backend</b> já tem ~1815 testes e cobre bem a maioria das rotas de API (sucesso, erro, permissão, casos-limite). O <b>frontend</b> tem exatamente <b>2 arquivos de teste</b> no projeto inteiro (<code>AppContext.test.tsx</code> e <code>api.test.ts</code>) — nenhuma página, nenhum componente, nenhum modal tem teste próprio. É aí que mora a maior parte do backlog abaixo.</p>
+    </section>
+
+    <section class="block" id="critical">
+      <h2>Achados mais críticos</h2>
+      <p class="sub">Os 20 problemas de maior risco encontrados durante a leitura de código, ranqueados por severidade. Nenhum foi corrigido — os agentes tinham instrução de só reportar. Clique numa aba na lista à esquerda para ver o achado em contexto, com os testes que o expõem.</p>
+      <table class="findings-table">
+        <thead><tr><th style="width:70px">Nível</th><th>Achado</th><th style="width:150px">Aba</th></tr></thead>
+        <tbody id="critical-body"></tbody>
+      </table>
+    </section>
+
+    <section class="block" id="tabs">
+      <h2>Por aba</h2>
+      <p class="sub">Cada card: funcionalidades mapeadas, cobertura de teste atual (backend / frontend), achados da revisão, e o backlog de testes TDD recomendado (alta → baixa prioridade). Relatórios completos, incluindo os testes E2E omitidos aqui, ficam em <code>docs/test-audit/&lt;aba&gt;.md</code>.</p>
+      <div id="tab-cards"></div>
+    </section>
+
+    <footer class="page-foot">
+      Gerado por 15 agentes de auditoria em paralelo · Aura System · relatórios-fonte em <code>docs/test-audit/</code>
+    </footer>
+  </main>
+</div>
+
+<script>
+const SEV = { crit: 'Crítico', high: 'Alto', med: 'Médio', low: 'Baixo' };
+
+// Cross-tab ranked critical/high findings
+const CRITICAL = [
+  { sev: 'crit', tab: 'suporte', text: 'PATCH /api/tickets não confere companyId — qualquer empresa autenticada pode responder ou encerrar o ticket de outra clínica.' },
+  { sev: 'crit', tab: 'suporte', text: 'ticketsApi.list() nunca é chamado pelo frontend — o histórico de tickets aparece vazio a cada reload, mesmo com chamados abertos no banco.' },
+  { sev: 'crit', tab: 'profissionais', text: 'POST /api/users não valida commissionRate/fixedSalary (só PUT valida) — dá pra criar comissão negativa ou acima de 100%, distorcendo o relatório de comissões sem aviso.' },
+  { sev: 'crit', tab: 'configuracoes', text: 'POST/DELETE/PATCH /api/whatsapp/instance não checam role — qualquer usuário autenticado da empresa conecta/desconecta o WhatsApp ou liga/desliga o chatbot.' },
+  { sev: 'high', tab: 'agenda', text: 'CheckoutModal ignora o retorno de processPayment — mostra "Pagamento Registrado!" mesmo quando o backend recusa o pagamento.' },
+  { sev: 'high', tab: 'agenda', text: 'POST /appointments/:id/pay não valida status nem stockDeducted — dá pra pagar um agendamento cancelado e duplicar a baixa de estoque.' },
+  { sev: 'high', tab: 'financeiro', text: 'Parcelamento arredonda cada parcela isoladamente sem ajustar o resíduo — R$100 em 3x vira R$33,33 × 3 = R$99,99, faltando 1 centavo.' },
+  { sev: 'high', tab: 'marketing-ia', text: 'ClinicMarketing.handleSendMessage não aguarda nem verifica updatePatient — o "enviado" nunca é salvo de verdade; o paciente pode ser recontatado sem limite.' },
+  { sev: 'high', tab: 'marketing-ia', text: 'PUT /api/companies/:id é .strict() e rejeita lastMarketingSentAt — o botão "Enviar no WhatsApp" da aba Customer Success (OWNER) está quebrado, sempre retorna 400.' },
+  { sev: 'high', tab: 'marketing-ia', text: 'Patient não tem nenhum campo de opt-out de marketing — nenhum paciente consegue revogar o consentimento de contato promocional (lacuna de LGPD).' },
+  { sev: 'high', tab: 'assinatura-billing', text: 'isReadOnly no frontend só olha a data de expiração, não subscriptionStatus — empresa OVERDUE com data futura aparece liberada no frontend mas já leva 403 do backend, sem aviso.' },
+  { sev: 'high', tab: 'assinatura-billing', text: 'Trocar de plano nunca cancela a assinatura Asaas anterior — um pagamento antigo confirmado depois pode reverter o upgrade/downgrade em silêncio.' },
+  { sev: 'high', tab: 'clube-assinaturas', text: 'Reset do ciclo de sessões (sessionsUsedThisCycle) só acontece via webhook Asaas — assinatura inscrita manualmente nunca renova o contador, paciente fica "sem sessão" para sempre a partir do mês 2.' },
+  { sev: 'high', tab: 'estoque', text: 'Rota de ajuste de estoque auditado (POST /adjust) não é chamada por nenhuma tela — editar "Estoque Atual" no modal muda o número sem gerar StockMovement, Activity ou alerta.' },
+  { sev: 'high', tab: 'estoque', text: 'Dedução automática de estoque ao concluir atendimento não bloqueia estoque negativo e não é transacional (risco de deduzir 2x num retry).' },
+  { sev: 'high', tab: 'procedimentos', text: 'Backend permite procedimento "cortesia" (preço 0) e tem teste pra isso; o modal do frontend bloqueia preço ≤ 0 — recurso do backend inacessível pela UI, e se ocorrer via import gera margem "NaN%".' },
+  { sev: 'med', tab: 'procedimentos', text: 'Insumos manuais (sem vínculo de estoque) contam no custo mas não são salvos — somem ao reabrir o modal de edição e reduzem o custo silenciosamente na próxima gravação.' },
+  { sev: 'med', tab: 'relatorios-bi', text: 'getStartDate() estoura o mês em dias 29–31 (Date.setMonth sem fixar o dia em 1) — filtros de período podem excluir até ~3 dias de dados dependendo do dia em que a tela é aberta.' },
+  { sev: 'med', tab: 'relatorios-bi', text: 'Cálculo de comissão/salário da tabela "Performance da Equipe" está duplicado no frontend sem teste, enquanto o endpoint equivalente e testado (/api/reports/commissions) nunca é chamado.' },
+  { sev: 'med', tab: 'horarios-atendimento', text: 'Horário de fechamento menor que o de abertura não é bloqueado em nenhuma camada (frontend, schema da empresa ou do profissional) — pode travar o dia inteiro sem aviso.' },
+  { sev: 'med', tab: 'horarios-atendimento', text: 'O horário específico do profissional é salvo mas não parece ser lido em nenhuma validação real de agendamento — a sobrescrita "não tem efeito".' },
+  { sev: 'med', tab: 'agenda-online', text: 'O E2E de agendamento público (public-booking.spec.ts) navega para /booking/:slug, mas o link real é /:slug — o teste nunca validou o fluxo de verdade desde que existe.' },
+  { sev: 'med', tab: 'configuracoes', text: 'Webhook do WhatsApp descarta connection.update — uma queda de conexão real (celular desconectado) só é percebida se o admin reabrir a tela manualmente.' },
+  { sev: 'med', tab: 'configuracoes', text: 'Parsing do retorno do OAuth do Google Calendar lê window.location.hash, mas o app usa BrowserRouter (query string) — o sync inicial de eventos provavelmente nunca dispara sozinho.' },
+  { sev: 'med', tab: 'dashboard', text: 'Botões "Recusar" (solicitação de agendamento e plano pendente) atualizam a UI sem checar o retorno da API — se a chamada falhar, a tela mostra recusado mas o banco continua pendente.' },
+  { sev: 'med', tab: 'pacientes', text: 'POST /api/photos não confere se o patientId pertence à empresa do usuário — dá pra anexar uma foto de antes/depois a um paciente de outra clínica.' },
+  { sev: 'low', tab: 'profissionais', text: 'roleMap de POST /api/users aceita "OWNER" sem checar quem está criando — possível escalonamento de privilégio (não confirmado a fundo).' },
+];
+
+// Per-tab data
+const TABS = [
+  { id: 'dashboard', name: 'Dashboard', funcs: 21, backend: '13 testes (rota principal) + 45 correlatos', frontend: 0,
+    scope: 'ClinicDashboard (KPIs, gráficos, banners de aprovação/planos pendentes, alertas) + SaaSDashboard do OWNER, no mesmo arquivo.',
+    findings: [
+      { sev: 'med', text: 'KPI "Confirmadas" soma tudo que não é cancelado (inclui concluídos e pendentes de aprovação) — rótulo enganoso.' },
+      { sev: 'med', text: '"Realizadas" exige pagamento; "Pacientes Atendidos" não — dois critérios de "atendimento" diferentes na mesma tela.' },
+      { sev: 'high', text: 'handleRejectApproval (recusar agendamento) e handleCancelPlan (recusar plano) não checam o retorno da API antes de atualizar a UI.' },
+      { sev: 'low', text: 'Alerta descartado (dismissAlert) só existe em memória — volta a aparecer no próximo F5.' },
+      { sev: 'low', text: 'GET /api/dashboard/stats tem 8 testes só seus mas nenhum consumidor no frontend — endpoint órfão.' },
+    ],
+    tests: { high: [
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'Cálculo de revenueTrend (1ª metade vs 2ª metade do gráfico), incluindo firstHalf=0 e revenueChart.length<2.' },
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'handleRejectApproval com API retornando erro → hoje nenhum feedback aparece (documenta o bug).' },
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'handleCancelPlan com API retornando erro → hoje o plano some da lista mesmo sem sucesso (documenta o bug).' },
+        { k:'be', f:'aura-backend/.../api/dashboard.test.ts', t:'appointmentsConfirmed com mix de status (COMPLETED/PENDING_APPROVAL/SCHEDULED/CANCELED) — trava o valor atual explicitamente.' },
+        { k:'be', f:'aura-backend/.../api/dashboard.test.ts', t:'kpis.revenue soma só transações INCOME+PAID mesmo com PENDING/REFUNDED misturadas no mock.' },
+      ], med: [
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'Cache de 30s: 2ª chamada dentro da janela não refaz fetch, exceto ao trocar revenueRange.' },
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'Toggle 7D/30D chama getStats com days correto e destaca o botão ativo.' },
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'activeAlerts combina lowStock da API com systemAlerts do contexto, respeitando target/status/dismissedAlertIds e limite de 3.' },
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'Descartar alerta (X) remove da lista imediatamente, sem chamada de API.' },
+        { k:'be', f:'.../subscriptions-patients.test.ts', t:'Caso explícito com ?status=PENDING (hoje só existe com ACTIVE).' },
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'DashboardSkeleton aparece durante isLoadingDashboard/dashboardData null e some depois.' },
+        { k:'be', f:'.../api/dashboard.test.ts', t:'?days=abc (NaN) tem fallback sensato.' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/Dashboard.test.tsx', t:'MRR do SaaSDashboard soma companies.reduce; empresa com plan não encontrado em saasPlans soma 0 sem quebrar.' },
+        { k:'be', f:'aura-backend/.../dashboard/stats/route.ts', t:'Decidir manter ou remover a rota órfã — se mantida, documentar o motivo nos comentários.' },
+      ]}
+  },
+  { id: 'relatorios-bi', name: 'Relatórios BI', funcs: 28, backend: 'retention.test.ts (sólido) + reports-commissions.test.ts (órfão)', frontend: 0,
+    scope: 'Aba "Análise Geral" (tudo calculado no frontend a partir de dados já carregados) + aba "Retorno de Pacientes" (RetentionTab, usa GET /api/retention).',
+    findings: [
+      { sev: 'high', text: 'getStartDate() usa setMonth/setFullYear sem fixar o dia em 1 — estoura o mês em dias 29-31, excluindo até ~3 dias de dados do início do período, de forma dependente da data atual.' },
+      { sev: 'med', text: 'Duas métricas de "Taxa de Retenção" coexistem com fórmulas diferentes (Análise Geral vs. Retorno de Pacientes) — mesmo nome, contas diferentes.' },
+      { sev: 'med', text: 'Custo de salário fixo aproxima semana=0.25 mês e não é proporcional a dias corridos reais em nenhum período.' },
+      { sev: 'med', text: 'Cálculo de comissão/salário da tabela "Performance da Equipe" está duplicado no frontend sem teste; o endpoint testado /api/reports/commissions nunca é chamado por esta tela.' },
+      { sev: 'low', text: 'Nenhum tratamento de erro visível se loadPatients/loadTransactions/etc. falharem ao carregar a aba.' },
+    ],
+    tests: { high: [
+        { k:'fe', f:'utils/reportsCalc.test.ts (extrair getStartDate)', t:'vi.setSystemTime em 29/30/31 de meses ao redor de fevereiro, para 1m/2m/3m/6m/1y — expõe o bug do overflow de mês.' },
+        { k:'fe', f:'__tests__/pages/Reports.calc.test.ts', t:'professionalPerformance: comissão/fixo/misto, sem commissionRate/fixedSalary, sem atendimentos, margem negativa.' },
+        { k:'fe', f:'__tests__/pages/Reports.calc.test.ts', t:'procedureEfficiency: cada limiar de classificação (Estrela/Popular/Premium/Baixo Rendimento/Regular) incluindo bordas exatas.' },
+        { k:'fe', f:'__tests__/pages/Reports.calc.test.ts', t:'monthlyRevenueData gera meses consecutivos sem pular nenhum quando "hoje" é dia 31 cruzando fevereiro.' },
+        { k:'fe', f:'__tests__/pages/Reports.calc.test.ts', t:'retentionMetrics/appointmentStats: zero atendimentos, todos únicos, todos recorrentes, caso misto com toFixed(1).' },
+        { k:'fe', f:'__tests__/pages/Reports.calc.test.ts', t:'topSpendersInClinic ignora transação com appointmentId órfão; dois pacientes com nome igual somam juntos (validar se é esperado).' },
+      ], med: [
+        { k:'fe', f:'__tests__/pages/RetentionTab.test.tsx', t:'buildWhatsAppLink: telefone já com 55, telefone mascarado, mensagem com nome/procedimento/data.' },
+        { k:'fe', f:'__tests__/pages/RetentionTab.test.tsx', t:'Erro de getReport exibe mensagem; botão "Atualizar" desabilita durante loading.' },
+        { k:'fe', f:'__tests__/pages/Reports.test.tsx', t:'checkModuleAccess false → UpgradeOverlay; true → conteúdo normal.' },
+        { k:'fe', f:'__tests__/pages/Reports.calc.test.ts', t:'topSpenderClinics/topPopulousClinics: saasPlans vazio, empate, mais de 5 clínicas.' },
+        { k:'be', f:'aura-backend/.../reports-commissions ou frontend', t:'Decisão de produto: manter /api/reports/commissions como fonte única (eliminando a duplicação) ou remover — testar a decisão tomada.' },
+        { k:'fe', f:'__tests__/context/AppContext.test.tsx', t:'checkModuleAccess: OWNER sempre true; saasPlans vazio → true; plano sem módulo reports → false; com módulo → true.' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/Reports.test.tsx', t:'Estado vazio das 3 tabelas (Matriz de Eficiência, Performance da Equipe, Clientes VIP).' },
+        { k:'fe', f:'utils/reportsCalc.test.ts', t:'Todo valor de timeRange tem label e multiplicador correspondentes (teste parametrizado).' },
+        { k:'fe', f:'__tests__/pages/Reports.test.tsx', t:'selectedCompanyId fica oculto/travado em user.companyId para não-OWNER.' },
+      ]}
+  },
+  { id: 'marketing-ia', name: 'Marketing & IA', funcs: 12, backend: 'ai-generate.test.ts (bom) + patients/companies genéricos', frontend: 0,
+    scope: 'ClinicMarketing (segmentação de pacientes + geração/"envio" de mensagem por IA) e SaaSMarketing (churn/upsell do OWNER), ambos sobre POST /api/ai/generate.',
+    findings: [
+      { sev: 'high', text: 'Patient não tem campo de opt-out de marketing — nenhum paciente consegue revogar consentimento de contato promocional (lacuna de LGPD, não um bug pontual).' },
+      { sev: 'crit', text: 'ClinicMarketing.handleSendMessage não aguarda nem verifica updatePatient() — viola a regra do próprio projeto de nunca ignorar retorno de mutação.' },
+      { sev: 'crit', text: 'updateCompanySchema é .strict() e não inclui lastMarketingSentAt — "Enviar no WhatsApp" da aba Customer Success sempre retorna 400, feature 100% quebrada.' },
+      { sev: 'high', text: 'updatePatientSchema não inclui lastMarketingMessageSentAt e não é strict — aceita 200 mas descarta o campo em silêncio, então o "enviado" nunca persiste de verdade.' },
+      { sev: 'med', text: 'POST /api/ai/generate só checa autenticação, não role nem módulo de plano — qualquer usuário autenticado gera mensagens via Gemini consumindo cota paga.' },
+      { sev: 'med', text: 'Rota /marketing não tem guard de role — RECEPTIONIST/ESTHETICIAN acessando direto pela URL vê a mesma tela que ADMIN.' },
+      { sev: 'low', text: '"Enviado" é gravado no clique do botão, não na confirmação real de envio no WhatsApp.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../api/companies-id.test.ts', t:'PUT aceita e persiste lastMarketingSentAt — hoje falha com 400 (reproduz o bug do Customer Success).' },
+        { k:'be', f:'aura-backend/.../api/patients-id.test.ts', t:'PUT persiste lastMarketingMessageSentAt quando enviado — hoje o campo é descartado silenciosamente.' },
+        { k:'fe', f:'__tests__/pages/Marketing.test.tsx', t:'handleSendMessage aguarda updatePatient; se success=false, chama showAlert e NÃO abre o WhatsApp.' },
+        { k:'fe', f:'__tests__/pages/Marketing.test.tsx', t:'Botão "Gerar Msg" desabilita/mostra "Enviado" comparando lastMarketingMessageSentAt com lastVisit.' },
+        { k:'be', f:'aura-backend/.../patients-marketing-opt-out.test.ts (a criar junto com a feature)', t:'Quando o campo de opt-out existir: endpoint persiste, listagem exclui quem optou, tentativa de envio a paciente com opt-out é bloqueada.' },
+      ], med: [
+        { k:'fe', f:'__tests__/pages/Marketing.test.tsx', t:'Segmentação (opportunities): Recuperação respeita daysFilter; Manutenção respeita maintenanceIntervalDays-15; Aniversariantes calcula idade/rollover de ano corretamente.' },
+        { k:'be', f:'aura-backend/.../ai-generate.test.ts', t:'403 quando o usuário/empresa não tem módulo ai_features/crm habilitado (após correção).' },
+        { k:'fe', f:'__tests__/pages/Marketing.test.tsx', t:'Roteamento por role (OWNER→SaaSMarketing, resto→ClinicMarketing) e UpgradeOverlay bloqueando cliques sem hasMarketingAccess.' },
+        { k:'fe', f:'__tests__/pages/Marketing.test.tsx', t:'SaaSMarketing: churn (<7 dias/overdue), upsell (free/starter), winback (basic com lastPlan); totalRiskMRR só soma churn.' },
+        { k:'be', f:'aura-backend/.../ai-generate.test.ts', t:'Timeout/AbortError do Gemini retorna 500 sem travar a requisição.' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/Marketing.test.tsx', t:'handleRegenerateMessage reaproveita dados salvos e fica disabled durante isGenerating.' },
+        { k:'fe', f:'__tests__/pages/Marketing.test.tsx', t:'Estados vazio/loading das 3 abas.' },
+        { k:'be', f:'aura-backend/.../patients.test.ts', t:'lastMarketingMessageSentAt sempre presente no select/serialização do paciente (teste de contrato).' },
+      ]}
+  },
+  { id: 'agenda', name: 'Agenda', funcs: 16, backend: '~120+ testes (muito extenso)', frontend: 0,
+    scope: 'Schedule.tsx + modais (NewAppointmentModal, ReviewAppointmentModal, CheckoutModal, PatientAppointmentViewModal), regras de indisponibilidade e conflito com Google Calendar.',
+    findings: [
+      { sev: 'crit', text: 'CheckoutModal.handleComplete ignora o retorno de processPayment — mostra "Pagamento Registrado!" mesmo com pagamento recusado pelo backend.' },
+      { sev: 'high', text: 'POST /appointments/:id/pay não valida status (permite pagar CANCELED) nem stockDeducted (duplica baixa de estoque se já concluído via /status sem pagamento).' },
+      { sev: 'low', text: 'Nenhuma proteção de UI contra abrir o modal de novo agendamento num slot já ocupado — o backend rejeita (409), mas nunca foi testado ponta a ponta.' },
+      { sev: 'low', text: 'checkScheduleConflict verifica só professionalId, não roomId — dois profissionais podem ser marcados na mesma sala/horário.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../appointments-pay.test.ts', t:'Pagar agendamento CANCELED é rejeitado; pagar um já stockDeducted=true não deduz estoque de novo.' },
+        { k:'fe', f:'__tests__/components/CheckoutModal.test.tsx', t:'processPayment retornando {success:false}: a tela "Pagamento Registrado!" NÃO deve aparecer e o erro deve ser comunicado.' },
+        { k:'fe', f:'__tests__/utils/availabilityUtils.test.ts', t:'isWithinBusinessHours (dia fechado, bordas de horário, endTotal=0) e getUnavailabilityRule (regra geral vs. específica, fuso horário em pelo menos 2 timezones).' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'Transição SCHEDULED → COMPLETED é rejeitada; só CONFIRMED → COMPLETED é aceita.' },
+        { k:'fe', f:'__tests__/components/NewAppointmentModal.test.tsx', t:'Banner de conflito Google bloqueia submit; seleção de plano zera o preço; erro de conflito de horário do backend exibe a mensagem certa.' },
+        { k:'fe', f:'__tests__/components/ReviewAppointmentModal.test.tsx', t:'Aprovar dispara changeAppointmentStatus+addNotification; recusar dispara changeAppointmentStatus; erro da API mostra showAlert.' },
+        { k:'be', f:'aura-backend/.../unavailability.test.ts', t:'Sobreposição entre regra de indisponibilidade e agendamento existente, geral vs. profissional específico.' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/Schedule.test.tsx', t:'Filtro por profissional e navegação de data (changeDate, botão Hoje) refletem em filteredAppointments.' },
+        { k:'fe', f:'__tests__/pages/Schedule.test.tsx', t:'Sincronizar Google: loading, sucesso com contagem, erro genérico, recarrega dados após sucesso.' },
+        { k:'be', f:'aura-backend/.../appointments-post.test.ts', t:'Teste de caracterização: checkScheduleConflict não considera roomId (documentar até decidirem se é intencional).' },
+      ]}
+  },
+  { id: 'pacientes', name: 'Pacientes', funcs: 16, backend: '~130 testes (muito bom, incl. assinatura/consentimento)', frontend: 0,
+    scope: 'Listagem, ficha completa (LGPD, assinatura por procedimento, fotos, IA de anamnese/follow-up), import CSV.',
+    findings: [
+      { sev: 'high', text: 'POST /api/photos nunca confere se patientId pertence à empresa do usuário — dá pra anexar foto a paciente de outra clínica.' },
+      { sev: 'med', text: 'loadPatients() nunca usa /api/king/patients — a visão agrupada por empresa do OWNER pode carregar vazia se ele não tiver companyId próprio.' },
+      { sev: 'med', text: 'Listagem sem paginação real: limit:100 fixo, clínicas com mais de 100 pacientes ativos não veem o excedente.' },
+      { sev: 'low', text: 'Texto "não pode ser desfeita" na exclusão é enganoso — é soft delete (reversível).' },
+      { sev: 'low', text: 'Formulário de edição só expõe nome/status; telefone/email/data de nascimento são validados no código mas não têm input visível.' },
+      { sev: 'low', text: '"Enviar convite de acesso" no cadastro é só um console.log — não dispara nada de verdade.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../photos.test.ts', t:'POST rejeita (404/403) quando patientId pertence a um paciente de outra empresa.' },
+        { k:'fe', f:'__tests__/pages/PatientDetail.test.tsx', t:'Agrupamento photosByProcedure: conjunto antes+depois completo vs. só "antes", nos slots corretos.' },
+        { k:'fe', f:'__tests__/pages/PatientDetail.test.tsx', t:'Paciente sem birthDate não quebra formatDate na ficha nem na listagem.' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../patients-import.test.ts', t:'ESTHETICIAN recebe 403 ao importar (hoje só há teste de 403 pra PATIENT).' },
+        { k:'fe', f:'__tests__/components/NewPatientModal.test.tsx', t:'Nome/telefone obrigatórios, CPF inválido bloqueia, data futura bloqueia, erro de addPatient exibido.' },
+        { k:'fe', f:'__tests__/components/SignatureModal.test.tsx', t:'Confirmar desabilitado com canvas vazio; em modo correção, só habilita com motivo ≥3 caracteres.' },
+        { k:'fe', f:'__tests__/components/ImportCSVModal.test.tsx', t:'Extensão inválida bloqueia; sucesso mostra contadores; erro genérico não trava o modal.' },
+        { k:'fe', f:'__tests__/pages/PatientDetail.test.tsx', t:'Badge de correção aparece com consentCorrectionCount/signatureCorrectionCount > 0.' },
+        { k:'fe', f:'__tests__/pages/PatientDetail.test.tsx', t:'removePhoto/signConsent/signAppointmentConsent com erro disparam showAlert (nunca falham em silêncio).' },
+        { k:'be', f:'aura-backend/.../patients-id.test.ts', t:'GET de paciente de outra empresa retorna 404 (teste dedicado nomeando o cenário).' },
+      ], low: [
+        { k:'fe', f:'__tests__/utils/formatUtils.test.ts', t:'downloadPhoto: extensão certa por tipo, fallback jpg, slug do nome do procedimento sem acentos/especiais.' },
+        { k:'fe', f:'__tests__/components/PhotoAnnotationModal.test.tsx', t:'Trocar ferramenta/cor atualiza seleção visual; Desfazer remove a última forma; Salvar desabilitado sem shapes.' },
+        { k:'fe', f:'__tests__/pages/PatientDetail.test.tsx', t:'Loading/resultado de resumo de anamnese e follow-up via IA; link wa.me montado corretamente.' },
+        { k:'fe', f:'__tests__/pages/PatientDetail.test.tsx', t:'sendAnamnesisLink abre wa.me certo e muda o botão para "Anamnese Solicitada".' },
+      ]}
+  },
+  { id: 'procedimentos', name: 'Procedimentos', funcs: 11, backend: '59 testes (muito bom)', frontend: 0,
+    scope: 'Listagem, CRUD, insumos vinculados (estoque ou manual), manutenção automática, import CSV.',
+    findings: [
+      { sev: 'med', text: 'Backend permite preço 0 ("cortesia", com teste dedicado); o modal do frontend bloqueia qualquer preço ≤ 0 — recurso inacessível pela UI.' },
+      { sev: 'med', text: 'marginPercent = margin/price*100 vira NaN quando price=0 (possível via import CSV) — renderiza "NaN%" sem tratamento.' },
+      { sev: 'high', text: 'Insumos manuais (sem inventoryItemId) entram no custo mas nunca são persistidos — somem ao reabrir o modal e reduzem o custo na próxima gravação, sem aviso.' },
+      { sev: 'low', text: 'Nome duplicado na mesma empresa não é bloqueado; import CSV usa o nome como chave (findFirst), então duplicatas manuais confundem qual linha o import atualiza.' },
+      { sev: 'low', text: 'Imagem do procedimento vai como base64 embutido no JSON (mesmo padrão que já causou o bug de fotos corrigido no commit 59bb78b) — vale confirmar limite de payload em produção.' },
+    ],
+    tests: { high: [
+        { k:'fe', f:'__tests__/components/Modals.NewProcedureModal.test.tsx', t:'Bloqueia preço/duração ≤ 0 com as mensagens certas.' },
+        { k:'fe', f:'__tests__/components/Modals.NewProcedureModal.test.tsx', t:'totalCost soma insumo de estoque (qty×costPerUnit) + insumo manual corretamente.' },
+        { k:'fe', f:'__tests__/components/Modals.NewProcedureModal.test.tsx', t:'Reabrir em edição some com insumos manuais anteriores; resalvar sem reconferir reduz o cost enviado (documenta o bug).' },
+        { k:'fe', f:'__tests__/pages/Procedures.test.tsx', t:'Card com price=0 não quebra a UI da margem (hoje daria NaN%) — teste de regressão.' },
+        { k:'be', f:'aura-backend/.../procedures.test.ts', t:'Dois procedimentos com o mesmo name na mesma empresa são aceitos sem erro (documenta a falta de unicidade).' },
+      ], med: [
+        { k:'fe', f:'__tests__/pages/Procedures.test.tsx', t:'PATIENT não vê financeiro e navega pro agendamento ao clicar; RECEPTIONIST/ESTHETICIAN não veem botões de CRUD.' },
+        { k:'fe', f:'__tests__/pages/Procedures.test.tsx', t:'Excluir chama confirm(); cancelado não chama removeProcedure; erro (ex: agendamentos vinculados) chama showAlert.' },
+        { k:'fe', f:'__tests__/components/Modals.NewProcedureModal.test.tsx', t:'Checkbox de manutenção mostra campo de dias (default 120); desmarcar antes de salvar não envia maintenanceIntervalDays.' },
+        { k:'fe', f:'__tests__/components/Modals.NewProcedureModal.test.tsx', t:'Fluxo de "insumo pendente não adicionado": os dois caminhos (incluir/ignorar) afetam o cost final.' },
+        { k:'fe', f:'__tests__/components/Modals.NewProcedureModal.test.tsx', t:'Upload de imagem >2MB dispara showAlert; válido gera preview e permite remover.' },
+        { k:'be', f:'aura-backend/.../procedures-import.test.ts', t:'preco="0" é aceito via import (reforça a inconsistência do preço zero por outra via).' },
+        { k:'be', f:'aura-backend/.../procedures-id.test.ts', t:'PUT com supplies:[] remove todos os insumos e recalcula cost para 0 (se cost enviado não for maior).' },
+        { k:'fe', f:'__tests__/pages/Procedures.test.tsx', t:'Estado vazio e skeleton de loading.' },
+      ], low: [
+        { k:'fe', f:'__tests__/components/ImportCSVModal.test.tsx', t:'onImport chama proceduresApi.importCSV; onSuccess recarrega a lista (force reload).' },
+        { k:'be', f:'aura-backend/.../procedures.test.ts', t:'GET não vaza itens de estoque de outra empresa no supplies.inventoryItem aninhado.' },
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'Completar o mesmo agendamento 2x não duplica baixa de estoque; despesa de insumos só é criada quando cost>0.' },
+      ]}
+  },
+  { id: 'estoque', name: 'Estoque', funcs: 11, backend: '44 testes dedicados + parte de appointments-status', frontend: 0,
+    scope: 'Listagem, CRUD, ajuste manual auditado (sem UI), import CSV, dedução automática ao concluir atendimento.',
+    findings: [
+      { sev: 'high', text: 'Ajuste de estoque auditado (POST /adjust) é "recurso fantasma": testado e pronto no backend, mas nenhuma tela chama; editar direto no modal não gera trilha de auditoria nenhuma.' },
+      { sev: 'high', text: 'deductStock (baixa automática) não bloqueia estoque negativo, diferente do ajuste manual que retorna 400.' },
+      { sev: 'high', text: 'deductStock não é transacional — falha no meio do loop de insumos pode causar dupla dedução num retry.' },
+      { sev: 'med', text: 'Condição de corrida em POST /adjust: currentStock lido fora da transação, dois ajustes concorrentes podem perder um dos dois (lost update).' },
+      { sev: 'low', text: 'KPIs e filtros usam só os primeiros 100 itens (sem paginação real) e ignoram o summary já calculado corretamente pelo backend.' },
+      { sev: 'low', text: 'unit é string livre (sem enum) — "ML"/"Ml"/"mls" todos aceitos sem normalização.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'deductStock com currentStock < quantityUsed: hoje não bloqueia nem avisa que ficou negativo (documenta o comportamento atual).' },
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'Falha no meio do loop de deductStock (2+ supplies, o 2º falha): 1º já foi decrementado, rota retorna 500, stockDeducted continua false.' },
+        { k:'be', f:'aura-backend/.../inventory-adjust.test.ts', t:'Duas chamadas concorrentes no mesmo item com o mesmo currentStock inicial: resultado final reflete só um ajuste (lost update).' },
+        { k:'fe', f:'__tests__/pages/Inventory.test.tsx', t:'Busca por nome, toggle "Estoque Baixo", badge "Repor", e cálculo dos 3 KPIs a partir de useApp().inventory mockado.' },
+        { k:'fe', f:'__tests__/pages/Inventory.test.tsx', t:'Exclusão: cancelado não chama removeInventoryItem; erro chama showAlert; sucesso remove da lista renderizada.' },
+        { k:'fe', f:'__tests__/components/Modals.InventoryModal.test.tsx', t:'Editar "Estoque Atual" chama updateInventoryItem via PUT, sem passar pela rota /adjust (documenta o recurso fantasma).' },
+      ], med: [
+        { k:'fe', f:'__tests__/components/Modals.InventoryModal.test.tsx', t:'Criação converte campos texto→número (Number(x)||0); erro da API aciona showInventoryAlert.' },
+        { k:'fe', f:'__tests__/pages/Inventory.test.tsx', t:'isReadOnly=true desabilita Novo Item/Importar/Editar/Excluir visualmente e não dispara handler.' },
+        { k:'fe', f:'hooks/useApi.test.ts', t:'useInventory() (fetchInventory/createItem/adjustStock) testado diretamente enquanto não tem UI própria.' },
+        { k:'be', f:'aura-backend/.../inventory-import.test.ts', t:'Duas linhas pro mesmo item com "ML" vs "ml" — documentar se normaliza ou mantém como veio.' },
+        { k:'be', f:'aura-backend/.../inventory-id.test.ts', t:'PUT parcial só com {minStock:10} preserva os demais campos.' },
+        { k:'fe', f:'__tests__/pages/Inventory.test.tsx', t:'Com exatamente 100 itens mockados, KPIs batem só com o array recebido, não com um total maior (documenta o bug de paginação).' },
+      ], low: [
+        { k:'fe', f:'__tests__/components/ImportCSVModal.test.tsx', t:'onImport chama inventoryApi.importCSV; onSuccess recarrega (force reload).' },
+        { k:'be', f:'aura-backend/.../inventory.test.ts', t:'Contrato do shape de summary (totalItems/lowStockCount/totalValue) vs. o tipo declarado no client.' },
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'Procedimento sem nenhum ProcedureSupply: nenhum StockMovement/notificação criado, resto do fluxo continua normal.' },
+      ]}
+  },
+  { id: 'profissionais', name: 'Profissionais', funcs: 12, backend: '73 testes', frontend: 0,
+    scope: 'Listagem, CRUD, reset de senha, horário específico do profissional, normalização de contrato/remuneração.',
+    findings: [
+      { sev: 'crit', text: 'POST /api/users não valida commissionRate/fixedSalary (só parseFloat, sem limites) — PUT valida 0-100/≥0 corretamente. Comissão de 500% criada por essa via gera comissão 5x a receita no relatório.' },
+      { sev: 'med', text: 'GET /api/reports/commissions não trata remunerationType desconhecido — cai num switch sem default e zera o ganho silenciosamente.' },
+      { sev: 'med', text: 'Soft delete não checa agendamentos futuros nem avisa; profissional desativado some do relatório de comissões mesmo tendo histórico pago.' },
+      { sev: 'med', text: 'Não existe UI para reativar um profissional desativado, e GET /api/users retorna ativos e inativos misturados sem distinção visual.' },
+      { sev: 'low', text: 'POST /api/users com role:"OWNER" enviado por um ADMIN não parece ter checagem adicional contra escalonamento de privilégio (não confirmado a fundo).' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../users.test.ts', t:'POST com commissionRate:-10 e commissionRate:150 devem ser rejeitados (hoje passam, expõe o bug).' },
+        { k:'be', f:'aura-backend/.../users.test.ts', t:'POST com fixedSalary:-500 deve ser rejeitado.' },
+        { k:'fe', f:'__tests__/context/normalizeProfessional.test.tsx', t:'contractType/remunerationType ausentes caem nos fallbacks (\'pj\'/\'comissao\'); commissionRate/fixedSalary ausentes viram 0, não NaN.' },
+        { k:'fe', f:'__tests__/context/AppContext.test.tsx', t:'addProfessional: sucesso, bloqueio por maxProfessionals atingido, maxProfessionals=-1 (ilimitado) permite criar mesmo acima da contagem.' },
+        { k:'be', f:'aura-backend/.../reports-commissions.test.ts', t:'remunerationType fora de FIXED/COMMISSION/MIXED (null/desconhecido) tem comportamento explícito e testado, não silencioso.' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../reports-commissions.test.ts', t:'Profissional isActive:false com atendimentos pagos no período some do relatório — documentar o efeito do soft delete.' },
+        { k:'fe', f:'__tests__/pages/Professionals.test.tsx', t:'Badge de contrato, coluna de comissão (fixo vs. percentual), disponibilidade semanal, busca, botões desabilitados com isReadOnly.' },
+        { k:'fe', f:'__tests__/components/ProfessionalModal.test.tsx', t:'Senha só obrigatória na criação; campos de salário/comissão aparecem conforme remunerationType; edição nunca envia password.' },
+        { k:'be', f:'aura-backend/.../users-id.test.ts', t:'PUT com isActive:true reativa um profissional (schema já aceita, sem teste que exercite).' },
+        { k:'be', f:'aura-backend/.../users.test.ts', t:'ADMIN enviando role:"OWNER" ao criar usuário — confirmar se o roleMap permite escalonamento indevido.' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/Professionals.test.tsx', t:'getContractBadge/getRoleLabel como testes puros de mapeamento (se extraídos).' },
+        { k:'fe', f:'__tests__/pages/Professionals.test.tsx', t:'Agrupamento por empresa na visão OWNER (expandir/colapsar, ocultar empresa sem resultado na busca).' },
+      ]}
+  },
+  { id: 'horarios-atendimento', name: 'Horários de Atendimento', funcs: 4, backend: '45 testes de lib pura + companies/unavailability', frontend: 0,
+    scope: 'Horário de funcionamento da empresa por dia, horário específico do profissional, indisponibilidades pontuais.',
+    findings: [
+      { sev: 'med', text: 'Fechamento < abertura não é bloqueado em nenhuma camada (frontend, schema da empresa, schema do profissional) — diferente da indisponibilidade, que já valida isso.' },
+      { sev: 'med', text: 'updateUserSchema.businessHours é z.record(unknown) — o horário do profissional não tem NENHUMA validação de formato/hora/dias, ao contrário do da empresa.' },
+      { sev: 'high', text: 'O horário específico do profissional parece não ser lido em nenhuma validação real de agendamento (nem em appointments/route.ts, nem no bot do WhatsApp) — a sobrescrita provavelmente não tem efeito.' },
+      { sev: 'med', text: 'Criar uma regra de indisponibilidade não checa agendamentos já existentes no período — dá pra bloquear a agenda "por cima" de um atendimento já marcado.' },
+      { sev: 'low', text: 'checkUnavailability usa toISOString() (UTC) pra comparar datas — risco de bloqueio "vazar" pro dia adjacente perto da meia-noite, dependendo do fuso do servidor.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'businessHours.monday com start>end (18:00→08:00): hoje passa com 200, documentar/travar o comportamento esperado.' },
+        { k:'be', f:'aura-backend/.../users-id.test.ts (ou novo)', t:'PUT com businessHours contendo start>end, tipos inválidos ou dias faltando — hoje tudo passa (schema livre).' },
+        { k:'be', f:'aura-backend/.../appointments-post.test.ts', t:'Agendar às 15h para um profissional com horário individual mais restrito que a empresa (08-12 vs. 08-18): hoje só a empresa é validada, aceita mesmo assim.' },
+        { k:'be', f:'aura-backend/.../businessHours.test.ts', t:'checkUnavailability perto da meia-noite com TZ forçado pra UTC vs. America/Sao_Paulo — expõe o risco de fuso horário.' },
+        { k:'fe', f:'__tests__/components/BusinessHoursEditor.test.tsx', t:'7 dias renderizam; toggle isOpen desabilita inputs; onChange atualiza o objeto; fallback de horário padrão; modo compact.' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'businessHours parcial (faltando um dia) deve dar 400 pelo schema não-partial.' },
+        { k:'be', f:'aura-backend/.../unavailability.test.ts', t:'professionalIds com um id de outra empresa não é validado hoje (documentar).' },
+        { k:'be', f:'aura-backend/.../unavailability.test.ts', t:'Data duplicada na mesma regra e data retroativa não são rejeitadas hoje.' },
+        { k:'fe', f:'__tests__/pages/BusinessHoursSettings.test.tsx', t:'Salvar chama updateCompany com payload certo (sucesso e erro mostrando toast); handleAddRule valida data/profissional/horário e auto-adiciona valor esquecido no input.' },
+        { k:'fe', f:'__tests__/components/ProfessionalModal.test.tsx', t:'Bloco de horário específico usa initialData.businessHours ou fallback da empresa; onChange atualiza formData antes do submit.' },
+        { k:'be', f:'aura-backend/.../businessHours.test.ts', t:'isWithinBusinessHours com start>end documenta que hoje trata como "fechado o dia inteiro".' },
+      ], low: [
+        { k:'be', f:'aura-backend/.../unavailability-id.test.ts', t:'GET de regra de outra empresa retorna 404 (teste dedicado de isolamento).' },
+        { k:'fe', f:'__tests__/components/BusinessHoursEditor.test.tsx', t:'Labels associados aos inputs, checkbox acessível via getByRole.' },
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'RECEPTIONIST/ESTHETICIAN recebem 403 ao tentar PUT em businessHours.' },
+      ]}
+  },
+  { id: 'clube-assinaturas', name: 'Clube de Assinaturas', funcs: 10, backend: 'muito extenso (8+ arquivos dedicados)', frontend: 0,
+    scope: 'Planos de assinatura de pacientes, inscrição, ativação/cancelamento, dedução e reset de sessões por ciclo.',
+    findings: [
+      { sev: 'high', text: 'sessionsUsedThisCycle só é resetado pelo webhook Asaas — assinatura inscrita manualmente (EnrollModal) nunca renova o contador; a partir do mês 2 o paciente aparece com sessões esgotadas mesmo pagando em dia.' },
+      { sev: 'med', text: 'Se a assinatura vinculada a um agendamento pendente for cancelada/pausada antes da aprovação, ou o procedimento não estiver mais no plano, o preço fica R$0 sem cobrar nem avisar (atendimento gratuito indevido).' },
+      { sev: 'med', text: 'Checagem de limite de sessão na aprovação não está numa transação — risco teórico de duas aprovações concorrentes ultrapassarem o limite do plano.' },
+      { sev: 'low', text: 'GET de planos/assinantes retorna array cru, mutações retornam {success,data} — inconsistência de formato que pode confundir código futuro.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../webhooks-asaas-subscription-payment.test.ts (novo)', t:'SUBSCRIPTION_PAYMENT_RECEIVED zera sessionsUsedThisCycle de todos os itens do plano atual, atualiza lastCycleReset/nextBillingDate; não faz nada sem assinatura ACTIVE correspondente.' },
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'Aprovação com assinatura CANCELED/PAUSED/OVERDUE no momento: preço fica 0 sem dedução — documentar/travar o comportamento atual.' },
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'Aprovação com procedimento fora dos itens do plano (planItem não encontrado): mesmo problema do preço 0 silencioso.' },
+        { k:'be', f:'aura-backend/.../appointments-status.test.ts', t:'Duas aprovações concorrentes disputando a última sessão do ciclo — confirmar se hoje é possível ultrapassar o limite.' },
+        { k:'fe', f:'__tests__/pages/Subscriptions.test.tsx', t:'KPIs (planos ativos, assinantes ativos, MRR só ACTIVE, pendentes); barra de progresso de sessões (Math.min 100%); showAlert quando cancel/activate/deactivatePlan falham.' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../subscriptions-plans-id.test.ts', t:'PUT com items recria a lista — itens antigos removidos realmente somem (hoje só testa que os novos aparecem).' },
+        { k:'be', f:'aura-backend/.../subscriptions-patients-cancel.test.ts', t:'Cancelar ACTIVE no meio do ciclo não mexe em sessionsUsedThisCycle nem cancela agendamentos futuros vinculados.' },
+        { k:'fe', f:'__tests__/components/SubscriptionPlanModal.test.tsx', t:'Nome vazio, preço≤0, item sem procedimento, sessionsPerCycle<1, procedimento duplicado — todos bloqueiam o submit.' },
+        { k:'fe', f:'__tests__/components/EnrollModal.test.tsx', t:'Campos obrigatórios (paciente/plano/data); erro de subscribe() exibido (ex: 409 assinatura já ativa).' },
+        { k:'be', f:'__tests__/services/api.test.ts', t:'createPlan/updatePlan/listForPatient/requestSelf cobertos no mesmo padrão dos demais métodos.' },
+        { k:'be', f:'aura-backend/.../subscriptions (contrato)', t:'createPlan/updatePlan/subscribe/cancel/activate retornam {success,data} — teste de contrato explícito.' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/Subscriptions.test.tsx', t:'Estado vazio de cada aba (planos/assinantes/pendentes).' },
+        { k:'be', f:'aura-backend/.../subscriptions-plans-id.test.ts', t:'DELETE (soft) não afeta _count.subscribers de assinantes ACTIVE já vinculados.' },
+        { k:'fe', f:'__tests__/pages/Subscriptions.test.tsx', t:'Botões desabilitados durante cancellingId/activatingId/saving evitam clique duplo.' },
+      ]}
+  },
+  { id: 'financeiro', name: 'Financeiro', funcs: 16, backend: 'muito extenso (9 arquivos dedicados)', frontend: 0,
+    scope: 'Lançamentos, parcelamento, importação, e o "resumo financeiro" inteiro recalculado no frontend a partir da lista bruta.',
+    findings: [
+      { sev: 'high', text: 'Cada parcela é arredondada independentemente para 2 casas — quando o preço não divide igualmente (ex: R$100 em 3x), a soma das parcelas fica menor que o total pago, sem ajuste de resíduo na última.' },
+      { sev: 'med', text: 'Cancelar um agendamento já pago (com receita PAID e parcelas PENDING) não estorna nem sinaliza nada nas transações vinculadas.' },
+      { sev: 'med', text: 'O resumo do backend (summary.income/expense) só soma PAID; o frontend recalcula tudo somando todos os status juntos — "Receita Total"/"Saldo Acumulado" na tela incluem valores pending/overdue como se já tivessem entrado no caixa.' },
+      { sev: 'med', text: 'loadTransactions() busca no máximo 100 registros sem filtro de data — clínicas com histórico maior perdem lançamentos antigos/parcelas futuras da tela, sem aviso.' },
+      { sev: 'med', text: 'Importação CSV nunca atualiza um lançamento existente (result.updated fica sempre 0) — reimportar a mesma planilha duplica os lançamentos.' },
+      { sev: 'low', text: 'Botão "Recibo" no detalhe da transação não tem onClick — decorativo.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../pay-installments.test.ts', t:'price=100/installments=3 e price=100/installments=7: soma das parcelas deve bater com o total (hoje o teste só usa divisões exatas, mascarando o bug).' },
+        { k:'be', f:'aura-backend/.../appointments-cancel-with-payment.test.ts (novo)', t:'Cancelar agendamento com paid=true e/ou parcelas PENDING — travar o comportamento atual (nenhum ajuste) como decisão deliberada.' },
+        { k:'fe', f:'utils/financialCalculations.test.ts (extrair de Financial.tsx)', t:'totalRevenue/totalCost/allTimeBalance/pendingInstallments com mix de status paid/pending/overdue e parcelas futuras fora do mês de date.' },
+        { k:'fe', f:'__tests__/pages/Financial.test.tsx', t:'groupedTransactions: parcela installmentIndex>1 vira linha standalone posicionada por dueDate, sem duplicar custo.' },
+        { k:'be', f:'aura-backend/.../transactions.test.ts', t:'summary.income/expense considera só PAID mesmo com PENDING/OVERDUE misturados no mock (reforçar o teste existente).' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../transactions-import.test.ts', t:'Reimportar a mesma planilha duas vezes — decidir e testar se atualiza ou ao menos não duplica.' },
+        { k:'fe', f:'__tests__/components/Modals.NewExpenseModal.test.tsx', t:'Bloqueia descrição vazia/valor≤0; submit chama addTransaction/updateTransaction com payload certo.' },
+        { k:'fe', f:'__tests__/components/ImportCSVModal.test.tsx', t:'Extensão inválida, loading, contadores imported/updated/errors, onSuccess só quando houve algo importado.' },
+        { k:'be', f:'aura-backend/.../transaction-pay.test.ts', t:'Marcar como paga uma transação sem installmentGroupId (não é parcela) — hoje é permitido, confirmar se é intencional.' },
+        { k:'fe', f:'__tests__/pages/Financial.test.tsx', t:'visibleTransactions: PATIENT/ESTHETICIAN só veem income dos próprios agendamentos; ADMIN vê tudo.' },
+      ], low: [
+        { k:'be', f:'aura-backend/.../appointments-pay.test.ts', t:'procedureCost = Math.max(calculado, procedure.cost) nos dois sentidos (insumo mais caro e mais barato que o salvo).' },
+        { k:'fe', f:'__tests__/pages/Financial.test.tsx', t:'SaaSFinancial: balance = mensalidades pagas − despesas do owner; ordenação decrescente por data.' },
+        { k:'fe', f:'utils/financialCalculations.test.ts', t:'calcTrend: prev=0&current=0, prev=0&current>0 (100%), prev negativo.' },
+      ]}
+  },
+  { id: 'assinatura-billing', name: 'Assinatura (Billing)', funcs: 8, backend: 'plans/status/checkout/cron bons; webhook só segurança', frontend: 0,
+    scope: 'Assinatura da CLÍNICA com o Aura (Asaas) — não confundir com Clube de Assinaturas de pacientes.',
+    findings: [
+      { sev: 'high', text: 'isReadOnly do frontend só olha subscriptionExpiresAt — PAYMENT_OVERDUE marca subscriptionStatus mas não mexe na data, então o backend já bloqueia (403) enquanto o frontend ainda mostra tudo liberado.' },
+      { sev: 'high', text: 'Trocar de plano nunca chama cancelSubscription() na Asaas — a assinatura antiga continua cobrando; se ela gerar um pagamento confirmado depois, o webhook reverte silenciosamente o plano pro antigo.' },
+      { sev: 'med', text: 'Nenhuma validação de downgrade contra dados existentes (ex: mais profissionais que o novo maxProfessionals permite).' },
+      { sev: 'med', text: 'BillingPending silencia qualquer erro de rede no polling (catch vazio) e ignora success:false — só avisa o usuário no timeout de 30min, nunca em erro real.' },
+      { sev: 'low', text: 'A maior lacuna de teste do backend inteiro: o webhook Asaas só tem teste de autenticação, zero teste da lógica de negócio (mudança real de plan/status/expiresAt por tipo de evento).' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../webhook-asaas-business.test.ts (novo)', t:'PAYMENT_CONFIRMED atualiza plan/status ACTIVE/expiresAt+1mês; PAYMENT_OVERDUE só marca status; SUBSCRIPTION_INACTIVATED/PAYMENT_DELETED marcam CANCELED; evento sem customer não toca o banco.' },
+        { k:'be', f:'aura-backend/.../planPermissions.test.ts (reescrever)', t:'isReadOnlyMode (BASIC/OVERDUE/TRIAL expirado→true, ACTIVE→false); hasModuleAccess; canCreatePatient/Professional (limite -1, limite atingido); getPlanErrorMessage.' },
+        { k:'be', f:'aura-backend/.../billing-checkout.test.ts', t:'Empresa com asaasSubscriptionId ativo faz checkout de outro plano — documentar que cancelSubscription não é chamado hoje.' },
+        { k:'fe', f:'__tests__/pages/Billing.test.tsx', t:'Destaque do plano atual; Assinar com paymentUrl navega para /aguardando; popup bloqueado mostra link manual; erro de checkout/getPlans exibe mensagem certa.' },
+        { k:'fe', f:'__tests__/pages/BillingPending.test.tsx', t:'Fake timers: polling a cada 10s; status ACTIVE navega e para o polling; sem confirmação em 30min mostra timeout; "Verificar novamente" reseta.' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../billing-status.test.ts', t:'subscriptionStatus null/undefined (empresa legada) não quebra a resposta.' },
+        { k:'fe', f:'__tests__/context/AppContext.test.tsx', t:'isReadOnly com status overdue e expiresAt futuro — hoje retorna false (documenta o bug #1).' },
+        { k:'be', f:'aura-backend/.../billing-checkout.test.ts', t:'getSubscriptionPayments lançando exceção retorna 500 genérico sem vazar detalhes da Asaas.' },
+        { k:'fe', f:'__tests__/pages/Billing.test.tsx', t:'Auto-checkout dispara handleSubscribe uma única vez mesmo com re-render (autoCheckoutFired).' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/BillingPending.test.tsx', t:'Falha de rede num poll individual não interrompe o intervalo (falha silenciosa documentada).' },
+        { k:'be', f:'aura-backend/.../billing-plans.test.ts', t:'features/modules vazio; price como Decimal serializado corretamente.' },
+        { k:'be', f:'aura-backend/.../webhook-asaas-business.test.ts', t:'Idempotência: mesmo evento PAYMENT_CONFIRMED 2x seguidas não duplica efeito.' },
+      ]}
+  },
+  { id: 'agenda-online', name: 'Agenda Online', funcs: 5, backend: 'companies-id + public-company-slug + public-booking bons', frontend: 0,
+    scope: 'Configuração do link público (AccessLink.tsx) que alimenta a página pública de agendamento (PublicBooking.tsx).',
+    findings: [
+      { sev: 'med', text: 'onlineBookingConfig e layoutConfig são z.record(unknown) no backend — zero validação de conteúdo (minAdvanceTime negativo, cor fora do padrão hex, minAdvanceTime em minutos vs. maxBookingPeriod em dias sem normalização cruzada).' },
+      { sev: 'med', text: 'e2e/public-booking.spec.ts navega para /booking/:slug, mas o link real gerado é /:slug — o teste nunca validou o fluxo publicado de verdade (achado estrutural, fora do TDD mas vale registrar).' },
+      { sev: 'low', text: 'Não existe UI para editar maxBookingPeriod/cancellationNotice/cancellationPolicy, embora afetem PublicBooking.tsx — só assumem o default do useState.' },
+      { sev: 'low', text: 'isPresetActive compara só 3 cores — pode marcar um preset como "em uso" mesmo com outros campos alterados manualmente.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'PUT com onlineBookingConfig no corpo: caminho feliz persiste e retorna o valor certo.' },
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'PUT com layoutConfig parcial (só primaryColor) — confirmar se é replace total ou faz merge (hoje aparenta ser replace total).' },
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'minAdvanceTime:-100, slotInterval:"abc", maxBookingPeriod:0 — documentar que hoje passam (200), virando trava de regressão pra quando a validação existir.' },
+        { k:'fe', f:'__tests__/pages/AccessLink.test.tsx', t:'Link exibido = origin/slug; clique em Copiar chama navigator.clipboard; salvar horários com sucesso e com erro (showAlert nunca ignorado).' },
+        { k:'fe', f:'__tests__/pages/AccessLink.test.tsx', t:'canEditLayout=false esconde a seção de layout pra RECEPTIONIST/ESTHETICIAN, mas mostra link e horários.' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../public-company-slug.test.ts', t:'Asserção explícita de que layoutConfig e onlineBookingConfig vêm no payload público (evita remoção acidental do select).' },
+        { k:'fe', f:'__tests__/pages/AccessLink.test.tsx', t:'handleResetLayout volta pro defaultLayout com sucesso; mostra showAlert em erro.' },
+        { k:'fe', f:'__tests__/pages/AccessLink.test.tsx', t:'Aplicar preset atualiza os inputs de cor e marca hasUnsavedChanges.' },
+        { k:'be', f:'aura-backend/.../auth-register.test.ts', t:'Geração de slug com colisão de nome de empresa gera o sufixo esperado (estado ou contador).' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/AccessLink.test.tsx', t:'isPresetActive: layoutConfig com as 3 cores batendo mas fontFamily diferente ainda marca "Em uso" (documenta a fragilidade).' },
+        { k:'fe', f:'__tests__/pages/AccessLink.test.tsx', t:'Digitar valor inválido no campo de cor livre não quebra a renderização.' },
+        { k:'be', f:'aura-backend/.../auth-register.test.ts', t:'Contraste entre o loop sem limite de register.ts e o loop com cap de 100 de google/setup-company — considerar alinhar.' },
+      ]}
+  },
+  { id: 'suporte', name: 'Suporte', funcs: 7, backend: '15 testes (tickets.test.ts)', frontend: 0,
+    scope: 'Abrir/responder/encerrar ticket de suporte, visão compartilhada entre ADMIN (clínica) e OWNER (King).',
+    findings: [
+      { sev: 'crit', text: 'PATCH /api/tickets não confere ticket.companyId contra o usuário — qualquer ADMIN/RECEPTIONIST/ESTHETICIAN de qualquer empresa pode responder ou encerrar o ticket de outra clínica se souber/adivinhar o id.' },
+      { sev: 'crit', text: 'ticketsApi.list() nunca é chamado em nenhum lugar do frontend — o estado tickets só é populado localmente ao criar um ticket na sessão atual; reload/nova sessão sempre mostra a lista vazia, mesmo com tickets existentes no banco.' },
+      { sev: 'med', text: 'Ticket CLOSED ainda aceita novas mensagens via API — o frontend esconde o campo, mas o backend não bloqueia.' },
+      { sev: 'low', text: 'PATCH não passa por checkWriteAccess (POST passa) — inconsistência não documentada como intencional.' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'ADMIN da empresa c1 tentando responder (message) um ticket da empresa c2 → deve ser bloqueado, sem chamar ticketMessage.create.' },
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'ADMIN da empresa c1 tentando fechar (status:CLOSED) um ticket da empresa c2 → deve ser bloqueado, sem chamar ticket.update.' },
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'PATCH em ticket já CLOSED recebendo nova message → definir e testar o comportamento esperado em vez do silêncio atual.' },
+        { k:'fe', f:'__tests__/pages/Support.test.tsx', t:'Mockar tickets no contexto e verificar que a lista renderiza — ao escrever este teste, expõe que ticketsApi.list() nunca é chamado no load real.' },
+        { k:'fe', f:'__tests__/context/AppContext.test.tsx', t:'Ao logar/carregar, ticketsApi.list() deve ser chamado e popular tickets — este teste deve falhar hoje (documenta o bug #1).' },
+      ], med: [
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'PATCH com ticketId inexistente → tratamento explícito (hoje devolve {ticket:null} com 200).' },
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'GET combinando status + escopo de companyId na mesma chamada (hoje só testados separados).' },
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'GET respeita limit (?limit=5 → take:5) e o default (50) quando omitido.' },
+        { k:'fe', f:'__tests__/context/AppContext.test.tsx', t:'closeTicket: caminho de sucesso (hoje só existe o teste de erro de conexão).' },
+        { k:'fe', f:'__tests__/pages/Support.test.tsx', t:'Formulário de resposta e botão Encerrar somem quando status !== open; mensagem "chamado encerrado" aparece.' },
+        { k:'fe', f:'__tests__/pages/Support.test.tsx', t:'Botão "Novo Chamado" só aparece pra role !== OWNER; cabeçalho muda pro texto de gestão quando OWNER.' },
+      ], low: [
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'companyId do ticket criado é sempre user.companyId, mesmo se o corpo tentar enviar outro.' },
+        { k:'be', f:'aura-backend/.../tickets.test.ts', t:'Decidir e testar se PATCH deveria chamar checkWriteAccess como o POST já faz.' },
+        { k:'fe', f:'__tests__/pages/Support.test.tsx', t:'Mensagens próprias (isMe) vs. do suporte (isAdmin) com estilos/alinhamentos diferentes.' },
+      ]}
+  },
+  { id: 'configuracoes', name: 'Configurações', funcs: 10, backend: 'companies-id/whatsapp-instance/google-calendar/webhooks bons', frontend: 0,
+    scope: 'Perfil do negócio, Google Calendar e WhatsApp (Evolution API) — Settings.tsx + WhatsAppSettings.tsx.',
+    findings: [
+      { sev: 'high', text: 'connection.update do Evolution API é descartado pelo webhook — uma queda real do WhatsApp (deslogado/banido) só é percebida se o admin reabrir a tela manualmente.' },
+      { sev: 'high', text: 'POST/DELETE/PATCH /api/whatsapp/instance não checam role — a restrição "só ADMIN/OWNER configura WhatsApp" é só de UI; RECEPTIONIST/ESTHETICIAN conseguem chamar direto.' },
+      { sev: 'med', text: 'Parsing do retorno OAuth do Google Calendar lê window.location.hash, mas o app usa BrowserRouter (query string real) — o sync inicial de eventos provavelmente nunca dispara sozinho (código morto).' },
+      { sev: 'med', text: 'CNPJ/CPF só é validado no frontend — updateCompanySchema aceita qualquer string até 20 caracteres, sem checar dígito verificador.' },
+      { sev: 'low', text: 'Upload de logo salva base64 direto no campo logo, mas o schema Zod exige .url().max(500) — um data URL real provavelmente excede isso e falha na validação (não confirmado, mas o formato não bate com o schema).' },
+    ],
+    tests: { high: [
+        { k:'be', f:'aura-backend/.../whatsapp-instance.test.ts', t:'RECEPTIONIST/ESTHETICIAN chamando POST/DELETE/PATCH — decidir e testar o bloqueio (hoje passam sem checagem de role).' },
+        { k:'be', f:'aura-backend/.../webhooks-whatsapp.test.ts', t:'Payload connection.update sinalizando queda não atualiza whatsappInstance.status hoje — travar esse comportamento como guarda até a correção.' },
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'PUT com logo em formato data:image/...;base64,... (o real produzido pelo upload) — confirmar se o schema atual aceita ou rejeita.' },
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'cnpj com dígito verificador inválido é aceito hoje pelo backend (documenta a lacuna de validação server-side).' },
+      ], med: [
+        { k:'fe', f:'__tests__/components/WhatsAppSettings.test.tsx', t:'Conectar desabilitado sem termos; handleConnect chama connect(true) e mostra QR; erro via showAlert; handleDisconnect exige confirm(); toggle de chatbot com caminho de erro; canManage=false esconde os botões.' },
+        { k:'fe', f:'__tests__/pages/Settings.test.tsx', t:'Campos populados a partir de currentCompany; validateCpfCnpj bloqueia submit com CNPJ inválido; submit válido chama updateCompany com payload certo (telefones vazios filtrados); erro exibido; addPhone/removePhone nunca deixam lista vazia.' },
+        { k:'be', f:'__tests__/services/api.test.ts', t:'companiesApi.get/update e whatsappApi.getStatus/connect/disconnect/setChatbotEnabled (verbo, URL, corpo, propagação de erro) — mesmo padrão já usado pro calendarApi.' },
+        { k:'be', f:'aura-backend/.../companies-id.test.ts', t:'Tentativa de alterar plan ou subscriptionStatus via PUT é rejeitada pelo .strict() (teste nomeado explicitamente, são campos sensíveis).' },
+      ], low: [
+        { k:'fe', f:'__tests__/pages/Settings.test.tsx', t:'Seção do Google Calendar aparece/some conforme calendarApi.getStatus(); handleConnect/DisconnectCalendar chamam as funções certas.' },
+        { k:'be', f:'aura-backend/.../auth-google-callback.test.ts (novo)', t:'Modo calendar redireciona exatamente para {FRONTEND_URL}/settings?google_calendar=connected (parece não ter teste hoje).' },
+      ]}
+  },
+];
+
+function tag(sev) { return `<span class="chip ${sev}">${SEV[sev]}</span>`; }
+function tabName(id) { const t = TABS.find(x => x.id === id); return t ? t.name : id; }
+
+// Build TOC
+const tocEl = document.getElementById('toc-tabs');
+tocEl.innerHTML = TABS.map(t => {
+  const n = t.findings.length;
+  return `<li><a href="#${t.id}">${t.name}<span class="toc-count">${n}</span></a></li>`;
+}).join('');
+
+// Build critical table
+const critBody = document.getElementById('critical-body');
+critBody.innerHTML = CRITICAL.map(c => `
+  <tr>
+    <td class="sev">${tag(c.sev)}</td>
+    <td>${c.text}</td>
+    <td class="tab-tag"><a href="#${c.tab}">${tabName(c.tab)}</a></td>
+  </tr>
+`).join('');
+
+// Stats
+document.getElementById('stat-crit').textContent = CRITICAL.filter(c => c.sev === 'crit' || c.sev === 'high').length;
+let totalTests = 0;
+TABS.forEach(t => { totalTests += t.tests.high.length + t.tests.med.length + t.tests.low.length; });
+document.getElementById('stat-tests').textContent = totalTests;
+
+// Build tab cards
+function renderTestList(items) {
+  if (!items.length) return '<p style="color:var(--ink-faint);font-size:13px;margin:6px 0;">Nenhum item.</p>';
+  return `<ul class="test-list">${items.map(i => `
+    <li>
+      <span class="test-kind ${i.k}">${i.k === 'be' ? 'Backend' : 'Frontend'}</span>
+      <div>${i.t}<div class="test-file">${i.f}</div></div>
+    </li>`).join('')}</ul>`;
+}
+
+const cardsEl = document.getElementById('tab-cards');
+cardsEl.innerHTML = TABS.map((t, idx) => {
+  const fePill = t.frontend === 0
+    ? '<span class="cov-pill zero">frontend: 0 testes</span>'
+    : `<span class="cov-pill some">frontend: ${t.frontend}</span>`;
+  return `
+  <details class="tab-card" id="${t.id}" ${idx < 1 ? 'open' : ''}>
+    <summary>
+      <svg class="twirl" viewBox="0 0 20 20" fill="none"><path d="M7 4l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="tname">${t.name}</span>
+      <div class="pill-row">
+        <span class="cov-pill">${t.funcs} funcionalidades</span>
+        <span class="cov-pill some">backend: ${t.backend}</span>
+        ${fePill}
+      </div>
+    </summary>
+    <div class="tab-body">
+      <p class="scope"><b>Escopo —</b> ${t.scope}</p>
+
+      <div class="subhead">Achados da revisão</div>
+      <ul class="finding-list">
+        ${t.findings.map(f => `<li>${tag(f.sev)}<span>${f.text}</span></li>`).join('')}
+      </ul>
+
+      <div class="subhead">Testes TDD — alta prioridade</div>
+      ${renderTestList(t.tests.high)}
+
+      <div class="subhead">Testes TDD — média prioridade</div>
+      ${renderTestList(t.tests.med)}
+
+      <div class="subhead">Testes TDD — baixa prioridade</div>
+      ${renderTestList(t.tests.low)}
+    </div>
+  </details>`;
+}).join('');
+</script>

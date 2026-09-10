@@ -252,3 +252,83 @@ describe('PATCH /api/whatsapp/instance', () => {
     expect(body.chatbotEnabled).toBe(false)
   })
 })
+
+describe('RBAC: só ADMIN/OWNER podem configurar o WhatsApp (POST/DELETE/PATCH)', () => {
+  function postReq() {
+    return new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'POST',
+      body: JSON.stringify({ acceptTerms: true }),
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  function patchReq() {
+    return new NextRequest('http://localhost/api/whatsapp/instance', {
+      method: 'PATCH',
+      body: JSON.stringify({ chatbotEnabled: true }),
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+
+  function expectNoDbAccess() {
+    // A checagem de papel acontece ANTES de qualquer acesso ao banco
+    expect(prisma.company.findUnique).not.toHaveBeenCalled()
+    expect(prisma.whatsappInstance.findUnique).not.toHaveBeenCalled()
+    expect(prisma.whatsappInstance.upsert).not.toHaveBeenCalled()
+    expect(prisma.whatsappInstance.update).not.toHaveBeenCalled()
+    expect(prisma.whatsappInstance.delete).not.toHaveBeenCalled()
+  }
+
+  for (const role of ['RECEPTIONIST', 'ESTHETICIAN'] as const) {
+    it(`${role}: POST /api/whatsapp/instance → 403 sem tocar no banco`, async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role } as never)
+      const res = await POST(postReq())
+      expect(res.status).toBe(403)
+      expectNoDbAccess()
+    })
+
+    it(`${role}: DELETE /api/whatsapp/instance → 403 sem tocar no banco`, async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role } as never)
+      const res = await DELETE(makeReq('DELETE'))
+      expect(res.status).toBe(403)
+      expectNoDbAccess()
+    })
+
+    it(`${role}: PATCH /api/whatsapp/instance → 403 sem tocar no banco`, async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role } as never)
+      const res = await PATCH(patchReq())
+      expect(res.status).toBe(403)
+      expectNoDbAccess()
+    })
+
+    it(`${role}: GET /api/whatsapp/instance continua liberado`, async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role } as never)
+      vi.mocked(prisma.whatsappInstance.findUnique).mockResolvedValue(null)
+      const res = await GET(makeReq())
+      expect(res.status).toBe(200)
+    })
+  }
+
+  for (const role of ['ADMIN', 'OWNER'] as const) {
+    it(`${role}: POST /api/whatsapp/instance passa da checagem de papel`, async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role } as never)
+      vi.mocked(prisma.whatsappInstance.upsert).mockResolvedValue({} as WhatsappInstance)
+      const res = await POST(postReq())
+      expect(res.status).toBe(200)
+    })
+
+    it(`${role}: DELETE /api/whatsapp/instance passa da checagem de papel`, async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role } as never)
+      vi.mocked(prisma.whatsappInstance.delete).mockResolvedValue({} as WhatsappInstance)
+      const res = await DELETE(makeReq('DELETE'))
+      expect(res.status).toBe(200)
+    })
+
+    it(`${role}: PATCH /api/whatsapp/instance passa da checagem de papel`, async () => {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role } as never)
+      vi.mocked(prisma.whatsappInstance.findUnique).mockResolvedValue({ id: 'wi1' } as WhatsappInstance)
+      vi.mocked(prisma.whatsappInstance.update).mockResolvedValue({ chatbotEnabled: true } as WhatsappInstance)
+      const res = await PATCH(patchReq())
+      expect(res.status).toBe(200)
+    })
+  }
+})

@@ -112,21 +112,18 @@ const Settings: React.FC = () => {
       }
     });
 
-    // Handle success redirect from OAuth callback
-    // This is a HashRouter app: URL looks like /#/settings?google_calendar=connected
-    // The query params are embedded inside window.location.hash, not window.location.search
-    const hash = window.location.hash; // e.g. "#/settings?google_calendar=connected"
-    const hashQueryIndex = hash.indexOf('?');
-    if (hashQueryIndex !== -1) {
-      const hashParams = new URLSearchParams(hash.slice(hashQueryIndex + 1));
-      if (hashParams.get('google_calendar') === 'connected') {
-        setCalendarConnected(true);
-        // Clean up URL — remove query string from hash but keep the path
-        const hashPath = hash.slice(0, hashQueryIndex);
-        window.history.replaceState({}, '', window.location.pathname + hashPath);
-        // Initial sync: import existing Google Calendar events as unavailability blocks
-        calendarApi.sync();
-      }
+    // Handle success redirect from OAuth callback.
+    // The app uses BrowserRouter (App.tsx), and the backend redirects to
+    // `${FRONTEND_URL}/settings?google_calendar=connected` — a real query string.
+    // (The previous code read window.location.hash assuming HashRouter, so the
+    // initial sync below never fired after connecting.)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_calendar') === 'connected') {
+      setCalendarConnected(true);
+      // Initial sync: import existing Google Calendar events as unavailability blocks
+      calendarApi.sync();
+      // Clean up URL — drop the query string, keep the path
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
@@ -196,7 +193,8 @@ const Settings: React.FC = () => {
   }, [triggerSave, pendingNavigationPath, navigate, setTriggerSave, setPendingNavigationPath, executeSave]);
 
   const handleConnectCalendar = () => {
-    calendarApi.connect('/#/settings');
+    // BrowserRouter path — not '/#/settings' (HashRouter style)
+    calendarApi.connect('/settings');
   };
 
   const handleDisconnectCalendar = async () => {

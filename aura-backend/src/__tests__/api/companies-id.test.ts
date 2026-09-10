@@ -3,6 +3,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { cnpj as cnpjValidator, cpf as cpfValidator } from 'cpf-cnpj-validator'
 
 vi.mock('@/lib/prisma', () => ({
   default: { company: { findUnique: vi.fn(), update: vi.fn() } },
@@ -175,5 +176,101 @@ describe('PUT /api/companies/[id]', () => {
 
     const res = await PUT(makePutRequest({ name: 'Nome Alterado' }), makeParams('outra-empresa'))
     expect(res.status).toBe(200)
+  })
+})
+
+describe('PUT /api/companies/[id] — validação de CNPJ/CPF', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
+  })
+
+  it('rejeita (400) CNPJ com dígito verificador inválido', async () => {
+    const res = await PUT(makePutRequest({ cnpj: '11.111.111/1111-11' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita (400) CPF com dígito verificador inválido', async () => {
+    const res = await PUT(makePutRequest({ cnpj: '123.456.789-00' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('aceita e persiste um CNPJ válido', async () => {
+    const validCnpj = cnpjValidator.format(cnpjValidator.generate())
+    const res = await PUT(makePutRequest({ cnpj: validCnpj }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cnpj: validCnpj }) })
+    )
+  })
+
+  it('aceita e persiste um CPF válido (campo aceita pessoa física também)', async () => {
+    const validCpf = cpfValidator.format(cpfValidator.generate())
+    const res = await PUT(makePutRequest({ cnpj: validCpf }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cnpj: validCpf }) })
+    )
+  })
+
+  it('aceita cnpj: null (documento é opcional)', async () => {
+    const res = await PUT(makePutRequest({ cnpj: null }), makeParams('c1'))
+    expect(res.status).toBe(200)
+  })
+
+  it('aceita cnpj: "" (string vazia)', async () => {
+    const res = await PUT(makePutRequest({ cnpj: '' }), makeParams('c1'))
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('PUT /api/companies/[id] — campo logo aceita data URL de imagem', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
+  })
+
+  it('aceita um data URL base64 de imagem (formato real produzido por handleLogoUpload)', async () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    const res = await PUT(makePutRequest({ logo: dataUrl }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ logo: dataUrl }) })
+    )
+  })
+
+  it('aceita uma URL http(s) hospedada', async () => {
+    const res = await PUT(makePutRequest({ logo: 'https://cdn.exemplo.com/logo.png' }), makeParams('c1'))
+    expect(res.status).toBe(200)
+  })
+
+  it('rejeita (400) uma string que não é URL nem data URL de imagem', async () => {
+    const res = await PUT(makePutRequest({ logo: 'não-é-url' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/companies/[id] — .strict() bloqueia campos sensíveis fora do schema', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
+  })
+
+  it('tentar alterar plan via PUT → 400 (campo não está no updateCompanySchema)', async () => {
+    const res = await PUT(makePutRequest({ plan: 'PREMIUM' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('tentar alterar subscriptionStatus via PUT → 400', async () => {
+    const res = await PUT(makePutRequest({ subscriptionStatus: 'ACTIVE' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
   })
 })

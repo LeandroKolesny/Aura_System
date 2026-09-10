@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/prisma', () => ({
   default: {
-    whatsappInstance: { findUnique: vi.fn() },
+    whatsappInstance: { findUnique: vi.fn(), updateMany: vi.fn() },
   },
 }))
 vi.mock('@/lib/whatsappBotEngine', () => ({
@@ -113,6 +113,85 @@ describe('POST /api/webhooks/whatsapp', () => {
   it('retorna 200 mesmo se handleIncomingMessage lançar erro (não expõe erro interno pro Evolution API)', async () => {
     vi.mocked(handleIncomingMessage).mockRejectedValueOnce(new Error('boom'))
     const res = await POST(makeWebhookRequest(VALID_SECRET, MESSAGE_PAYLOAD))
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('connection.update — sincroniza status da instância no banco', () => {
+  it('evento de desconexão (state=close) marca a instância como DISCONNECTED e retorna 200', async () => {
+    vi.mocked(prisma.whatsappInstance.updateMany).mockResolvedValue({ count: 1 } as never)
+    const res = await POST(
+      makeWebhookRequest(VALID_SECRET, {
+        event: 'connection.update',
+        instance: 'aura-c1',
+        data: { state: 'close' },
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(prisma.whatsappInstance.updateMany).toHaveBeenCalledWith({
+      where: { instanceName: 'aura-c1' },
+      data: { status: 'DISCONNECTED' },
+    })
+    expect(handleIncomingMessage).not.toHaveBeenCalled()
+  })
+
+  it('aceita o estado em data.connection e o instance como objeto { instanceName }', async () => {
+    vi.mocked(prisma.whatsappInstance.updateMany).mockResolvedValue({ count: 1 } as never)
+    const res = await POST(
+      makeWebhookRequest(VALID_SECRET, {
+        event: 'connection.update',
+        instance: { instanceName: 'aura-c9' },
+        data: { connection: 'disconnected' },
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(prisma.whatsappInstance.updateMany).toHaveBeenCalledWith({
+      where: { instanceName: 'aura-c9' },
+      data: { status: 'DISCONNECTED' },
+    })
+  })
+
+  it('connection.update que NÃO é desconexão (state=connecting) não altera o status, retorna 200', async () => {
+    const res = await POST(
+      makeWebhookRequest(VALID_SECRET, {
+        event: 'connection.update',
+        instance: 'aura-c1',
+        data: { state: 'connecting' },
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(prisma.whatsappInstance.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('connection.update sem estado no payload é conservador: não altera nada, retorna 200', async () => {
+    const res = await POST(
+      makeWebhookRequest(VALID_SECRET, { event: 'connection.update', instance: 'aura-c1', data: {} })
+    )
+    expect(res.status).toBe(200)
+    expect(prisma.whatsappInstance.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('instância desconhecida: updateMany não casa nenhuma linha, ainda retorna 200 sem erro', async () => {
+    vi.mocked(prisma.whatsappInstance.updateMany).mockResolvedValue({ count: 0 } as never)
+    const res = await POST(
+      makeWebhookRequest(VALID_SECRET, {
+        event: 'connection.update',
+        instance: 'aura-desconhecida',
+        data: { state: 'close' },
+      })
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('nunca estoura erro: retorna 200 mesmo se o updateMany falhar', async () => {
+    vi.mocked(prisma.whatsappInstance.updateMany).mockRejectedValueOnce(new Error('db down'))
+    const res = await POST(
+      makeWebhookRequest(VALID_SECRET, {
+        event: 'connection.update',
+        instance: 'aura-c1',
+        data: { state: 'close' },
+      })
+    )
     expect(res.status).toBe(200)
   })
 })
