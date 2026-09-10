@@ -4,7 +4,12 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
-import { validateAppointmentTime, type BusinessHours, type UnavailabilityRule } from "@/lib/businessHours";
+import {
+  validateAppointmentTime,
+  resolveEffectiveBusinessHours,
+  type BusinessHours,
+  type UnavailabilityRule,
+} from "@/lib/businessHours";
 import {
   createAppointmentSchema,
   listAppointmentsQuerySchema,
@@ -254,8 +259,9 @@ export async function POST(request: NextRequest) {
     let { patientId, professionalId, procedureId, date, durationMinutes, price, notes, roomId, subscriptionId } = validation.data;
     const appointmentDate = new Date(date);
 
-    // Buscar configurações da empresa (business hours + indisponibilidades)
-    const [company, unavailabilityRules] = await Promise.all([
+    // Buscar configurações da empresa (business hours + indisponibilidades) e o
+    // horário individual do profissional do agendamento.
+    const [company, unavailabilityRules, professional] = await Promise.all([
       prisma.company.findUnique({
         where: { id: user.companyId },
         select: { businessHours: true },
@@ -263,13 +269,25 @@ export async function POST(request: NextRequest) {
       prisma.unavailabilityRule.findMany({
         where: { companyId: user.companyId },
       }),
+      prisma.user.findUnique({
+        where: { id: professionalId },
+        select: { businessHours: true },
+      }),
     ]);
+
+    // Precedência: horário individual do profissional (quando tem os 7 dias
+    // configurados) tem prioridade sobre o horário da empresa; senão, usa o da
+    // empresa como fallback. Ver resolveEffectiveBusinessHours em lib/businessHours.
+    const effectiveBusinessHours = resolveEffectiveBusinessHours(
+      professional?.businessHours,
+      company?.businessHours as BusinessHours | null
+    );
 
     // VALIDAÇÃO: Verificar horário de funcionamento e indisponibilidade
     const timeValidation = validateAppointmentTime(
       appointmentDate,
       professionalId,
-      company?.businessHours as BusinessHours | null,
+      effectiveBusinessHours,
       unavailabilityRules as UnavailabilityRule[]
     );
 

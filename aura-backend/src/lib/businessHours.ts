@@ -26,6 +26,55 @@ export interface UnavailabilityRule {
   professionalIds: string[];
 }
 
+const WEEK_DAYS: (keyof BusinessHours)[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+/**
+ * `true` somente quando o valor é um objeto com os 7 dias da semana, cada um
+ * com `isOpen`. `null`, `undefined`, `{}` ou objeto parcial → `false`.
+ * Serve para decidir se um horário individual do profissional é utilizável.
+ */
+export function isCompleteBusinessHours(value: unknown): value is BusinessHours {
+  if (!value || typeof value !== "object") return false;
+  return WEEK_DAYS.every((day) => {
+    const dayConfig = (value as Record<string, unknown>)[day];
+    return (
+      !!dayConfig &&
+      typeof dayConfig === "object" &&
+      "isOpen" in (dayConfig as Record<string, unknown>)
+    );
+  });
+}
+
+/**
+ * Resolve qual configuração de horário de funcionamento vale para um agendamento.
+ *
+ * Precedência (regra de negócio):
+ *  1. Horário INDIVIDUAL do profissional — quando os 7 dias estão configurados,
+ *     ele tem prioridade sobre o horário da empresa (permite um profissional
+ *     atender numa janela mais restrita/ampla que a da clínica).
+ *  2. Sem horário individual válido (`null`/`{}`/parcial), cai no horário da
+ *     EMPRESA (fallback).
+ *  3. Sem nenhum dos dois, retorna o horário da empresa como veio (pode ser
+ *     `null`, e aí `isWithinBusinessHours` libera qualquer horário).
+ */
+export function resolveEffectiveBusinessHours(
+  professionalBusinessHours: unknown,
+  companyBusinessHours: BusinessHours | null
+): BusinessHours | null {
+  if (isCompleteBusinessHours(professionalBusinessHours)) {
+    return professionalBusinessHours;
+  }
+  return companyBusinessHours;
+}
+
 const DAY_MAP: Record<number, keyof BusinessHours> = {
   0: "sunday",
   1: "monday",
@@ -98,6 +147,12 @@ export function checkUnavailability(
   professionalId: string,
   rules: UnavailabilityRule[]
 ): { blocked: boolean; reason?: string } {
+  // TODO(fuso): `toISOString()` converte para UTC. Se o servidor roda em UTC
+  // (Vercel) e o agendamento é um horário local do Brasil (UTC-3) perto da
+  // meia-noite, a data pode "pular" para o dia seguinte e não bater com
+  // `rule.dates` (strings YYYY-MM-DD sem fuso escolhidas no <input type="date">).
+  // Reescrever isto exige alinhar como `appointmentDate` chega aqui — fora do
+  // escopo atual. Ver businessHours.test.ts ("fuso horário / meia-noite").
   const dateStr = date.toISOString().split("T")[0];
   const timeMinutes = date.getHours() * 60 + date.getMinutes();
 

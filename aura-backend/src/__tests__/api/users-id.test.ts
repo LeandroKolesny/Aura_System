@@ -147,6 +147,61 @@ describe('PUT /api/users/[id]', () => {
   })
 })
 
+describe('PUT /api/users/[id] — validação de businessHours do profissional', () => {
+  const DAY = { isOpen: true, start: '08:00', end: '18:00' }
+  const VALID_HOURS = {
+    monday: DAY, tuesday: DAY, wednesday: DAY, thursday: DAY, friday: DAY,
+    saturday: { isOpen: true, start: '09:00', end: '13:00' },
+    sunday: { isOpen: false, start: '00:00', end: '00:00' },
+  }
+
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(EXISTING_PROF as never)
+    vi.mocked(prisma.user.update).mockResolvedValue({ ...EXISTING_PROF, businessHours: VALID_HOURS } as never)
+  })
+
+  it('rejeita (400) businessHours com dia aberto e abertura >= fechamento', async () => {
+    const res = await PUT(
+      makePutRequest({ businessHours: { ...VALID_HOURS, monday: { isOpen: true, start: '18:00', end: '08:00' } } }),
+      makeParams()
+    )
+    expect(res.status).toBe(400)
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita (400) businessHours com tipo inválido (start numérico)', async () => {
+    const res = await PUT(
+      makePutRequest({ businessHours: { ...VALID_HOURS, tuesday: { isOpen: true, start: 123, end: '18:00' } } }),
+      makeParams()
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('rejeita (400) businessHours parcial (faltando dias)', async () => {
+    const res = await PUT(makePutRequest({ businessHours: { monday: DAY } }), makeParams())
+    expect(res.status).toBe(400)
+  })
+
+  it('aceita e persiste um businessHours válido do profissional (7 dias)', async () => {
+    const res = await PUT(makePutRequest({ businessHours: VALID_HOURS }), makeParams())
+    expect(res.status).toBe(200)
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ businessHours: VALID_HOURS }) })
+    )
+  })
+
+  it('aceita businessHours: null (limpar o horário individual)', async () => {
+    const res = await PUT(makePutRequest({ businessHours: null }), makeParams())
+    expect(res.status).toBe(200)
+  })
+
+  it('aceita businessHours: {} (profissional herda o horário da empresa)', async () => {
+    const res = await PUT(makePutRequest({ businessHours: {} }), makeParams())
+    expect(res.status).toBe(200)
+  })
+})
+
 describe('DELETE /api/users/[id]', () => {
   it('retorna 401 sem autenticação', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(null)

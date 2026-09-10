@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/prisma', () => ({
   default: {
     unavailabilityRule: { findMany: vi.fn(), create: vi.fn() },
+    appointment: { findMany: vi.fn() },
     activity: { create: vi.fn() },
   },
 }))
@@ -36,6 +37,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(checkWriteAccess).mockResolvedValue(null)
   vi.mocked(prisma.unavailabilityRule.findMany).mockResolvedValue([])
+  vi.mocked(prisma.appointment.findMany).mockResolvedValue([]) // sem agendamentos no período
 })
 
 describe('GET /api/unavailability', () => {
@@ -131,5 +133,61 @@ describe('POST /api/unavailability', () => {
     expect(prisma.activity.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ type: 'SETTINGS_CHANGED', metadata: { ruleId: 'rule1' } }) })
     )
+  })
+})
+
+describe('POST /api/unavailability — conflito com agendamentos já marcados (409)', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.unavailabilityRule.create).mockResolvedValue({ id: 'rule1' } as never)
+  })
+
+  it('retorna 409 e NÃO cria a regra quando há agendamento ativo do profissional afetado no período', async () => {
+    vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+      { id: 'appt-1', date: new Date(2026, 2, 1, 12, 0, 0), professionalId: 'prof-1' },
+    ] as never)
+
+    const res = await POST(
+      makePostRequest({ startTime: '08:00', endTime: '18:00', dates: ['2026-03-01'], professionalIds: ['prof-1'] })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(409)
+    expect(body.error).toMatch(/agendamento/i)
+    expect(prisma.unavailabilityRule.create).not.toHaveBeenCalled()
+  })
+
+  it('regra geral (professionalIds vazio): agendamento ativo de QUALQUER profissional no período → 409', async () => {
+    vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+      { id: 'appt-2', date: new Date(2026, 2, 1, 10, 30, 0), professionalId: 'qualquer-prof' },
+    ] as never)
+
+    const res = await POST(
+      makePostRequest({ startTime: '08:00', endTime: '18:00', dates: ['2026-03-01'], professionalIds: [] })
+    )
+    expect(res.status).toBe(409)
+    expect(prisma.unavailabilityRule.create).not.toHaveBeenCalled()
+  })
+
+  it('agendamento fora da janela de horário da regra → NÃO conflita, cria normalmente (201)', async () => {
+    vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+      { id: 'appt-3', date: new Date(2026, 2, 1, 7, 0, 0), professionalId: 'prof-1' }, // 07:00, antes das 08:00
+    ] as never)
+
+    const res = await POST(
+      makePostRequest({ startTime: '08:00', endTime: '18:00', dates: ['2026-03-01'], professionalIds: ['prof-1'] })
+    )
+    expect(res.status).toBe(201)
+    expect(prisma.unavailabilityRule.create).toHaveBeenCalled()
+  })
+
+  it('período livre (sem agendamentos) → 201 normal', async () => {
+    vi.mocked(prisma.appointment.findMany).mockResolvedValue([] as never)
+
+    const res = await POST(
+      makePostRequest({ startTime: '08:00', endTime: '18:00', dates: ['2026-03-01'], professionalIds: ['prof-1'] })
+    )
+    expect(res.status).toBe(201)
+    expect(prisma.unavailabilityRule.create).toHaveBeenCalled()
   })
 })

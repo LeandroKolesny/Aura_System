@@ -84,9 +84,34 @@ describe('updateUserSchema', () => {
     })
   })
 
-  it('businessHours como objeto arbitrário → sucesso', () => {
-    const result = updateUserSchema.safeParse({ businessHours: { monday: { start: '08:00', end: '18:00' } } })
-    expect(result.success).toBe(true)
+  describe('businessHours — schema estruturado (mesmo do horário da empresa)', () => {
+    const DAY = { isOpen: true, start: '08:00', end: '18:00' }
+    const FULL = {
+      monday: DAY, tuesday: DAY, wednesday: DAY, thursday: DAY, friday: DAY,
+      saturday: { isOpen: false, start: '00:00', end: '00:00' },
+      sunday: { isOpen: false, start: '00:00', end: '00:00' },
+    }
+
+    it('objeto completo (7 dias) e válido → sucesso', () => {
+      expect(updateUserSchema.safeParse({ businessHours: FULL }).success).toBe(true)
+    })
+
+    it('objeto parcial (só monday, sem start/end/isOpen completos) → falha', () => {
+      expect(updateUserSchema.safeParse({ businessHours: { monday: { start: '08:00', end: '18:00' } } }).success).toBe(false)
+    })
+
+    it('dia aberto com abertura >= fechamento → falha', () => {
+      const bad = { ...FULL, monday: { isOpen: true, start: '18:00', end: '08:00' } }
+      expect(updateUserSchema.safeParse({ businessHours: bad }).success).toBe(false)
+    })
+
+    it('null → sucesso (limpar o campo)', () => {
+      expect(updateUserSchema.safeParse({ businessHours: null }).success).toBe(true)
+    })
+
+    it('{} → sucesso (herda o horário da empresa)', () => {
+      expect(updateUserSchema.safeParse({ businessHours: {} }).success).toBe(true)
+    })
   })
 
   it('isActive boolean → sucesso', () => {

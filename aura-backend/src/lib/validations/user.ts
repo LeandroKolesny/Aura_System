@@ -1,5 +1,6 @@
 // Aura System - Validações de Usuários/Profissionais
 import { z } from "zod";
+import { businessHoursSchema } from "./businessHours";
 
 // Schema para atualizar um profissional/usuário da equipe.
 // Todos os campos são opcionais (update parcial). O frontend envia role/
@@ -41,7 +42,14 @@ export const updateUserSchema = z.object({
   remunerationType: remunerationTypeSchema.optional(),
   commissionRate: z.coerce.number().min(0).max(100).optional().nullable(),
   fixedSalary: z.coerce.number().min(0).optional().nullable(),
-  businessHours: z.record(z.string(), z.unknown()).optional().nullable(),
+  // Horário específico do profissional (sobrescreve o da empresa). Antes era
+  // `z.record(z.unknown())` — aceitava qualquer estrutura, tipos errados e dias
+  // faltando. Agora usa o MESMO schema estruturado do horário da empresa
+  // (7 dias, formato HH:mm, abertura < fechamento). `null` = limpar o campo;
+  // `{}` = "sem horário individual" (o profissional herda o da empresa).
+  businessHours: z
+    .union([businessHoursSchema, z.null(), z.object({}).strict()])
+    .optional(),
   isActive: z.boolean().optional(),
 });
 

@@ -6,6 +6,8 @@ import {
   isWithinBusinessHours,
   checkUnavailability,
   validateAppointmentTime,
+  isCompleteBusinessHours,
+  resolveEffectiveBusinessHours,
 } from '../../lib/businessHours'
 
 // ---------------------------------------------------------------------------
@@ -145,6 +147,29 @@ describe('isWithinBusinessHours', () => {
     it('Segunda 18:01 → valid: false', () => {
       const result = isWithinBusinessHours(makeDate(WEEK.monday, 18, 1), makeBusinessHours())
       expect(result.valid).toBe(false)
+    })
+  })
+
+  // --- start > end (janela invertida / "overnight") ---
+  // DOC (achado 15 da auditoria): a função NÃO suporta janela que cruza a
+  // meia-noite. Com start > end, nenhum horário passa nas duas checagens ao
+  // mesmo tempo → o dia inteiro fica "fechado". Este teste trava esse
+  // comportamento para que um suporte futuro a "overnight" quebre com aviso.
+  describe('start > end (janela invertida — hoje trata como dia fechado)', () => {
+    const bh = makeBusinessHours({
+      monday: { isOpen: true, start: '20:00', end: '06:00' },
+    })
+
+    it('10:00 (entre "end" e "start") → valid: false', () => {
+      expect(isWithinBusinessHours(makeDate(WEEK.monday, 10, 0), bh).valid).toBe(false)
+    })
+
+    it('22:00 (depois do "start" 20:00) → valid: false (>= endMinutes 06:00)', () => {
+      expect(isWithinBusinessHours(makeDate(WEEK.monday, 22, 0), bh).valid).toBe(false)
+    })
+
+    it('02:00 (antes do "end" 06:00) → valid: false (< startMinutes 20:00)', () => {
+      expect(isWithinBusinessHours(makeDate(WEEK.monday, 2, 0), bh).valid).toBe(false)
     })
   })
 
@@ -574,5 +599,99 @@ describe('validateAppointmentTime', () => {
       // Deve ser o erro de businessHours (Domingo), não o de indisponibilidade
       expect(result.message).toMatch(/Domingo/i)
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// checkUnavailability — risco de fuso horário (achado 4/5 da auditoria)
+// ---------------------------------------------------------------------------
+// `checkUnavailability` deriva o dia com `date.toISOString().split('T')[0]`
+// (UTC). Perto da meia-noite, em fuso negativo (America/Sao_Paulo = UTC-3),
+// isso "empurra" a data para o dia seguinte e a regra do dia LOCAL deixa de
+// bater. Não reescrevemos a lógica agora (risco alto — ver TODO no código);
+// este teste documenta o comportamento sob o TZ em que a suíte roda.
+
+describe('checkUnavailability — comportamento de fuso perto da meia-noite (DOC)', () => {
+  it('23:30 horário local: a data comparada vem de toISOString() (UTC), podendo divergir do dia local', () => {
+    const localLateNight = new Date(2025, 0, 6, 23, 30) // 06/01/2025 23:30 no fuso local
+    const isoDay = localLateNight.toISOString().split('T')[0]
+
+    const ruleForLocalDay = {
+      id: 'r-tz',
+      startTime: '00:00',
+      endTime: '23:59',
+      dates: ['2025-01-06'], // dia LOCAL do agendamento
+      professionalIds: [] as string[],
+    }
+    const result = checkUnavailability(localLateNight, 'p1', [ruleForLocalDay])
+
+    if (isoDay === '2025-01-06') {
+      // TZ do ambiente = UTC ou fuso positivo: a data bate → bloqueia normalmente
+      expect(result.blocked).toBe(true)
+    } else {
+      // TZ negativo (ex.: America/Sao_Paulo): toISOString vira '2025-01-07' e a
+      // regra do dia local NÃO bloqueia — bug de fuso documentado (// TODO no código)
+      expect(isoDay).toBe('2025-01-07')
+      expect(result.blocked).toBe(false)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isCompleteBusinessHours
+// ---------------------------------------------------------------------------
+
+describe('isCompleteBusinessHours', () => {
+  it('objeto com os 7 dias (cada um com isOpen) → true', () => {
+    expect(isCompleteBusinessHours(makeBusinessHours())).toBe(true)
+  })
+
+  it('null / undefined → false', () => {
+    expect(isCompleteBusinessHours(null)).toBe(false)
+    expect(isCompleteBusinessHours(undefined)).toBe(false)
+  })
+
+  it('objeto vazio {} → false', () => {
+    expect(isCompleteBusinessHours({})).toBe(false)
+  })
+
+  it('objeto parcial (falta domingo) → false', () => {
+    const partial = { ...makeBusinessHours() } as Record<string, unknown>
+    delete partial.sunday
+    expect(isCompleteBusinessHours(partial)).toBe(false)
+  })
+
+  it('dia sem a chave isOpen → false', () => {
+    const bad = { ...makeBusinessHours(), monday: { start: '08:00', end: '18:00' } }
+    expect(isCompleteBusinessHours(bad)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveEffectiveBusinessHours — precedência profissional > empresa
+// ---------------------------------------------------------------------------
+
+describe('resolveEffectiveBusinessHours', () => {
+  const company = makeBusinessHours({ saturday: { isOpen: true, start: '08:00', end: '18:00' } })
+  const professional = makeBusinessHours({ monday: { isOpen: true, start: '08:00', end: '12:00' } })
+
+  it('profissional com os 7 dias configurados → usa o horário do profissional', () => {
+    expect(resolveEffectiveBusinessHours(professional, company)).toBe(professional)
+  })
+
+  it('profissional sem horário (null) → cai no horário da empresa', () => {
+    expect(resolveEffectiveBusinessHours(null, company)).toBe(company)
+  })
+
+  it('profissional com {} → cai no horário da empresa (fallback)', () => {
+    expect(resolveEffectiveBusinessHours({}, company)).toBe(company)
+  })
+
+  it('profissional com objeto parcial → cai no horário da empresa', () => {
+    expect(resolveEffectiveBusinessHours({ monday: professional.monday }, company)).toBe(company)
+  })
+
+  it('nenhum dos dois → retorna null (libera qualquer horário depois)', () => {
+    expect(resolveEffectiveBusinessHours(null, null)).toBeNull()
   })
 })

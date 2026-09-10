@@ -4,7 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
+import { checkUnavailability, type UnavailabilityRule } from "@/lib/businessHours";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
+
+const ACTIVE_APPOINTMENT_STATUSES = ["SCHEDULED", "CONFIRMED", "PENDING_APPROVAL"] as const;
 
 // Schema de validação
 const createRuleSchema = z.object({
@@ -31,7 +35,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const professionalId = searchParams.get("professionalId");
 
-    const where: any = { companyId: user.companyId };
+    const where: Prisma.UnavailabilityRuleWhereInput = { companyId: user.companyId };
 
     // Filtrar por profissional se especificado
     if (professionalId) {
@@ -102,6 +106,51 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+    }
+
+    // CONFLITO: não deixar bloquear a agenda "por cima" de agendamentos já
+    // marcados — o cliente apareceria num horário que a agenda mostra como
+    // fechado. Segue o padrão de 409 já usado no projeto para FK/registros
+    // vinculados. A checagem reusa `checkUnavailability` (a MESMA lógica da
+    // validação em POST /api/appointments), então o pré-check bate exatamente
+    // com o que seria bloqueado depois.
+    const sortedDates = [...dates].sort();
+    const rangeStart = new Date(`${sortedDates[0]}T00:00:00.000Z`);
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - 1);
+    const rangeEnd = new Date(`${sortedDates[sortedDates.length - 1]}T00:00:00.000Z`);
+    rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 2);
+
+    const candidateAppointments = await prisma.appointment.findMany({
+      where: {
+        companyId: user.companyId,
+        status: { in: [...ACTIVE_APPOINTMENT_STATUSES] },
+        date: { gte: rangeStart, lte: rangeEnd },
+        // Regra específica → só os profissionais afetados. Regra geral
+        // (professionalIds vazio) → qualquer profissional da empresa.
+        ...(professionalIds.length > 0 ? { professionalId: { in: professionalIds } } : {}),
+      },
+      select: { id: true, date: true, professionalId: true },
+    });
+
+    const draftRule: UnavailabilityRule = {
+      id: "__precheck__",
+      description,
+      startTime,
+      endTime,
+      dates,
+      professionalIds,
+    };
+    const conflicting = candidateAppointments.filter(
+      (appt) => checkUnavailability(appt.date, appt.professionalId, [draftRule]).blocked
+    );
+
+    if (conflicting.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Existem ${conflicting.length} agendamento(s) ativo(s) neste período. Cancele ou realoque antes de bloquear a agenda.`,
+        },
+        { status: 409 }
+      );
     }
 
     const rule = await prisma.unavailabilityRule.create({

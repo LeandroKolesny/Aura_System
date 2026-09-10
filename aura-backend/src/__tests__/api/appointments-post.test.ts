@@ -10,6 +10,7 @@ vi.mock('@/lib/prisma', () => ({
     patient: { findFirst: vi.fn() },
     procedure: { findFirst: vi.fn() },
     company: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn() },
     unavailabilityRule: { findMany: vi.fn() },
     appointment: { findMany: vi.fn(), create: vi.fn(), count: vi.fn() },
     patientSubscription: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
@@ -24,9 +25,16 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@/lib/apiGuards', () => ({
   checkWriteAccess: vi.fn().mockResolvedValue(null), // null = acesso permitido
 }))
-vi.mock('@/lib/businessHours', () => ({
-  validateAppointmentTime: vi.fn().mockReturnValue({ valid: true }),
-}))
+// Mantém `resolveEffectiveBusinessHours` e helpers REAIS (a precedência
+// profissional > empresa é testada de verdade); só `validateAppointmentTime`
+// é stubado por padrão para não acoplar os testes ao relógio.
+vi.mock('@/lib/businessHours', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/businessHours')>()
+  return {
+    ...actual,
+    validateAppointmentTime: vi.fn().mockReturnValue({ valid: true }),
+  }
+})
 vi.mock('@/lib/calendarSync', () => ({
   pushAppointmentToCalendar: vi.fn().mockResolvedValue(undefined),
 }))
@@ -95,6 +103,7 @@ beforeEach(() => {
   vi.mocked(checkWriteAccess).mockResolvedValue(null)
   vi.mocked(validateAppointmentTime).mockReturnValue({ valid: true })
   vi.mocked(prisma.company.findUnique).mockResolvedValue({ businessHours: {} } as never)
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({ businessHours: null } as never) // profissional sem horário próprio
   vi.mocked(prisma.unavailabilityRule.findMany).mockResolvedValue([])
   vi.mocked(prisma.appointment.findMany).mockResolvedValue([]) // sem conflito
   vi.mocked(prisma.patient.findFirst).mockResolvedValue(MOCK_PATIENT)
@@ -252,6 +261,62 @@ describe('POST /api/appointments', () => {
   it('registra log de atividade ao criar agendamento', async () => {
     await POST(makeRequest(VALID_BODY))
     expect(prisma.activity.create).toHaveBeenCalledOnce()
+  })
+
+  // ── Horário INDIVIDUAL do profissional tem precedência sobre o da empresa ──
+  // (bug ALTO da auditoria: user.businessHours nunca era lido em POST /api/appointments)
+  describe('businessHours do profissional (precedência sobre a empresa)', () => {
+    const DAY_0818 = { isOpen: true, start: '08:00', end: '18:00' }
+    const DAY_0812 = { isOpen: true, start: '08:00', end: '12:00' }
+    const DAY_CLOSED = { isOpen: false, start: '00:00', end: '00:00' }
+    const companyHours = {
+      monday: DAY_0818, tuesday: DAY_0818, wednesday: DAY_0818, thursday: DAY_0818,
+      friday: DAY_0818, saturday: DAY_CLOSED, sunday: DAY_CLOSED,
+    }
+    const professionalHours = {
+      monday: DAY_0812, tuesday: DAY_0812, wednesday: DAY_0812, thursday: DAY_0812,
+      friday: DAY_0812, saturday: DAY_CLOSED, sunday: DAY_CLOSED,
+    }
+    // Próxima segunda-feira às 15:00 (horário local, determinístico) → sempre > 30min no futuro
+    const nextMonday15h = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + (((8 - d.getDay()) % 7) || 7))
+      d.setHours(15, 0, 0, 0)
+      return d.toISOString()
+    })()
+
+    beforeEach(async () => {
+      const real = await vi.importActual<typeof import('@/lib/businessHours')>('@/lib/businessHours')
+      vi.mocked(validateAppointmentTime).mockImplementation(real.validateAppointmentTime)
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({ businessHours: companyHours } as never)
+    })
+
+    it('agendamento às 15h é REJEITADO pelo horário do profissional (08:00–12:00), mesmo com a empresa aberta até 18h', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ businessHours: professionalHours } as never)
+
+      const res = await POST(makeRequest({ ...VALID_BODY, date: nextMonday15h }))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.code).toBe('INVALID_TIME')
+      expect(prisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: PROFESSIONAL_ID }, select: { businessHours: true } })
+      )
+    })
+
+    it('profissional SEM horário próprio → cai no horário da empresa (08:00–18:00) e o agendamento às 15h passa (201)', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ businessHours: null } as never)
+
+      const res = await POST(makeRequest({ ...VALID_BODY, date: nextMonday15h }))
+      expect(res.status).toBe(201)
+    })
+
+    it('profissional com businessHours {} → também cai no fallback da empresa (201)', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ businessHours: {} } as never)
+
+      const res = await POST(makeRequest({ ...VALID_BODY, date: nextMonday15h }))
+      expect(res.status).toBe(201)
+    })
   })
 
   // Teste de caracterização (documenta comportamento atual, não é bug confirmado):

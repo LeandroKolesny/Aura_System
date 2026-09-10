@@ -287,6 +287,60 @@ describe('PUT /api/companies/[id] — lastMarketingSentAt (campanha de retençã
   })
 })
 
+describe('PUT /api/companies/[id] — validação de businessHours (abertura < fechamento + 7 dias)', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
+  })
+
+  it('rejeita (400) dia aberto com fechamento antes da abertura (start >= end)', async () => {
+    const res = await PUT(
+      makePutRequest({
+        businessHours: { ...VALID_BUSINESS_HOURS, monday: { isOpen: true, start: '18:00', end: '08:00' } },
+      }),
+      makeParams('c1')
+    )
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita (400) dia aberto com start igual a end', async () => {
+    const res = await PUT(
+      makePutRequest({
+        businessHours: { ...VALID_BUSINESS_HOURS, tuesday: { isOpen: true, start: '09:00', end: '09:00' } },
+      }),
+      makeParams('c1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('aceita dia FECHADO com start >= end (ordem ignorada quando isOpen: false)', async () => {
+    const res = await PUT(
+      makePutRequest({
+        businessHours: { ...VALID_BUSINESS_HOURS, sunday: { isOpen: false, start: '23:00', end: '00:00' } },
+      }),
+      makeParams('c1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('rejeita (400) businessHours parcial (faltando um dia — schema não é .partial())', async () => {
+    const { sunday, ...semDomingo } = VALID_BUSINESS_HOURS
+    const res = await PUT(makePutRequest({ businessHours: semDomingo }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('aceita e persiste um businessHours válido com os 7 dias', async () => {
+    const res = await PUT(makePutRequest({ businessHours: VALID_BUSINESS_HOURS }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ businessHours: VALID_BUSINESS_HOURS }) })
+    )
+  })
+})
+
 describe('PUT /api/companies/[id] — .strict() bloqueia campos sensíveis fora do schema', () => {
   beforeEach(() => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)

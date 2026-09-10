@@ -5,12 +5,7 @@ import { Prisma } from "@prisma/client";
 import { cpf, cnpj as cnpjValidator } from "cpf-cnpj-validator";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
-
-const dayHoursSchema = z.object({
-  isOpen: z.boolean(),
-  start: z.string().regex(/^\d{2}:\d{2}$/),
-  end: z.string().regex(/^\d{2}:\d{2}$/),
-});
+import { businessHoursSchema } from "@/lib/validations/businessHours";
 
 // Logo é enviado pelo frontend (handleLogoUpload em Settings.tsx) como data URL
 // base64 da imagem — não como URL hospedada. O schema antigo exigia
@@ -66,15 +61,9 @@ const updateCompanySchema = z.object({
   targetKids: z.boolean().optional(),
   onboardingCompleted: z.boolean().optional(),
   paymentMethods: z.array(z.string().max(30)).max(10).optional(),
-  businessHours: z.object({
-    monday: dayHoursSchema,
-    tuesday: dayHoursSchema,
-    wednesday: dayHoursSchema,
-    thursday: dayHoursSchema,
-    friday: dayHoursSchema,
-    saturday: dayHoursSchema,
-    sunday: dayHoursSchema,
-  }).optional(),
+  // Horário de funcionamento: os 7 dias, formato HH:mm e abertura < fechamento
+  // por dia aberto (schema compartilhado em @/lib/validations/businessHours).
+  businessHours: businessHoursSchema.optional(),
   onlineBookingConfig: z.record(z.unknown()).optional(),
   layoutConfig: z.record(z.unknown()).optional(),
   // Alias para socialMedia enviado pelo frontend
