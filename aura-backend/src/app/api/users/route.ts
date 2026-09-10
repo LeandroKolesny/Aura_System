@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
+import { createUserSchema } from "@/lib/validations/user";
 import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
@@ -94,7 +95,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
-    const body = await request.json();
+    const rawBody = await request.json();
+    const validation = createUserSchema.safeParse(rawBody);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: "Dados inválidos", details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
     const {
       name,
       email,
@@ -106,15 +114,8 @@ export async function POST(request: NextRequest) {
       commissionRate,
       fixedSalary,
       businessHours,
-      password
-    } = body;
-
-    if (!name || !email) {
-      return NextResponse.json(
-        { error: "Nome e email são obrigatórios" },
-        { status: 400 }
-      );
-    }
+      password,
+    } = validation.data;
 
     // Verificar se email já existe
     const existingUser = await prisma.user.findUnique({
@@ -150,9 +151,18 @@ export async function POST(request: NextRequest) {
       'FIXED': 'FIXED', 'COMMISSION': 'COMMISSION', 'MIXED': 'MIXED',
     };
 
-    const mappedRole = roleMap[role] || 'ESTHETICIAN';
-    const mappedContract = contractMap[contractType] || 'PJ';
-    const mappedRemuneration = remunerationMap[remunerationType] || 'COMMISSION';
+    const mappedRole = roleMap[role || 'ESTHETICIAN'] || 'ESTHETICIAN';
+
+    // SECURITY: só um OWNER pode criar outro OWNER. Sem isso, um ADMIN
+    // poderia enviar role: 'OWNER' no corpo e escalar privilégio.
+    if (mappedRole === 'OWNER' && authUser.role !== 'OWNER') {
+      return NextResponse.json(
+        { error: "Apenas um proprietário pode criar outro proprietário" },
+        { status: 403 }
+      );
+    }
+    const mappedContract = contractMap[contractType ?? ''] || 'PJ';
+    const mappedRemuneration = remunerationMap[remunerationType ?? ''] || 'COMMISSION';
 
     const user = await prisma.user.create({
       data: {
@@ -163,9 +173,9 @@ export async function POST(request: NextRequest) {
         title,
         contractType: mappedContract as any,
         remunerationType: mappedRemuneration as any,
-        commissionRate: commissionRate ? parseFloat(commissionRate) : null,
-        fixedSalary: fixedSalary ? parseFloat(fixedSalary) : null,
-        businessHours,
+        commissionRate: commissionRate ?? null,
+        fixedSalary: fixedSalary ?? null,
+        businessHours: businessHours ?? undefined,
         password: hashedPassword,
         companyId: authUser.companyId,
         isActive: true,

@@ -170,4 +170,62 @@ describe('POST /api/users', () => {
       expect.objectContaining({ data: expect.objectContaining({ password: 'hashed-password' }) })
     )
   })
+
+  // SEGURANÇA: antes o POST só fazia parseFloat sem limite nenhum — dava pra
+  // criar profissional com comissão negativa ou >100%, e o relatório de
+  // comissões usava esse valor sem clamping (comissão 5x a receita).
+  it('rejeita commissionRate negativo (400)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    const res = await POST(makePostRequest({ name: 'Novo', email: 'n@x.com', commissionRate: -10 }))
+    expect(res.status).toBe(400)
+    expect(prisma.user.create).not.toHaveBeenCalled()
+  })
+
+  it('rejeita commissionRate acima de 100 (400)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    const res = await POST(makePostRequest({ name: 'Novo', email: 'n@x.com', commissionRate: 150 }))
+    expect(res.status).toBe(400)
+    expect(prisma.user.create).not.toHaveBeenCalled()
+  })
+
+  it('rejeita fixedSalary negativo (400)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    const res = await POST(makePostRequest({ name: 'Novo', email: 'n@x.com', fixedSalary: -500 }))
+    expect(res.status).toBe(400)
+    expect(prisma.user.create).not.toHaveBeenCalled()
+  })
+
+  it('aceita commissionRate 50 e fixedSalary 0 (limites válidos) → 201', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.create).mockResolvedValue({ id: 'new-u' } as never)
+    const res = await POST(makePostRequest({ name: 'Novo', email: 'n@x.com', commissionRate: 50, fixedSalary: 0 }))
+    expect(res.status).toBe(201)
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ commissionRate: 50, fixedSalary: 0 }) })
+    )
+  })
+
+  // SEGURANÇA: um ADMIN não pode escalar privilégio enviando role: 'OWNER'.
+  it('bloqueia ADMIN tentando criar outro OWNER (403, sem criar)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    const res = await POST(makePostRequest({ name: 'Novo', email: 'n@x.com', role: 'OWNER' }))
+    expect(res.status).toBe(403)
+    expect(prisma.user.create).not.toHaveBeenCalled()
+  })
+
+  it('permite OWNER criar outro OWNER', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue({ ...OWNER, companyId: 'c1' } as never)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.create).mockResolvedValue({ id: 'new-owner' } as never)
+    const res = await POST(makePostRequest({ name: 'Novo Dono', email: 'dono@x.com', role: 'OWNER' }))
+    expect(res.status).toBe(201)
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ role: 'OWNER' }) })
+    )
+  })
 })

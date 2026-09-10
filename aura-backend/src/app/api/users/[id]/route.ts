@@ -83,6 +83,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE - Desativar profissional (soft delete — preserva histórico de agendamentos)
+//
+// NOTA (efeitos conhecidos, ainda sem tratamento — escopo de produto):
+//  - não checa agendamentos futuros vinculados ao profissional antes de
+//    desativar; um agendamento marcado com esse profissional continua no
+//    banco apontando pra alguém inativo.
+//  - profissional inativo sai do relatório de comissões
+//    (GET /api/reports/commissions filtra isActive: true), mesmo tendo tido
+//    atendimentos concluídos e pagos no período consultado.
+//  Reativação é feita via PUT /api/users/[id] com { isActive: true }
+//  (o schema já aceita), mas ainda não há UI pra isso.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const authUser = await getAuthUser(request);

@@ -110,6 +110,25 @@ describe('GET /api/reports/commissions', () => {
     expect(body.commissions[0].totalEarnings).toBe(1100)
   })
 
+  it('remunerationType desconhecido/ausente: totalEarnings = 0 explícito, sem quebrar, e loga um aviso', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 'prof1', name: 'Profissional A', commissionRate: 20, remunerationType: 'SOMETHING_UNKNOWN', fixedSalary: 1000 },
+      { id: 'prof2', name: 'Profissional B', commissionRate: 10, remunerationType: null, fixedSalary: 2000 },
+    ] as never)
+    vi.mocked(prisma.appointment.findMany).mockResolvedValue([{ id: 'a1', price: 500 }] as never)
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.commissions[0].totalEarnings).toBe(0)
+    expect(body.commissions[1].totalEarnings).toBe(0)
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
   it('filtra por professionalId quando informado', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     await GET(makeRequest('?startDate=2026-01-01&endDate=2026-01-31&professionalId=prof1'))

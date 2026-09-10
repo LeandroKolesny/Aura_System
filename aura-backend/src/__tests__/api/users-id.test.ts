@@ -99,6 +99,19 @@ describe('PUT /api/users/[id]', () => {
     )
   })
 
+  it('reativa um profissional desativado com { isActive: true }', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.user.findFirst).mockResolvedValue({ ...EXISTING_PROF, isActive: false } as never)
+    vi.mocked(prisma.user.update).mockResolvedValue({ ...EXISTING_PROF, isActive: true } as never)
+
+    const res = await PUT(makePutRequest({ isActive: true }), makeParams())
+
+    expect(res.status).toBe(200)
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1' }, data: expect.objectContaining({ isActive: true }) })
+    )
+  })
+
   it('retorna 500 e mensagem genérica quando o banco falha inesperadamente', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     vi.mocked(prisma.user.findFirst).mockResolvedValue(EXISTING_PROF as never)

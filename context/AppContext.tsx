@@ -196,7 +196,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // de string em vez de soma numérica, gerando totais absurdos como "151180%").
 // Usar SEMPRE essa função ao inserir/atualizar um profissional no estado —
 // nunca espalhar o objeto cru da API direto.
-function normalizeProfessional<T extends Partial<ApiUser_Extended>>(u: T) {
+export function normalizeProfessional<T extends Partial<ApiUser_Extended>>(u: T) {
   const remunerationMap: Record<string, string> = {
     'COMMISSION': 'comissao', 'FIXED': 'fixo', 'MIXED': 'misto',
     'commission': 'comissao', 'fixed': 'fixo', 'mixed': 'misto'

@@ -4,7 +4,7 @@
 // api/users-id.test.ts, mas o schema em si — especialmente os aliases de
 // remunerationType — não tinha teste dedicado até agora).
 import { describe, it, expect } from 'vitest'
-import { updateUserSchema } from '@/lib/validations/user'
+import { updateUserSchema, createUserSchema } from '@/lib/validations/user'
 
 describe('updateUserSchema', () => {
   it('objeto vazio → sucesso (update parcial)', () => {
@@ -91,5 +91,47 @@ describe('updateUserSchema', () => {
 
   it('isActive boolean → sucesso', () => {
     expect(updateUserSchema.safeParse({ isActive: false }).success).toBe(true)
+  })
+})
+
+describe('createUserSchema (POST /api/users)', () => {
+  const base = { name: 'Fulano de Tal', email: 'fulano@x.com' }
+
+  it('name e email são obrigatórios', () => {
+    expect(createUserSchema.safeParse({ email: 'x@x.com' }).success).toBe(false)
+    expect(createUserSchema.safeParse({ name: 'Fulano' }).success).toBe(false)
+  })
+
+  it('name com menos de 3 caracteres → falha', () => {
+    expect(createUserSchema.safeParse({ ...base, name: 'Ab' }).success).toBe(false)
+  })
+
+  it('commissionRate negativo → falha', () => {
+    expect(createUserSchema.safeParse({ ...base, commissionRate: -1 }).success).toBe(false)
+  })
+
+  it('commissionRate acima de 100 → falha', () => {
+    expect(createUserSchema.safeParse({ ...base, commissionRate: 101 }).success).toBe(false)
+  })
+
+  it('commissionRate dentro de 0-100 → sucesso', () => {
+    expect(createUserSchema.safeParse({ ...base, commissionRate: 0 }).success).toBe(true)
+    expect(createUserSchema.safeParse({ ...base, commissionRate: 100 }).success).toBe(true)
+  })
+
+  it('fixedSalary negativo → falha; zero e positivo → sucesso', () => {
+    expect(createUserSchema.safeParse({ ...base, fixedSalary: -100 }).success).toBe(false)
+    expect(createUserSchema.safeParse({ ...base, fixedSalary: 0 }).success).toBe(true)
+    expect(createUserSchema.safeParse({ ...base, fixedSalary: 3000 }).success).toBe(true)
+  })
+
+  it('commissionRate/fixedSalary null → sucesso (opcional)', () => {
+    expect(createUserSchema.safeParse({ ...base, commissionRate: null, fixedSalary: null }).success).toBe(true)
+  })
+
+  it('commissionRate como string numérica é coagida ("50" → 50)', () => {
+    const r = createUserSchema.safeParse({ ...base, commissionRate: '50' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.commissionRate).toBe(50)
   })
 })

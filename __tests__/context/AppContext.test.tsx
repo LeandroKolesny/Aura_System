@@ -57,6 +57,7 @@ vi.mock('../../services/api', () => ({
   },
   usersApi: {
     list: vi.fn(),
+    create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
     resetPassword: vi.fn(),
@@ -95,7 +96,7 @@ vi.mock('../../services/installmentsApi', () => ({
   installmentsApi: { markInstallmentPaid: vi.fn() },
 }));
 
-import { AppProvider, useApp } from '../../context/AppContext';
+import { AppProvider, useApp, normalizeProfessional } from '../../context/AppContext';
 import { authApi, patientsApi, appointmentsApi, photosApi, usersApi, inventoryApi, companiesApi, ticketsApi, systemAlertsApi, unavailabilityApi, leadsApi, notificationsApi, transactionsApi, proceduresApi, plansApi } from '../../services/api';
 import { installmentsApi } from '../../services/installmentsApi';
 
@@ -349,6 +350,77 @@ describe('AppContext > changeAppointmentStatus (confirmar/cancelar/concluir agen
     });
 
     expect(outcome).toEqual({ success: false, error: 'Transição de CANCELED para CONFIRMED não permitida' });
+  });
+});
+
+describe('normalizeProfessional (normalização de dados vindos da API)', () => {
+  it('contractType ausente cai no fallback "pj"', () => {
+    const out = normalizeProfessional({ id: 'p1', name: 'X' });
+    expect(out.contractType).toBe('pj');
+  });
+
+  it('contractType "CLT" (maiúsculo, como o Prisma envia) vira "clt"', () => {
+    const out = normalizeProfessional({ id: 'p1', name: 'X', contractType: 'CLT' });
+    expect(out.contractType).toBe('clt');
+  });
+
+  it('remunerationType ausente cai no fallback "comissao"', () => {
+    const out = normalizeProfessional({ id: 'p1', name: 'X' });
+    expect(out.remunerationType).toBe('comissao');
+  });
+
+  it('remunerationType do enum ("FIXED"/"MIXED") vira minúsculo PT-BR', () => {
+    expect(normalizeProfessional({ id: 'p1', name: 'X', remunerationType: 'FIXED' }).remunerationType).toBe('fixo');
+    expect(normalizeProfessional({ id: 'p1', name: 'X', remunerationType: 'MIXED' }).remunerationType).toBe('misto');
+  });
+
+  it('commissionRate/fixedSalary ausentes viram 0 (nunca NaN)', () => {
+    const out = normalizeProfessional({ id: 'p1', name: 'X' });
+    expect(out.commissionRate).toBe(0);
+    expect(out.fixedSalary).toBe(0);
+    expect(Number.isNaN(out.commissionRate)).toBe(false);
+    expect(Number.isNaN(out.fixedSalary)).toBe(false);
+  });
+
+  it('commissionRate como string do Prisma ("45.00") vira number 45', () => {
+    const out = normalizeProfessional({ id: 'p1', name: 'X', commissionRate: '45.00' });
+    expect(out.commissionRate).toBe(45);
+    expect(typeof out.commissionRate).toBe('number');
+  });
+});
+
+describe('AppContext > addProfessional', () => {
+  it('sucesso: chama usersApi.create e adiciona o profissional normalizado ao estado', async () => {
+    const { result } = await renderReadyApp();
+    vi.mocked(usersApi.create).mockResolvedValue({
+      success: true,
+      data: { user: { id: 'np1', name: 'Nova Prof', commissionRate: '20', remunerationType: 'MIXED', contractType: 'CLT' } },
+    } as never);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      outcome = await result.current.addProfessional({ name: 'Nova Prof', email: 'nova@x.com' });
+    });
+
+    expect(usersApi.create).toHaveBeenCalled();
+    expect(outcome?.success).toBe(true);
+    const created = result.current.professionals.find(p => p.id === 'np1')!;
+    expect(created).toBeDefined();
+    expect(created.commissionRate).toBe(20); // number, não string
+    expect(created.remunerationType).toBe('misto'); // minúsculo PT-BR
+    expect(created.contractType).toBe('clt');
+  });
+
+  it('REGRESSÃO: propaga erro da API em vez de fingir sucesso', async () => {
+    const { result } = await renderReadyApp();
+    vi.mocked(usersApi.create).mockResolvedValue({ success: false, error: 'A taxa de comissão não pode passar de 100%' } as never);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      outcome = await result.current.addProfessional({ name: 'X', email: 'x@x.com', commissionRate: 150 });
+    });
+
+    expect(outcome).toEqual({ success: false, error: 'A taxa de comissão não pode passar de 100%' });
   });
 });
 

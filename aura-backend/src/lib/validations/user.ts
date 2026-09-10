@@ -46,3 +46,35 @@ export const updateUserSchema = z.object({
 });
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+
+// Schema para CRIAR um profissional (POST /api/users). name/email obrigatórios;
+// os campos de enum (role/contractType/remunerationType) continuam sendo
+// mapeados manualmente na rota via os mesmos maps de alias, então aqui só
+// aceitamos string e deixamos o mapeamento pra rota — o essencial deste
+// schema é travar os campos numéricos (commissionRate 0-100, fixedSalary >= 0),
+// que antes passavam direto por parseFloat sem nenhum limite.
+export const createUserSchema = z.object({
+  name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres").max(100),
+  email: z.string().email("E-mail inválido").max(100),
+  phone: z.string().max(20).optional().nullable(),
+  role: z.string().optional(),
+  title: z.string().max(100).optional().nullable(),
+  contractType: z.string().optional().nullable(),
+  remunerationType: z.string().optional().nullable(),
+  commissionRate: z.coerce
+    .number({ message: "Taxa de comissão inválida" })
+    .min(0, "A taxa de comissão não pode ser negativa")
+    .max(100, "A taxa de comissão não pode passar de 100%")
+    .optional()
+    .nullable(),
+  fixedSalary: z.coerce
+    .number({ message: "Salário fixo inválido" })
+    .min(0, "O salário fixo não pode ser negativo")
+    .optional()
+    .nullable(),
+  businessHours: z.record(z.string(), z.unknown()).optional().nullable(),
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres").optional(),
+});
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+

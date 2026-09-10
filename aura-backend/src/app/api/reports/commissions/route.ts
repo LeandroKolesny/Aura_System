@@ -125,6 +125,14 @@ export async function GET(request: NextRequest) {
         case "MIXED":
           totalEarnings = fixedSalary + commissionAmount;
           break;
+        default:
+          // Tipo de remuneração ausente/desconhecido: não some nada em
+          // silêncio — registra o problema pra ficar visível (regra do
+          // CLAUDE.md: nunca falhar sem avisar).
+          console.warn(
+            `[reports/commissions] remunerationType desconhecido para o profissional ${prof.id} (${prof.name}): ${String(prof.remunerationType)} — totalEarnings tratado como 0`
+          );
+          totalEarnings = 0;
       }
 
       commissions.push({
