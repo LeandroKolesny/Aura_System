@@ -253,4 +253,20 @@ describe('POST /api/appointments', () => {
     await POST(makeRequest(VALID_BODY))
     expect(prisma.activity.create).toHaveBeenCalledOnce()
   })
+
+  // Teste de caracterização (documenta comportamento atual, não é bug confirmado):
+  // checkScheduleConflict verifica apenas professionalId, nunca roomId. Dois profissionais
+  // diferentes podem ser agendados na mesma sala/horário sem que o backend acuse conflito.
+  it('caracterização: verificação de conflito ignora roomId — filtra só por professionalId', async () => {
+    vi.mocked(prisma.appointment.findMany).mockResolvedValue([]) // outro profissional na sala não é retornado
+    const res = await POST(makeRequest({ ...VALID_BODY, roomId: 1 }))
+    expect(res.status).toBe(201)
+    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ professionalId: PROFESSIONAL_ID }),
+      })
+    )
+    const firstCall = vi.mocked(prisma.appointment.findMany).mock.calls[0][0] as { where: Record<string, unknown> }
+    expect(Object.keys(firstCall.where)).not.toContain('roomId')
+  })
 })

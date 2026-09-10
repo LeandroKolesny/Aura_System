@@ -142,6 +142,17 @@ describe('PATCH /api/appointments/[id]/status', () => {
     expect(prisma.appointment.update).not.toHaveBeenCalled()
   })
 
+  it('documenta a regra: CONFIRMED → COMPLETED é a única origem aceita para COMPLETED (200)', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(MOCK_APPOINTMENT_CONFIRMED)
+    const res = await PATCH(makeRequest({ status: 'COMPLETED' }), ROUTE_PARAMS)
+    expect(res.status).toBe(200)
+    expect(prisma.appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETED', stockDeducted: true }),
+      })
+    )
+  })
+
   it('COMPLETED deduz estoque quando stockDeducted=false', async () => {
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(MOCK_APPOINTMENT_CONFIRMED)
     vi.mocked(prisma.procedureSupply.findMany).mockResolvedValue([

@@ -1365,10 +1365,16 @@ export const CheckoutModal: React.FC<{ appointment: Appointment; onClose: () => 
   const handleComplete = async () => {
     setIsProcessing(true);
     try {
-      await processPayment(appointment, method, installments);
+      const result = await processPayment(appointment, method, installments);
+      if (!result.success) {
+        showCheckoutAlert(result.error ?? 'Erro ao processar o pagamento. Tente novamente.', { variant: 'danger' });
+        setIsProcessing(false);
+        return;
+      }
       setPaymentDone({ method, installments, amountPerInstallment: appointment.price / installments });
     } catch (error) {
       console.error('Erro ao processar pagamento:', error);
+      showCheckoutAlert('Erro inesperado ao processar o pagamento. Tente novamente.', { variant: 'danger' });
       setIsProcessing(false);
     }
   };

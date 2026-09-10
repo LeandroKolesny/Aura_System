@@ -261,4 +261,39 @@ describe('POST /api/appointments/[id]/pay', () => {
     const incomeCalls = calls.filter(c => (c[0].data as { type: string }).type === 'INCOME')
     expect(incomeCalls).toHaveLength(12)
   })
+
+  it('rejeita pagamento de agendamento CANCELED com 409 (não conclui nem deduz estoque)', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+      ...MOCK_APPOINTMENT,
+      status: 'CANCELED',
+    } as never)
+    const res = await POST(makeRequest({ paymentMethod: 'PIX' }), ROUTE_PARAMS)
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.error).toMatch(/cancelad/i)
+    expect(prisma.appointment.update).not.toHaveBeenCalled()
+    expect(prisma.transaction.create).not.toHaveBeenCalled()
+    expect(prisma.inventoryItem.update).not.toHaveBeenCalled()
+    expect(prisma.stockMovement.create).not.toHaveBeenCalled()
+  })
+
+  it('não deduz estoque de novo quando stockDeducted=true (já concluído via PATCH /status)', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+      ...MOCK_APPOINTMENT,
+      stockDeducted: true,
+      procedure: { id: PROCEDURE_ID, name: 'Limpeza', cost: 20, supplies: [] },
+    } as never)
+    vi.mocked(prisma.procedureSupply.findMany).mockResolvedValue([
+      { inventoryItemId: 'item-001', quantityUsed: 3 },
+    ] as never)
+    const res = await POST(makeRequest({ paymentMethod: 'PIX' }), ROUTE_PARAMS)
+    expect(res.status).toBe(200)
+    const calls = vi.mocked(prisma.transaction.create).mock.calls
+    // O pagamento (RECEITA) continua sendo registrado normalmente...
+    expect(calls.some(c => (c[0].data as { type: string }).type === 'INCOME')).toBe(true)
+    // ...mas estoque e DESPESA de insumos NÃO são lançados uma segunda vez.
+    expect(prisma.inventoryItem.update).not.toHaveBeenCalled()
+    expect(prisma.stockMovement.create).not.toHaveBeenCalled()
+    expect(calls.some(c => (c[0].data as { type: string }).type === 'EXPENSE')).toBe(false)
+  })
 })

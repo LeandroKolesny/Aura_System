@@ -54,6 +54,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Agendamento já foi pago" }, { status: 400 });
     }
 
+    // Agendamento cancelado é estado final: não pode ser pago, concluído nem ter estoque deduzido.
+    // Espelha a máquina de estados de PATCH /status (CANCELED sem transições permitidas).
+    if (appointment.status === "CANCELED") {
+      return NextResponse.json(
+        { error: "Agendamento cancelado não pode ser pago." },
+        { status: 409 }
+      );
+    }
+
+    // Se o atendimento já foi concluído via PATCH /status, o estoque e a despesa de insumos
+    // já foram lançados. Evita dedução/lançamento em duplicidade ao registrar o pagamento.
+    const stockAlreadyDeducted = appointment.stockDeducted === true;
+
     const body = await request.json();
     const { paymentMethod, installments: installmentCount = 1 } = body;
     const numInstallments = Math.max(1, Math.min(12, Number(installmentCount) || 1));
@@ -113,7 +126,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // 3. Criar transação de DESPESA para custo dos insumos (se houver)
     let expenseTransaction = null;
 
-    if (procedureCost > 0) {
+    if (procedureCost > 0 && !stockAlreadyDeducted) {
       expenseTransaction = await prisma.transaction.create({
         data: {
           companyId: user.companyId,
@@ -143,27 +156,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // 4. Baixar estoque dos insumos
-    const supplies = await prisma.procedureSupply.findMany({
-      where: { procedureId: appointment.procedureId },
-    });
-
+    // 4. Baixar estoque dos insumos (apenas se ainda não foi deduzido via PATCH /status)
     const updatedInventory = [];
-    for (const supply of supplies) {
-      const updatedItem = await prisma.inventoryItem.update({
-        where: { id: supply.inventoryItemId },
-        data: { currentStock: { decrement: supply.quantityUsed } },
+    if (!stockAlreadyDeducted) {
+      const supplies = await prisma.procedureSupply.findMany({
+        where: { procedureId: appointment.procedureId },
       });
-      updatedInventory.push(updatedItem);
 
-      await prisma.stockMovement.create({
-        data: {
-          inventoryItemId: supply.inventoryItemId,
-          quantity: supply.quantityUsed,
-          type: "OUT",
-          reason: `Pagamento - ${appointment.procedure.name}`,
-        },
-      });
+      for (const supply of supplies) {
+        const updatedItem = await prisma.inventoryItem.update({
+          where: { id: supply.inventoryItemId },
+          data: { currentStock: { decrement: supply.quantityUsed } },
+        });
+        updatedInventory.push(updatedItem);
+
+        await prisma.stockMovement.create({
+          data: {
+            inventoryItemId: supply.inventoryItemId,
+            quantity: supply.quantityUsed,
+            type: "OUT",
+            reason: `Pagamento - ${appointment.procedure.name}`,
+          },
+        });
+      }
     }
 
     // 5. Atualizar última visita do paciente
