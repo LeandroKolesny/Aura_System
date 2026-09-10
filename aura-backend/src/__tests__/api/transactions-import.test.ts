@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/prisma', () => ({
-  default: { transaction: { create: vi.fn() } },
+  default: { transaction: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() } },
 }))
 vi.mock('@/lib/auth', () => ({ getAuthUser: vi.fn() }))
 vi.mock('@/lib/apiGuards', () => ({ checkWriteAccess: vi.fn().mockResolvedValue(null) }))
@@ -27,6 +27,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getAuthUser).mockResolvedValue(MOCK_USER as never)
   vi.mocked(prisma.transaction.create).mockResolvedValue({ id: 't1' } as never)
+  vi.mocked(prisma.transaction.update).mockResolvedValue({ id: 't1' } as never)
+  // Sem duplicata por padrão → sempre cria.
+  vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null)
 })
 
 describe('POST /api/transactions/import', () => {
@@ -133,5 +136,28 @@ describe('POST /api/transactions/import', () => {
 
     expect(body.imported).toBe(2)
     expect(body.errors).toHaveLength(1)
+  })
+
+  it('reimportar a mesma planilha não duplica: o lançamento existente conta como "updated"', async () => {
+    const csv = 'descricao,valor,tipo,data\nAluguel do espaço,2000,despesa,01/03/2026'
+
+    // 1ª importação: não há duplicata → cria
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce(null)
+    const res1 = await POST(makeCSV(csv))
+    const b1 = await res1.json()
+    expect(b1.imported).toBe(1)
+    expect(b1.updated).toBe(0)
+    expect(prisma.transaction.create).toHaveBeenCalledTimes(1)
+
+    // 2ª importação: a chave natural (companyId+descrição+tipo+valor+data) já existe → update
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce({ id: 'tx-existente' } as never)
+    const res2 = await POST(makeCSV(csv))
+    const b2 = await res2.json()
+    expect(b2.imported).toBe(0)
+    expect(b2.updated).toBe(1)
+    expect(prisma.transaction.create).toHaveBeenCalledTimes(1) // não criou de novo
+    expect(prisma.transaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'tx-existente' } })
+    )
   })
 })

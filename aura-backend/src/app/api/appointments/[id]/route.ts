@@ -166,6 +166,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Agendamento não encontrado" }, { status: 404 });
     }
 
+    // TODO(financeiro): cancelar um agendamento NÃO estorna nem sinaliza as transações
+    // vinculadas. Se o agendamento já estava pago, a receita PAID e as parcelas PENDING
+    // (installmentGroupId) permanecem intactas e seguem aparecendo/cobráveis no Financeiro.
+    // Estorno automático é decisão de produto (gateway de pagamento, política de reembolso)
+    // e foi deixado de fora de propósito — ver
+    // aura-backend/src/__tests__/api/appointments-cancel-with-payment.test.ts (teste de
+    // caracterização que trava o comportamento atual).
     await prisma.appointment.update({
       where: { id },
       data: { status: "CANCELED" },

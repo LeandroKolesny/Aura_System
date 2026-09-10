@@ -69,6 +69,25 @@ describe('GET /api/transactions', () => {
     expect(body.summary).toEqual({ income: 1000, expense: 300, balance: 700 })
   })
 
+  it('summary considera SOMENTE transações PAID (PENDING/OVERDUE ficam de fora)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    // O groupBy da rota já filtra por status PAID; o mock devolve só os totais PAID.
+    // PENDING/OVERDUE existiriam na base mas não entram nesse agregado.
+    vi.mocked(prisma.transaction.groupBy).mockResolvedValue([
+      { type: 'INCOME', _sum: { amount: 500 } },
+      { type: 'EXPENSE', _sum: { amount: 200 } },
+    ] as never)
+
+    const res = await GET(makeGetRequest())
+    const body = await res.json()
+
+    // Contrato: o agregado é calculado com where.status === 'PAID'.
+    expect(prisma.transaction.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: 'PAID' }) })
+    )
+    expect(body.summary).toEqual({ income: 500, expense: 200, balance: 300 })
+  })
+
   it('filtra por intervalo de datas quando informado', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     await GET(makeGetRequest('?startDate=2026-01-01&endDate=2026-01-31'))

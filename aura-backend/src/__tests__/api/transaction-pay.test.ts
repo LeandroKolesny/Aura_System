@@ -73,4 +73,21 @@ describe('PATCH /api/transactions/[id]/pay', () => {
     const res = await PATCH(makeReq(), { params: Promise.resolve({ id: 'tx1' }) })
     expect(res.status).toBe(404)
   })
+
+  it('permite marcar como paga uma transação avulsa (sem installmentGroupId) — comportamento atual, documentado', async () => {
+    // A rota "receber parcela" hoje NÃO exige que a transação seja uma parcela.
+    // Qualquer transação PENDING da empresa pode ser marcada como PAID por aqui.
+    // Este teste trava esse comportamento: se um dia quisermos restringir a parcelas,
+    // a mudança precisa ser deliberada.
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue({
+      id: 'tx1', status: 'PENDING', companyId: 'c1', installmentGroupId: null,
+    } as never)
+    vi.mocked(prisma.transaction.update).mockResolvedValue({ id: 'tx1', status: 'PAID' } as never)
+
+    const res = await PATCH(makeReq(), { params: Promise.resolve({ id: 'tx1' }) })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.success).toBe(true)
+    expect(vi.mocked(prisma.transaction.update).mock.calls[0][0].data.status).toBe('PAID')
+  })
 })

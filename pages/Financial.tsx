@@ -11,6 +11,7 @@ import { KPICard } from '../components/charts/KPICard';
 import ImportCSVModal from '../components/ImportCSVModal';
 import { transactionsApi } from '../services/api';
 import { useDialog } from '../context/DialogContext';
+import * as fin from '../utils/financialCalculations';
 
 interface TransactionDetailData {
   id: string;
@@ -154,92 +155,47 @@ const ClinicFinancial: React.FC = () => {
   }, [transactions, user, appointments]);
 
   // Filtra pelo mês/ano selecionado usando dueDate para parcelas futuras
-  const monthFilteredTransactions = useMemo(() => {
-    return visibleTransactions.filter(t => {
-      const isFutureInstallment = t.type === 'income' && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1;
-      const effectiveDate = isFutureInstallment && t.dueDate ? t.dueDate : t.date;
-      const d = new Date(effectiveDate);
-      return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-    });
-  }, [visibleTransactions, selectedMonth, selectedYear]);
+  const monthFilteredTransactions = useMemo(
+    () => fin.filterByMonth(visibleTransactions, selectedMonth, selectedYear),
+    [visibleTransactions, selectedMonth, selectedYear]
+  );
 
   // Mês anterior para comparação nos KPIs
   const prevMonthFilteredTransactions = useMemo(() => {
     const prevDate = new Date(selectedYear, selectedMonth - 1, 1);
-    const prevMonth = prevDate.getMonth();
-    const prevYear = prevDate.getFullYear();
-    return visibleTransactions.filter(t => {
-      const isFutureInstallment = t.type === 'income' && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1;
-      const effectiveDate = isFutureInstallment && t.dueDate ? t.dueDate : t.date;
-      const d = new Date(effectiveDate);
-      return d.getMonth() === prevMonth && d.getFullYear() === prevYear;
-    });
+    return fin.filterByMonth(visibleTransactions, prevDate.getMonth(), prevDate.getFullYear());
   }, [visibleTransactions, selectedMonth, selectedYear]);
 
   // Agrupar transações por appointmentId para mostrar receita + despesa juntas
-  const groupedTransactions = useMemo(() => {
-    const groups: Record<string, { income?: Transaction; expense?: Transaction; standalone?: Transaction }> = {};
-
-    monthFilteredTransactions.forEach(t => {
-      if (t.appointmentId) {
-        // Parcelas 2-N: cada uma vira linha separada, ordenada pela dueDate (mês futuro)
-        if (t.type === 'income' && t.installments && t.installments > 1 && t.installmentIndex && t.installmentIndex > 1) {
-          groups[`installment_${t.id}`] = { standalone: t };
-          return;
-        }
-        if (!groups[t.appointmentId]) {
-          groups[t.appointmentId] = {};
-        }
-        if (t.type === 'income') {
-          groups[t.appointmentId].income = t;
-        } else {
-          groups[t.appointmentId].expense = t;
-        }
-      } else {
-        // Transações sem appointmentId (despesas avulsas)
-        groups[t.id] = { standalone: t };
-      }
-    });
-
-    // Converter para array e ordenar por data (parcelas usam dueDate para ordenar pelo mês correto)
-    return Object.entries(groups)
-      .map(([key, group]) => ({
-        key,
-        ...group,
-        date: group.standalone?.dueDate || group.standalone?.date || group.income?.date || group.expense?.date || '',
-      }))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [monthFilteredTransactions]);
+  const groupedTransactions = useMemo(
+    () => fin.groupedTransactions(monthFilteredTransactions),
+    [monthFilteredTransactions]
+  );
 
   // Saldo acumulado usa TODAS as transações (não filtradas por mês)
-  const allTimeBalance = visibleTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
+  const allTimeBalance = fin.allTimeBalance(visibleTransactions);
 
   // Parcelas pendentes em aberto (todos os meses futuros)
-  const pendingInstallments = useMemo(() => {
-    return visibleTransactions
-      .filter(t => t.type === 'income' && t.status === 'pending' && t.installmentGroupId)
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-  }, [visibleTransactions]);
+  const pendingInstallments = useMemo(
+    () => fin.pendingInstallments(visibleTransactions),
+    [visibleTransactions]
+  );
 
   // Loading state - usar skeleton
   if (loadingStates.transactions && transactions.length === 0) {
     return <FinancialSkeleton />;
   }
 
-  const totalRevenue = monthFilteredTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
-  const totalCost = monthFilteredTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+  const totalRevenue = fin.totalRevenue(monthFilteredTransactions);
+  const totalCost = fin.totalCost(monthFilteredTransactions);
 
-  const prevRevenue = prevMonthFilteredTransactions.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
-  const prevCost = prevMonthFilteredTransactions.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+  const prevRevenue = fin.totalRevenue(prevMonthFilteredTransactions);
+  const prevCost = fin.totalCost(prevMonthFilteredTransactions);
 
   const prevMonthName = MONTHS_PT[new Date(selectedYear, selectedMonth - 1, 1).getMonth()];
 
-  const calcTrend = (current: number, prev: number) => {
-    if (prev === 0 && current === 0) return undefined;
-    if (prev === 0) return { value: 100, label: `vs ${prevMonthName}` };
-    const pct = Math.round(((current - prev) / prev) * 100);
-    return { value: pct, label: `vs ${prevMonthName}` };
-  };
+  const calcTrend = (current: number, prev: number) =>
+    fin.calcTrend(current, prev, `vs ${prevMonthName}`);
 
   return (
     <div className="space-y-6">

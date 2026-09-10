@@ -134,21 +134,45 @@ export async function POST(request: NextRequest) {
 
       const category = row["categoria"]?.trim() || (type === "INCOME" ? "Receita" : "Despesa");
       const paymentMethod = row["formapagamento"]?.trim() || row["pagamento"]?.trim() || undefined;
+      const resolvedDate = date ?? new Date();
 
       try {
-        await prisma.transaction.create({
-          data: {
-            description,
-            amount,
-            type,
-            status,
-            category,
-            date: date ?? new Date(),
-            paymentMethod: paymentMethod || null,
+        // Deduplicação por chave natural: companyId + descrição + tipo + valor + data.
+        // Reimportar a mesma planilha atualiza o lançamento existente (status, categoria,
+        // forma de pagamento) em vez de duplicá-lo — é isso que alimenta o card
+        // "Atualizados" da UI. Observação: linhas sem coluna "data" usam `new Date()` a
+        // cada execução, então não deduplicam entre importações (esperado).
+        const existing = await prisma.transaction.findFirst({
+          where: {
             companyId: user.companyId!,
+            description,
+            type,
+            amount,
+            date: resolvedDate,
           },
         });
-        result.imported++;
+
+        if (existing) {
+          await prisma.transaction.update({
+            where: { id: existing.id },
+            data: { status, category, paymentMethod: paymentMethod || null },
+          });
+          result.updated++;
+        } else {
+          await prisma.transaction.create({
+            data: {
+              description,
+              amount,
+              type,
+              status,
+              category,
+              date: resolvedDate,
+              paymentMethod: paymentMethod || null,
+              companyId: user.companyId!,
+            },
+          });
+          result.imported++;
+        }
       } catch {
         result.errors.push({ row: rowNum, name: description, reason: "Erro ao salvar no banco de dados" });
       }

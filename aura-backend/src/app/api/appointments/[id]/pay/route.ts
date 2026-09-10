@@ -90,7 +90,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     //   - consultas subsequentes do plano: price = 0
     //   - agendamentos avulsos: price = valor do procedimento
     const installmentGroupId = numInstallments > 1 ? randomUUID() : null;
-    const installmentAmount = Number((Number(appointment.price) / numInstallments).toFixed(2));
+
+    // Divisão de parcelas em centavos inteiros: arredonda a parcela base para baixo
+    // e joga o resíduo (centavos que sobram) na ÚLTIMA parcela — convenção comum de
+    // mercado (a última parcela "fecha a conta"). Garante que sum(parcelas) === price
+    // exatamente, sem perda nem excesso de centavos.
+    const totalCents = Math.round(Number(appointment.price) * 100);
+    const baseCents = Math.floor(totalCents / numInstallments);
+    const remainderCents = totalCents - baseCents * numInstallments;
+    const installmentAmountForIndex = (index: number): number => {
+      const cents = index === numInstallments ? baseCents + remainderCents : baseCents;
+      return cents / 100;
+    };
     const now = new Date();
 
     const incomeTransactions = [];
@@ -105,7 +116,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           description: numInstallments > 1
             ? `Atendimento (${i}/${numInstallments}): ${appointment.procedure.name} - ${appointment.patient.name}`
             : `Atendimento: ${appointment.procedure.name} - ${appointment.patient.name}`,
-          amount: installmentAmount,
+          amount: installmentAmountForIndex(i),
           type: "INCOME",
           category: "Procedimentos",
           status: i === 1 ? "PAID" : "PENDING",

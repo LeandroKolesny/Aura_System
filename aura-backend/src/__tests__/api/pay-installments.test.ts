@@ -136,3 +136,54 @@ describe('POST /api/appointments/[id]/pay — installments', () => {
     expect(due3.getTime()).toBeGreaterThan(due2.getTime())
   })
 })
+
+describe('POST /api/appointments/[id]/pay — arredondamento de parcelas (resíduo na última)', () => {
+  function incomeAmounts(): number[] {
+    return (vi.mocked(prisma.transaction.create).mock.calls as unknown as TxCall[])
+      .filter(([data]) => data.data?.type === 'INCOME')
+      .map(([data]) => Number(data.data.amount))
+  }
+  // Soma exata em centavos inteiros — evita ruído de ponto flutuante.
+  function sumCents(values: number[]): number {
+    return values.reduce((acc, v) => acc + Math.round(v * 100), 0)
+  }
+
+  it('price=100 / installments=3: soma das parcelas === 100, resíduo (1 centavo) na última', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ ...mockAppointment, price: 100 } as never)
+    await POST(makeReq({ paymentMethod: 'credit_card', installments: 3 }), {
+      params: Promise.resolve({ id: 'appt1' }),
+    })
+    const amounts = incomeAmounts()
+    expect(amounts).toHaveLength(3)
+    expect(sumCents(amounts)).toBe(10000)
+    expect(amounts[0]).toBeCloseTo(33.33, 10)
+    expect(amounts[1]).toBeCloseTo(33.33, 10)
+    expect(amounts[2]).toBeCloseTo(33.34, 10) // última carrega o centavo residual
+  })
+
+  it('price=100 / installments=7: soma das parcelas === 100, última fecha a conta', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ ...mockAppointment, price: 100 } as never)
+    await POST(makeReq({ paymentMethod: 'credit_card', installments: 7 }), {
+      params: Promise.resolve({ id: 'appt1' }),
+    })
+    const amounts = incomeAmounts()
+    expect(amounts).toHaveLength(7)
+    expect(sumCents(amounts)).toBe(10000)
+    // base = floor(10000/7) = 1428 centavos = 14.28; resíduo = 10000 - 1428*7 = 4 centavos
+    for (let i = 0; i < 6; i++) {
+      expect(amounts[i]).toBeCloseTo(14.28, 10)
+    }
+    expect(amounts[6]).toBeCloseTo(14.32, 10)
+  })
+
+  it('price=300 / installments=3 (divisão exata): 100,00 em cada parcela', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ ...mockAppointment, price: 300 } as never)
+    await POST(makeReq({ paymentMethod: 'credit_card', installments: 3 }), {
+      params: Promise.resolve({ id: 'appt1' }),
+    })
+    const amounts = incomeAmounts()
+    expect(amounts).toHaveLength(3)
+    expect(sumCents(amounts)).toBe(30000)
+    amounts.forEach((a) => expect(a).toBeCloseTo(100, 10))
+  })
+})
