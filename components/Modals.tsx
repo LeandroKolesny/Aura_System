@@ -145,8 +145,13 @@ export const AlertDetailsModal: React.FC<{ alert: SystemAlert; onClose: () => vo
 
 export const NewPatientModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { addPatient } = useApp();
+  const { showAlert } = useDialog();
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', birthDate: '', cpf: '' });
-  const [sendInvite, setSendInvite] = useState(true);
+  // Convite de acesso ao portal ainda não é enviado automaticamente pelo backend
+  // (POST /api/patients apenas cria o paciente) — por isso começa desmarcado e,
+  // se marcado, avisamos que o recurso está em desenvolvimento em vez de fingir
+  // que um e-mail foi disparado.
+  const [sendInvite, setSendInvite] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const handleSubmit = async (e: React.FormEvent) => {
@@ -163,8 +168,13 @@ export const NewPatientModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
           setIsSubmitting(false);
           return;
         }
-        if (sendInvite) { console.log(`Convite enviado para ${formData.email}`); }
         onClose();
+        if (sendInvite) {
+          await showAlert(
+            'Paciente cadastrado. O envio automático de convite de acesso ainda não está disponível — por enquanto, compartilhe o link de acesso com o paciente manualmente.',
+            { variant: 'info', title: 'Convite de acesso' }
+          );
+        }
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "Erro ao cadastrar paciente."); setIsSubmitting(false); }
   };
   return (
@@ -179,9 +189,9 @@ export const NewPatientModal: React.FC<{ onClose: () => void }> = ({ onClose }) 
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input required type="email" className="w-full p-2 border rounded-lg" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">CPF</label><input type="text" className="w-full p-2 border rounded-lg" placeholder="000.000.000-00" value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})} maxLength={14} /></div>
         </div>
-        <div className="mt-6 pt-4 border-t border-slate-100"><h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2"><Lock className="w-4 h-4" /> Acesso ao Portal do Paciente</h4><div className={`p-4 rounded-xl border transition-all ${sendInvite ? 'bg-primary-50 border-primary-200' : 'bg-slate-50 border-slate-200'}`}><div className="flex items-start gap-3"><div className="pt-0.5"><input type="checkbox" id="sendInvite" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500" /></div><div><label htmlFor="sendInvite" className="block text-sm font-bold text-slate-800 cursor-pointer select-none">Enviar convite de acesso automaticamente</label><p className="text-xs text-slate-500 mt-1 leading-relaxed">Ao cadastrar, enviaremos um link seguro para o e-mail <strong>{formData.email || 'do paciente'}</strong>. O paciente poderá definir sua própria senha para acessar o App e agendar consultas.</p>{sendInvite && (<div className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-primary-700 bg-white/50 px-3 py-1.5 rounded-lg border border-primary-100"><Send className="w-3 h-3" /> O e-mail será enviado ao salvar o cadastro.</div>)}</div></div></div></div>
+        <div className="mt-6 pt-4 border-t border-slate-100"><h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2"><Lock className="w-4 h-4" /> Acesso ao Portal do Paciente</h4><div className={`p-4 rounded-xl border transition-all ${sendInvite ? 'bg-primary-50 border-primary-200' : 'bg-slate-50 border-slate-200'}`}><div className="flex items-start gap-3"><div className="pt-0.5"><input type="checkbox" id="sendInvite" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500" /></div><div><label htmlFor="sendInvite" className="block text-sm font-bold text-slate-800 cursor-pointer select-none">Enviar convite de acesso automaticamente <span className="text-slate-400 font-normal">(em breve)</span></label><p className="text-xs text-slate-500 mt-1 leading-relaxed">Futuramente, ao cadastrar enviaremos um link seguro para o e-mail <strong>{formData.email || 'do paciente'}</strong> para que ele defina a própria senha e acesse o App. Enquanto o recurso está em desenvolvimento, o convite precisa ser enviado manualmente.</p>{sendInvite && (<div className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-amber-700 bg-white/50 px-3 py-1.5 rounded-lg border border-amber-100"><Send className="w-3 h-3" /> Recurso em desenvolvimento — nenhum e-mail é enviado ainda.</div>)}</div></div></div></div>
         {error && (<div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2 border border-red-200"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div>)}
-        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-lg shadow-primary-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Cadastrando...</>) : (sendInvite ? 'Cadastrar e Enviar Convite' : 'Cadastrar Apenas')}</button></div>
+        <div className="pt-4 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg" disabled={isSubmitting}>Cancelar</button><button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-lg shadow-primary-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 transition-all">{isSubmitting ? (<><RefreshCw className="w-4 h-4 animate-spin" /> Cadastrando...</>) : 'Cadastrar Paciente'}</button></div>
       </form>
     </BaseModal>
   );

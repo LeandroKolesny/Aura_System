@@ -128,6 +128,24 @@ describe('POST /api/patients/import', () => {
     expect(prisma.patient.create).not.toHaveBeenCalled()
   })
 
+  // Regra de negócio: importação em massa é mais restrita que o cadastro
+  // individual. POST /api/patients aceita ESTHETICIAN, mas a importação via CSV
+  // (ALLOWED_ROLES = OWNER/ADMIN/RECEPTIONIST) NÃO — ESTHETICIAN recebe 403.
+  it('retorna 403 para role ESTHETICIAN (importação em massa é restrita a OWNER/ADMIN/RECEPTIONIST)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role: 'ESTHETICIAN' } as never)
+    const res = await POST(makeCSV(`nome\nMaria`))
+    expect(res.status).toBe(403)
+    expect(prisma.patient.create).not.toHaveBeenCalled()
+  })
+
+  it('permite importação para role RECEPTIONIST', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue({ ...MOCK_USER, role: 'RECEPTIONIST' } as never)
+    const csv = `nome,email,telefone\nMaria Silva,maria@ex.com,11999990000`
+    const res = await POST(makeCSV(csv))
+    expect(res.status).toBe(200)
+    expect(prisma.patient.create).toHaveBeenCalledTimes(1)
+  })
+
   it('mistura de linhas válidas e inválidas: importa válidas e registra erros nas inválidas', async () => {
     const csv = `nome,email,telefone\nMaria,maria@ex.com,11999990000\n,sem-nome@ex.com,11888880000\nJoão,joao@ex.com,11777770000`
     const res = await POST(makeCSV(csv))

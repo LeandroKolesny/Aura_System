@@ -53,6 +53,23 @@ describe('GET /api/patients/[id]', () => {
     expect(res.status).toBe(404)
   })
 
+  it('cross-tenant: paciente existe mas é de OUTRA empresa → 404 (nunca vaza dados de outra clínica)', async () => {
+    // O usuário é da empresa c1. O paciente "p1" existe, mas pertence à empresa
+    // c2 — o findFirst com { id, companyId: 'c1' } não casa e retorna null.
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue(null)
+
+    const res = await GET(makeRequest('GET'), makeParams())
+    const body = await res.json()
+
+    expect(res.status).toBe(404)
+    expect(body.error).toBe('Paciente não encontrado')
+    // A query SEMPRE restringe pela companyId do usuário autenticado.
+    expect(prisma.patient.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1', companyId: 'c1' } })
+    )
+  })
+
   it('retorna o paciente com histórico de agendamentos, fotos e transações', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1', name: 'Paciente Teste' } as never)

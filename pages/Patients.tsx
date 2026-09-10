@@ -42,7 +42,7 @@ const Patients: React.FC = () => {
 
   const handleDelete = async (patientId: string) => {
     if (isReadOnly) return;
-    const ok = await confirm('Tem certeza que deseja excluir este paciente? Esta ação não pode ser desfeita.', { title: 'Excluir paciente' });
+    const ok = await confirm('O paciente será marcado como inativo e sairá da lista. Você pode reativá-lo depois editando o cadastro.', { title: 'Excluir paciente' });
     if (ok) {
       const result = await removePatient(patientId);
       if (result && !result.success) {

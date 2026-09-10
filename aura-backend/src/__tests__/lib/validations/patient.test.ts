@@ -93,9 +93,36 @@ describe('createPatientSchema', () => {
       }
     })
 
-    it('name with special chars (hyphen, not accented) → fails', () => {
+    it('name with hyphen ("Ana-Paula") → success (nomes compostos)', () => {
       const result = createPatientSchema.safeParse({
-        name: 'Ana-Silva',
+        name: 'Ana-Paula Ferreira',
+        email: 'ana@example.com',
+        phone: '1198765432',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('name with apostrophe ("O\'Brien") → success (sobrenomes com apóstrofo)', () => {
+      const result = createPatientSchema.safeParse({
+        name: "Sean O'Brien",
+        email: 'sean@example.com',
+        phone: '1198765432',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('name with accent + hyphen ("D\'Ávila-Souza") → success', () => {
+      const result = createPatientSchema.safeParse({
+        name: "Maria D'Ávila-Souza",
+        email: 'maria@example.com',
+        phone: '1198765432',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('name with other special chars (@, #, digits) → still fails', () => {
+      const result = createPatientSchema.safeParse({
+        name: 'Ana@Silva#1',
         email: 'ana@example.com',
         phone: '1198765432',
       })

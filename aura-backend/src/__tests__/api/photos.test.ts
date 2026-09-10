@@ -12,6 +12,9 @@ vi.mock('@/lib/prisma', () => ({
       create: vi.fn(),
       delete: vi.fn(),
     },
+    patient: {
+      findFirst: vi.fn(),
+    },
   },
 }))
 vi.mock('@/lib/auth', () => ({
@@ -62,6 +65,8 @@ function makeDELETERequest(id?: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getAuthUser).mockResolvedValue(MOCK_USER as never)
+  // Por padrão o paciente do patientId pertence à empresa do usuário (c1).
+  vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
 })
 
 // ---------------------------------------------------------------------------
@@ -240,6 +245,43 @@ describe('POST /api/photos — validação Zod', () => {
     const { date: _date, ...withoutDate } = VALID_BODY as Record<string, unknown>
     const res = await POST(makePOSTRequest(withoutDate))
     expect(res.status).toBe(201)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// POST — isolamento entre empresas (o patientId precisa ser da empresa do user)
+// ---------------------------------------------------------------------------
+describe('POST /api/photos — isolamento entre empresas', () => {
+  const VALID_BODY = {
+    patientId: 'clxxxxxxxxxxxxxxxxxxxxxxxx',
+    url: 'https://storage.example.com/photo.jpg',
+    type: 'BEFORE',
+    procedure: 'Limpeza de pele',
+  }
+
+  it('retorna 404 e NÃO cria a foto quando o patientId é de um paciente de outra empresa', async () => {
+    // findFirst com { id, companyId: 'c1' } não encontra nada → paciente é de outra clínica
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue(null)
+
+    const res = await POST(makePOSTRequest(VALID_BODY))
+    const body = await res.json()
+
+    expect(res.status).toBe(404)
+    expect(body.error).toBe('Paciente não encontrado')
+    expect(prisma.patient.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: VALID_BODY.patientId, companyId: 'c1' } })
+    )
+    expect(prisma.photoRecord.create).not.toHaveBeenCalled()
+  })
+
+  it('cria a foto normalmente quando o patientId pertence à empresa do usuário', async () => {
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: VALID_BODY.patientId } as never)
+    vi.mocked(prisma.photoRecord.create).mockResolvedValue(MOCK_PHOTO as unknown as PhotoRecord)
+
+    const res = await POST(makePOSTRequest(VALID_BODY))
+
+    expect(res.status).toBe(201)
+    expect(prisma.photoRecord.create).toHaveBeenCalledTimes(1)
   })
 })
 

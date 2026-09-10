@@ -90,6 +90,19 @@ export async function POST(request: NextRequest) {
 
     const { patientId, url, type, procedure, groupId, date } = validation.data;
 
+    // ISOLAMENTO ENTRE EMPRESAS: o Zod só garante que o patientId tem formato de
+    // cuid — não que o paciente é da empresa do usuário. Sem esta checagem seria
+    // possível anexar foto de antes/depois ao prontuário de um paciente de outra
+    // clínica. Retorna 404 genérico (não vaza se o id existe em outra empresa).
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, companyId: user.companyId! },
+      select: { id: true },
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: "Paciente não encontrado" }, { status: 404 });
+    }
+
     const photo = await prisma.photoRecord.create({
       data: {
         patientId,

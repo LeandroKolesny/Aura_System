@@ -19,7 +19,9 @@ export const createPatientSchema = z.object({
     .string()
     .min(3, "Nome deve ter pelo menos 3 caracteres")
     .max(100, "Nome deve ter no máximo 100 caracteres")
-    .regex(/^[a-zA-ZÀ-ÿ\s]+$/, "Nome deve conter apenas letras"),
+    // Aceita letras (com acento), espaço, hífen e apóstrofo — nomes compostos
+    // ("Ana-Paula") e sobrenomes com apóstrofo ("O'Brien", "D'Ávila") são válidos.
+    .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, "Nome deve conter apenas letras"),
   
   email: z
     .string()
