@@ -190,6 +190,28 @@ const Subscriptions: React.FC = () => {
     loadData();
   };
 
+  const handleActivatePending = async (id: string) => {
+    setActivatingId(id);
+    const res = await subscriptionsApi.activate(id);
+    setActivatingId(null);
+    if (!res.success) {
+      await showAlert(res.error ?? 'Erro ao ativar plano.', { variant: 'danger' });
+      return;
+    }
+    loadData(); // recarrega tudo para aparecer em Assinantes
+  };
+
+  const handleRejectPending = async (id: string) => {
+    const confirmed = await confirm('Recusar esta solicitação de plano?');
+    if (!confirmed) return;
+    const res = await subscriptionsApi.cancel(id);
+    if (!res.success) {
+      await showAlert(res.error ?? 'Erro ao recusar solicitação.', { variant: 'danger' });
+      return;
+    }
+    loadData();
+  };
+
   const handleDeactivatePlan = async (planId: string) => {
     const confirmed = await confirm('Desativar este plano? Assinantes existentes não serão afetados.');
     if (!confirmed) return;
@@ -495,21 +517,13 @@ const Subscriptions: React.FC = () => {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={async () => {
-                            await subscriptionsApi.cancel(sub.id);
-                            loadData(); // recarrega tudo
-                          }}
+                          onClick={() => handleRejectPending(sub.id)}
                           className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
                         >
                           Recusar
                         </button>
                         <button
-                          onClick={async () => {
-                            setActivatingId(sub.id);
-                            const res = await subscriptionsApi.activate(sub.id);
-                            if (res.success) loadData(); // recarrega tudo para aparecer em Assinantes
-                            setActivatingId(null);
-                          }}
+                          onClick={() => handleActivatePending(sub.id)}
                           disabled={activatingId === sub.id}
                           className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50"
                         >

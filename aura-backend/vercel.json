@@ -5,6 +5,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/reset-subscription-cycles",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/renew-calendar-watches",
       "schedule": "0 6 */6 * *"
     },

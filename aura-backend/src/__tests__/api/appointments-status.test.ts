@@ -64,7 +64,7 @@ const MOCK_APPOINTMENT_SCHEDULED = {
   date: new Date('2026-06-01T10:00:00Z'),
   price: 150,
   patient: { id: PATIENT_ID, name: 'Maria Silva', phone: '11999990000' },
-  procedure: { id: PROCEDURE_ID, name: 'Limpeza', cost: 20 },
+  procedure: { id: PROCEDURE_ID, name: 'Limpeza', cost: 20, price: 200 },
   professional: { id: 'prof-001', name: 'Profissional' },
 } as unknown as Appointment
 
@@ -387,5 +387,109 @@ describe('PATCH /api/appointments/[id]/status', () => {
     const res = await PATCH(makeRequest({ status: 'SCHEDULED' }), ROUTE_PARAMS)
     expect(res.status).toBe(200)
     expect(prisma.patientSubscription.update).not.toHaveBeenCalled()
+  })
+
+  // ── Clube de Assinaturas: assinatura deixou de cobrir a sessão na aprovação ──
+
+  it('PENDING_APPROVAL → SCHEDULED com assinatura CANCELED/PAUSED recalcula preço para o valor cheio do procedimento (não fica 0)', async () => {
+    const apptWithSub = {
+      ...MOCK_APPOINTMENT_SCHEDULED,
+      status: 'PENDING_APPROVAL',
+      subscriptionId: 'sub-001',
+      price: 0, // gravado provisoriamente na solicitação
+    } as unknown as Appointment
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(apptWithSub)
+    // assinatura não está mais ACTIVE → findFirst (filtra status: "ACTIVE") retorna null
+    vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue(null)
+
+    const res = await PATCH(makeRequest({ status: 'SCHEDULED' }), ROUTE_PARAMS)
+
+    expect(res.status).toBe(200)
+    expect(prisma.patientSubscription.update).not.toHaveBeenCalled()
+    expect(prisma.appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'SCHEDULED', price: 200 }),
+      })
+    )
+  })
+
+  it('PENDING_APPROVAL → SCHEDULED com procedimento fora dos items do plano recalcula preço para o valor cheio', async () => {
+    const apptWithSub = {
+      ...MOCK_APPOINTMENT_SCHEDULED,
+      status: 'PENDING_APPROVAL',
+      subscriptionId: 'sub-001',
+      price: 0,
+    } as unknown as Appointment
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(apptWithSub)
+    // assinatura ACTIVE, mas o plano cobre outro procedimento
+    vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue({
+      id: 'sub-001',
+      status: 'ACTIVE',
+      companyId: COMPANY_ID,
+      sessionsUsedThisCycle: {},
+      plan: { items: [{ procedureId: 'outro-procedimento', sessionsPerCycle: 3 }] },
+    } as never)
+
+    const res = await PATCH(makeRequest({ status: 'SCHEDULED' }), ROUTE_PARAMS)
+
+    expect(res.status).toBe(200)
+    expect(prisma.patientSubscription.update).not.toHaveBeenCalled()
+    expect(prisma.appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'SCHEDULED', price: 200 }),
+      })
+    )
+  })
+
+  it('a dedução de sessão na aprovação roda dentro de uma $transaction (checagem + incremento atômicos)', async () => {
+    const apptWithSub = {
+      ...MOCK_APPOINTMENT_SCHEDULED,
+      status: 'PENDING_APPROVAL',
+      subscriptionId: 'sub-001',
+    } as unknown as Appointment
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(apptWithSub)
+    vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue({
+      id: 'sub-001',
+      status: 'ACTIVE',
+      companyId: COMPANY_ID,
+      sessionsUsedThisCycle: { [PROCEDURE_ID]: 0 },
+      plan: { items: [{ procedureId: PROCEDURE_ID, sessionsPerCycle: 3 }] },
+    } as never)
+
+    const res = await PATCH(makeRequest({ status: 'SCHEDULED' }), ROUTE_PARAMS)
+
+    expect(res.status).toBe(200)
+    expect(prisma.$transaction).toHaveBeenCalled()
+    expect(prisma.patientSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessionsUsedThisCycle: { [PROCEDURE_ID]: 1 } }),
+      })
+    )
+  })
+
+  it('aprovação concorrente que encontra o ciclo já no limite não ultrapassa o limite (400, sem novo incremento)', async () => {
+    const apptWithSub = {
+      ...MOCK_APPOINTMENT_SCHEDULED,
+      status: 'PENDING_APPROVAL',
+      subscriptionId: 'sub-001',
+    } as unknown as Appointment
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(apptWithSub)
+    // a leitura DENTRO da transação já vê o contador no limite (outra aprovação
+    // concorrente incrementou primeiro) — deve barrar em vez de furar o limite.
+    vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue({
+      id: 'sub-001',
+      status: 'ACTIVE',
+      companyId: COMPANY_ID,
+      sessionsUsedThisCycle: { [PROCEDURE_ID]: 3 },
+      plan: { items: [{ procedureId: PROCEDURE_ID, sessionsPerCycle: 3 }] },
+    } as never)
+
+    const res = await PATCH(makeRequest({ status: 'SCHEDULED' }), ROUTE_PARAMS)
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error.toLowerCase()).toContain('limite')
+    expect(prisma.patientSubscription.update).not.toHaveBeenCalled()
+    expect(prisma.appointment.update).not.toHaveBeenCalled()
   })
 })

@@ -33,6 +33,18 @@ class InsufficientStockError extends Error {
 }
 
 /**
+ * Erro sinalizando que a assinatura já esgotou as sessões do procedimento neste
+ * ciclo. Mapeado para HTTP 400 no handler. Lançado de dentro da $transaction que
+ * deduz a sessão para que a checagem e o incremento sejam atômicos.
+ */
+class SessionLimitError extends Error {
+  constructor(public readonly limit: number) {
+    super(`Limite de ${limit} sessão(ões) do plano já atingido`);
+    this.name = "SessionLimitError";
+  }
+}
+
+/**
  * Conclui o atendimento aplicando, numa ÚNICA transação atômica:
  *  - a dedução de estoque de TODOS os insumos do procedimento (decrement atômico)
  *  - o StockMovement (type OUT) de cada insumo
@@ -227,32 +239,70 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // ── Clube de Assinaturas: deduzir sessão ao aprovar agendamento pendente ──
-    // Só desconta se o plano já está ACTIVE (admin ativa o plano separadamente)
+    // Na solicitação (POST /api/appointments) o paciente cria o agendamento com
+    // price = 0 provisório e a dedução real é adiada para esta aprovação.
+    //
+    // A sessão só é DE FATO gratuita quando existe uma assinatura ACTIVE cujo
+    // plano cobre o procedimento. Se, entre a solicitação e a aprovação, a
+    // assinatura foi cancelada/pausada (findFirst filtra status: "ACTIVE" → null)
+    // OU o procedimento saiu dos items do plano (planItem não encontrado), NÃO
+    // deixamos o atendimento sair de graça: recalculamos para o preço cheio do
+    // procedimento e gravamos esse valor no agendamento (priceOverride abaixo).
+    let priceOverride: number | undefined;
     if (status === "SCHEDULED" && oldStatus === "PENDING_APPROVAL" && appointment.subscriptionId) {
       const sub = await prisma.patientSubscription.findFirst({
         where: { id: appointment.subscriptionId, companyId: user.companyId!, status: "ACTIVE" },
         include: { plan: { include: { items: true } } },
       });
-      if (sub) {
-        const planItem = sub.plan.items.find((item) => item.procedureId === appointment.procedureId);
-        if (planItem) {
-          const current = sub.sessionsUsedThisCycle as Record<string, number>;
-          const used = current[appointment.procedureId] ?? 0;
-          if (used >= planItem.sessionsPerCycle) {
+      const planItem = sub?.plan.items.find((item) => item.procedureId === appointment.procedureId);
+
+      if (sub && planItem) {
+        // Race: duas aprovações concorrentes disputando a última sessão do ciclo
+        // poderiam ambas passar pela checagem `used >= limite` antes de qualquer
+        // update. Leitura + checagem + incremento do JSON `sessionsUsedThisCycle`
+        // rodam numa $transaction Serializable — se duas rodarem juntas na mesma
+        // assinatura o Postgres aborta uma (P2034), que cai no catch genérico
+        // (500) sem furar o limite. (increment atômico não se aplica: o contador
+        // vive numa coluna JSON por procedimento, não num Int.)
+        try {
+          await prisma.$transaction(
+            async (tx) => {
+              const fresh = await tx.patientSubscription.findFirst({
+                where: { id: sub.id, companyId: user.companyId! },
+                select: { sessionsUsedThisCycle: true },
+              });
+              const current = (fresh?.sessionsUsedThisCycle ?? {}) as Record<string, number>;
+              const used = current[appointment.procedureId] ?? 0;
+              if (used >= planItem.sessionsPerCycle) {
+                throw new SessionLimitError(planItem.sessionsPerCycle);
+              }
+              await tx.patientSubscription.update({
+                where: { id: sub.id },
+                data: {
+                  sessionsUsedThisCycle: {
+                    ...current,
+                    [appointment.procedureId]: used + 1,
+                  },
+                },
+              });
+            },
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+          );
+        } catch (err) {
+          if (err instanceof SessionLimitError) {
             return NextResponse.json(
-              { error: `Limite de ${planItem.sessionsPerCycle} sessão(ões) do plano já atingido para este paciente.` },
+              { error: `Limite de ${err.limit} sessão(ões) do plano já atingido para este paciente.` },
               { status: 400 }
             );
           }
-          await prisma.patientSubscription.update({
-            where: { id: sub.id },
-            data: {
-              sessionsUsedThisCycle: {
-                ...current,
-                [appointment.procedureId]: used + 1,
-              },
-            },
-          });
+          throw err;
+        }
+      } else {
+        // Assinatura não-ACTIVE ou procedimento fora do plano: cobra o preço
+        // cheio do procedimento em vez de manter o 0 provisório.
+        const fullPrice = Number(appointment.procedure?.price);
+        if (Number.isFinite(fullPrice)) {
+          priceOverride = fullPrice;
         }
       }
     }
@@ -265,6 +315,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         data: {
           status,
           stockDeducted: status === "COMPLETED" ? true : appointment.stockDeducted,
+          // priceOverride só é definido na aprovação de um agendamento com
+          // assinatura que deixou de cobrir a sessão — evita atendimento grátis.
+          ...(priceOverride !== undefined ? { price: priceOverride } : {}),
         },
         include: {
           patient: { select: { id: true, name: true } },

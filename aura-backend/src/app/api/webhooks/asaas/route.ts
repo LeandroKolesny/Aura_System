@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Plan } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { resolvePlanFromPayment } from '@/lib/billingUtils';
+import { buildCycleResetData } from '@/lib/subscriptionCycle';
 
 interface AsaasWebhookPayload {
   event: string;
@@ -119,22 +120,11 @@ async function handleSubscriptionClubPayment(asaasSubscriptionId: string) {
 
   if (!subscription) return;
 
-  // Recalcula sessões zeradas com base nos items do plano atual
-  const resetSessions: Record<string, number> = {};
-  subscription.plan.items.forEach((item) => {
-    resetSessions[item.procedureId] = 0;
-  });
-
-  const nextBilling = new Date();
-  nextBilling.setMonth(nextBilling.getMonth() + 1);
-
+  // Reset do ciclo (sessões zeradas p/ os items ATUAIS do plano + próxima
+  // cobrança +1 mês). Mesma regra do cron diário — ver @/lib/subscriptionCycle.
   await prisma.patientSubscription.update({
     where: { id: subscription.id },
-    data: {
-      sessionsUsedThisCycle: resetSessions,
-      lastCycleReset: new Date(),
-      nextBillingDate: nextBilling,
-    },
+    data: buildCycleResetData(subscription.plan.items),
   });
 
   console.log(`[Asaas Webhook] Sessões reiniciadas — assinatura ${subscription.id}`);

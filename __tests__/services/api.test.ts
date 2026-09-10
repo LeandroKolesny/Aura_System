@@ -177,6 +177,89 @@ describe('subscriptionsApi (Clube de Assinaturas)', () => {
 
     expect(result).toEqual({ success: false, error: 'Erro inesperado.' });
   });
+
+  it('createPlan chama POST /api/subscriptions/plans com o corpo do plano', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { id: 'plan-1' }));
+    const payload = {
+      name: 'Plano Ouro',
+      price: 199.9,
+      description: 'desc',
+      items: [{ procedureId: 'proc-1', sessionsPerCycle: 2 }],
+    };
+
+    const result = await subscriptionsApi.createPlan(payload);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/subscriptions\/plans$/),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) })
+    );
+    expect(result).toEqual({ success: true, data: { id: 'plan-1' } });
+  });
+
+  it('REGRESSÃO: createPlan repassa erro de validação do backend em vez de fingir sucesso', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(400, { error: 'Nome do plano é obrigatório' }));
+
+    const result = await subscriptionsApi.createPlan({
+      name: '',
+      price: 10,
+      items: [{ procedureId: 'p1', sessionsPerCycle: 1 }],
+    });
+
+    expect(result).toEqual({ success: false, error: 'Nome do plano é obrigatório' });
+  });
+
+  it('updatePlan chama PUT /api/subscriptions/plans/:id com o corpo parcial', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { id: 'plan-1', name: 'Novo' }));
+    const payload = { name: 'Novo', items: [{ procedureId: 'proc-2', sessionsPerCycle: 3 }] };
+
+    const result = await subscriptionsApi.updatePlan('plan-1', payload);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/subscriptions/plans/plan-1'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(payload) })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('REGRESSÃO: updatePlan repassa erro do backend em vez de fingir sucesso', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(404, { error: 'Plano não encontrado' }));
+
+    const result = await subscriptionsApi.updatePlan('plan-x', { name: 'X' });
+
+    expect(result).toEqual({ success: false, error: 'Plano não encontrado' });
+  });
+
+  it('listForPatient chama GET /api/subscriptions/patients?patientId= com o id encodado', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, [{ id: 'sub-1' }]));
+
+    const result = await subscriptionsApi.listForPatient('pat 1/x');
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/subscriptions/patients?patientId=pat%201%2Fx'),
+      expect.anything()
+    );
+    expect(result).toEqual({ success: true, data: [{ id: 'sub-1' }] });
+  });
+
+  it('requestSelf chama POST /api/subscriptions/patients/self com { planId }', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { id: 'sub-1', status: 'PENDING', planId: 'plan-1' }));
+
+    const result = await subscriptionsApi.requestSelf('plan-1');
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/subscriptions/patients/self'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ planId: 'plan-1' }) })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('REGRESSÃO: requestSelf repassa erro do backend em vez de fingir sucesso', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(404, { error: 'Plano inexistente ou inativo' }));
+
+    const result = await subscriptionsApi.requestSelf('plan-x');
+
+    expect(result).toEqual({ success: false, error: 'Plano inexistente ou inativo' });
+  });
 });
 
 describe('calendarApi (Google Calendar)', () => {
