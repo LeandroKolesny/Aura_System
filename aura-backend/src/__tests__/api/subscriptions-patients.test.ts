@@ -75,6 +75,20 @@ describe('GET /api/subscriptions/patients', () => {
       expect.objectContaining({ where: { companyId: 'c1', status: 'ACTIVE', patientId: 'p1' } })
     )
   })
+
+  // Caso exercido por `subscriptionsApi.listPending()` no banner "Novos Planos
+  // para Aprovação" do Dashboard: GET /api/subscriptions/patients?status=PENDING
+  it('filtra por status=PENDING (usado pelo banner de planos pendentes do Dashboard)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([])
+
+    const res = await GET(makeGetRequest('?status=PENDING'))
+
+    expect(res.status).toBe(200)
+    expect(prisma.patientSubscription.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { companyId: 'c1', status: 'PENDING' } })
+    )
+  })
 })
 
 describe('POST /api/subscriptions/patients', () => {

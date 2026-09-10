@@ -1,9 +1,11 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { DollarSign, Users, CalendarCheck, TrendingUp, X, AlertTriangle, CheckCircle, ArrowRight, Package, UserCheck, History, XCircle, Building, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useDialog } from '../context/DialogContext';
 import { UserRole, SystemAlert, Appointment } from '../types';
 import { AlertDetailsModal } from '../components/Modals';
 import { formatCurrency, formatDate } from '../utils/formatUtils';
+import { calcRevenueTrend } from '../utils/dashboardCalc';
 import { ALERT_VISUAL_CONFIG } from '../utils/statusUtils';
 import StatCard from '../components/StatCard';
 import { dashboardApi, DashboardData, subscriptionsApi, PatientSubscription } from '../services/api';
@@ -354,6 +356,7 @@ const DashboardSkeleton: React.FC = () => (
 
 const ClinicDashboard: React.FC = () => {
   const { appointments, user, systemAlerts, currentCompany, dismissedAlertIds, dismissAlert, addNotification, loadAppointments, changeAppointmentStatus } = useApp();
+  const { showAlert } = useDialog();
   const [selectedAlert, setSelectedAlert] = useState<SystemAlert | null>(null);
   const [revenueRange, setRevenueRange] = useState<'7d' | '30d'>('7d');
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -428,16 +431,35 @@ const ClinicDashboard: React.FC = () => {
 
   const handleActivatePlan = async (subscriptionId: string) => {
     setActivatingPlanId(subscriptionId);
-    const res = await subscriptionsApi.activate(subscriptionId);
-    if (res.success) {
-      setPendingPlans(prev => prev.filter(p => p.id !== subscriptionId));
+    try {
+      const res = await subscriptionsApi.activate(subscriptionId);
+      if (res.success) {
+        setPendingPlans(prev => prev.filter(p => p.id !== subscriptionId));
+      } else {
+        await showAlert(res.error ?? 'Erro ao ativar o plano.', { variant: 'danger' });
+      }
+    } catch (err) {
+      console.error('Erro ao ativar plano pendente:', err);
+      await showAlert('Erro ao ativar o plano.', { variant: 'danger' });
+    } finally {
+      setActivatingPlanId(null);
     }
-    setActivatingPlanId(null);
   };
 
   const handleCancelPlan = async (subscriptionId: string) => {
-    await subscriptionsApi.cancel(subscriptionId);
-    setPendingPlans(prev => prev.filter(p => p.id !== subscriptionId));
+    try {
+      const res = await subscriptionsApi.cancel(subscriptionId);
+      // Só remove da lista local se o backend confirmou o cancelamento — caso
+      // contrário o plano continua PENDING no banco e a UI ficaria dessincronizada.
+      if (res.success) {
+        setPendingPlans(prev => prev.filter(p => p.id !== subscriptionId));
+      } else {
+        await showAlert(res.error ?? 'Erro ao recusar o plano.', { variant: 'danger' });
+      }
+    } catch (err) {
+      console.error('Erro ao recusar plano pendente:', err);
+      await showAlert('Erro ao recusar o plano.', { variant: 'danger' });
+    }
   };
 
   // Alertas do sistema (combina API + alertas do banco)
@@ -463,24 +485,27 @@ const ClinicDashboard: React.FC = () => {
         message: `Olá ${appt.patientName}, seu agendamento para ${appt.service} em ${formatDate(appt.date)} foi APROVADO!`,
         type: 'success'
       });
+    } else {
+      await showAlert(res.error ?? 'Erro ao aprovar a solicitação.', { variant: 'danger' });
     }
     setApprovingId(null);
   };
 
   const handleRejectApproval = async (apptId: string) => {
-    await changeAppointmentStatus(apptId, 'CANCELED');
+    // A lista de pendentes é derivada do contexto `appointments`; se a chamada
+    // falhar o item permanece visível. Comunicar o erro ao usuário (regra do projeto).
+    const res = await changeAppointmentStatus(apptId, 'CANCELED');
+    if (!res.success) {
+      await showAlert(res.error ?? 'Erro ao recusar a solicitação.', { variant: 'danger' });
+    }
   };
 
   // Trend: compara primeira metade vs segunda metade do histórico de receita
-  const revenueTrend = useMemo(() => {
-    const revenueChart = dashboardData?.charts?.revenueChart;
-    if (!revenueChart || revenueChart.length < 2) return null;
-    const half = Math.floor(revenueChart.length / 2);
-    const firstHalf = revenueChart.slice(0, half).reduce((s, d) => s + d.value, 0);
-    const secondHalf = revenueChart.slice(half).reduce((s, d) => s + d.value, 0);
-    if (firstHalf === 0) return secondHalf > 0 ? 100 : 0;
-    return Math.round(((secondHalf - firstHalf) / firstHalf) * 100);
-  }, [dashboardData]);
+  // (lógica pura em utils/dashboardCalc.ts para permitir teste isolado).
+  const revenueTrend = useMemo(
+    () => calcRevenueTrend(dashboardData?.charts?.revenueChart),
+    [dashboardData]
+  );
 
   const trendStr = (val: number | null) =>
     val !== null ? `${val >= 0 ? '+' : ''}${val}%` : undefined;

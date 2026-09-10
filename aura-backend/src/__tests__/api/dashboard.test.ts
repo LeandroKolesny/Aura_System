@@ -135,4 +135,59 @@ describe('GET /api/dashboard', () => {
     const res = await GET(makeRequest())
     expect(res.status).toBe(500)
   })
+
+  // Teste de CARACTERIZAÇÃO (não de correção): o KPI "Confirmadas" é calculado como
+  // `periodAppointments - canceledAppointments`, ou seja, inclui TUDO que não foi
+  // cancelado — COMPLETED, PENDING_APPROVAL e SCHEDULED — e não apenas os
+  // efetivamente "confirmados". Mantido de propósito (pode ser esperado por
+  // dashboards em produção). Este teste trava o valor atual para que qualquer
+  // mudança futura no cálculo seja consciente.
+  it('appointmentsConfirmed = total - cancelados (inclui completados e pendentes de aprovação)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    // Composição de status mista no período:
+    //   4 COMPLETED + 2 PENDING_APPROVAL + 2 SCHEDULED + 2 CANCELED = 10 no total
+    vi.mocked(prisma.appointment.count)
+      .mockResolvedValueOnce(10) // periodAppointments (total, todos os status)
+      .mockResolvedValueOnce(4)  // completedCount (COMPLETED + paid) -> KPI "Realizadas"
+      .mockResolvedValueOnce(2)  // canceledAppointments -> KPI "Canceladas"
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    // 10 - 2 = 8: engloba os 4 COMPLETED + 2 PENDING_APPROVAL + 2 SCHEDULED
+    expect(body.kpis.appointmentsConfirmed).toBe(8)
+    expect(body.kpis.appointmentsCompleted).toBe(4)
+    expect(body.kpis.appointmentsCanceled).toBe(2)
+    expect(body.kpis.appointmentsTotal).toBe(10)
+  })
+
+  it('kpis.revenue soma apenas transações INCOME + PAID (filtro fica na query, não no mock)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    // O mock devolve só o agregado já filtrado; transações PENDING/REFUNDED nunca
+    // chegam ao aggregate porque a cláusula `where` as exclui. Este teste trava
+    // esse filtro para não regredir para uma soma "de tudo".
+    vi.mocked(prisma.transaction.aggregate).mockResolvedValue({ _sum: { amount: 750 }, _count: 3 } as never)
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    expect(body.kpis.revenue).toBe(750)
+    expect(prisma.transaction.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: 'INCOME', status: 'PAID', companyId: 'c1' }),
+      })
+    )
+  })
+
+  it('days não numérico (?days=abc) não quebra a rota — fallback sem série de receita', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    const res = await GET(makeRequest('?days=abc'))
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    // parseInt('abc') -> NaN; o loop `for (i = days-1; i >= 0; i--)` nem executa
+    expect(body.days).toBeNull() // NaN serializa como null no JSON
+    expect(body.charts.revenueChart).toEqual([])
+    expect(body.kpis).toBeDefined()
+  })
 })
