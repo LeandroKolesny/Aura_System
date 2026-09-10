@@ -13,6 +13,23 @@ import { UserRole } from '../types';
 import { RevenueAreaChart, MetricDonutChart, HorizontalBarChart, KPICard, MiniSparkline } from '../components/charts';
 import { ReportsSkeleton } from '../components/LoadingSkeleton';
 import { UpgradeOverlay } from '../components/UpgradeOverlay';
+import {
+  getStartDate,
+  getMonthMultiplier,
+  getTimeRangeLabel,
+  getPreviousPeriodDates,
+  calcTrend,
+  topProceduresByClinic as calcTopProceduresByClinic,
+  topSpendersInClinic as calcTopSpendersInClinic,
+  procedureEfficiency as calcProcedureEfficiency,
+  retentionMetrics as calcRetentionMetrics,
+  appointmentStats as calcAppointmentStats,
+  professionalPerformance as calcProfessionalPerformance,
+  totalRevenueInPeriod,
+  sumIncomeBetween,
+  countCompletedBetween,
+  monthlyRevenueData as calcMonthlyRevenueData,
+} from '../utils/reportsCalc';
 
 // --- COMPONENTES AUXILIARES MODERNOS ---
 
@@ -133,7 +150,12 @@ const Reports: React.FC = () => {
 
   const isOwner = user?.role === UserRole.OWNER;
 
-  // Lazy loading - carregar todos os dados necessários para relatórios
+  // Lazy loading - carregar todos os dados necessários para relatórios.
+  // O tratamento de falha de rede fica no AppContext (cada loadX loga o erro e
+  // deixa o array vazio); a aba não inventa um banner de erro para não disparar
+  // falso positivo em clínica nova sem dados. Quando "carregou e veio vazio",
+  // cada seção (KPIs, tabelas, gráficos) já renderiza o estado neutro
+  // ("Nenhum ... no período selecionado") em vez de erro.
   useEffect(() => {
     loadPatients();
     loadAppointments();
@@ -153,59 +175,8 @@ const Reports: React.FC = () => {
       }
   }, [companies, selectedCompanyId, user]);
 
-  // Helper function to get start date based on range
-  const getStartDate = (range: string) => {
-      const now = new Date();
-      const d = new Date(now);
-      d.setHours(0, 0, 0, 0); // Reset time part for accurate comparison
-      
-      switch(range) {
-          case '1w': d.setDate(d.getDate() - 7); break;
-          case '1m': d.setMonth(d.getMonth() - 1); break;
-          case '2m': d.setMonth(d.getMonth() - 2); break;
-          case '3m': d.setMonth(d.getMonth() - 3); break;
-          case '6m': d.setMonth(d.getMonth() - 6); break;
-          case '1y': d.setFullYear(d.getFullYear() - 1); break;
-          case '2y': d.setFullYear(d.getFullYear() - 2); break;
-          case '3y': d.setFullYear(d.getFullYear() - 3); break;
-          case '4y': d.setFullYear(d.getFullYear() - 4); break;
-          case '5y': d.setFullYear(d.getFullYear() - 5); break;
-          default: d.setMonth(d.getMonth() - 6);
-      }
-      return d;
-  };
-
-  const getMonthMultiplier = (range: string) => {
-      switch(range) {
-          case '1w': return 0.25;
-          case '1m': return 1;
-          case '2m': return 2;
-          case '3m': return 3;
-          case '6m': return 6;
-          case '1y': return 12;
-          case '2y': return 24;
-          case '3y': return 36;
-          case '4y': return 48;
-          case '5y': return 60;
-          default: return 1;
-      }
-  };
-
-  const getTimeRangeLabel = (range: string) => {
-      switch(range) {
-          case '1w': return 'Última Semana';
-          case '1m': return 'Último Mês';
-          case '2m': return 'Últimos 2 Meses';
-          case '3m': return 'Últimos 3 Meses';
-          case '6m': return 'Últimos 6 Meses';
-          case '1y': return 'Último Ano';
-          case '2y': return 'Últimos 2 Anos';
-          case '3y': return 'Últimos 3 Anos';
-          case '4y': return 'Últimos 4 Anos';
-          case '5y': return 'Últimos 5 Anos';
-          default: return 'Período';
-      }
-  };
+  // Helpers de período e cálculo agora vivem em utils/reportsCalc.ts (funções
+  // puras testáveis). getStartDate teve um bugfix de overflow de mês — ver lá.
 
   // 1. RANKING: Clínicas que mais gastam no SaaS - Hook 3
   const topSpenderClinics = useMemo(() => {
@@ -244,293 +215,60 @@ const Reports: React.FC = () => {
   // --- DADOS DA CLÍNICA SELECIONADA ---
 
   // 3. TOP PROCEDIMENTOS - Hook 5
-  const topProceduresByClinic = useMemo(() => {
-      if (!selectedCompanyId) return [];
-      
-      const startDate = getStartDate(timeRange);
-      
-      const validAppts = appointments.filter(a => 
-          a.companyId === selectedCompanyId && 
-          (a.status === 'completed' || a.status === 'confirmed') &&
-          new Date(a.date) >= startDate
-      );
-
-      const counts: Record<string, number> = {};
-      validAppts.forEach(a => {
-          if (a.service) {
-            counts[a.service] = (counts[a.service] || 0) + 1;
-          }
-      });
-
-      return Object.entries(counts)
-          .map(([name, value]) => ({ label: name, value }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 5);
-  }, [selectedCompanyId, appointments, timeRange]);
+  const topProceduresByClinic = useMemo(
+      () => calcTopProceduresByClinic(appointments, selectedCompanyId, getStartDate(timeRange)),
+      [selectedCompanyId, appointments, timeRange]
+  );
 
   // 4. CLIENTES VIP - Hook 6
-  const topSpendersInClinic = useMemo(() => {
-      if (!selectedCompanyId) return [];
-
-      const startDate = getStartDate(timeRange);
-
-      const clinicTransactions = transactions.filter(t => 
-          t.companyId === selectedCompanyId && 
-          t.type === 'income' && 
-          t.appointmentId &&
-          new Date(t.date) >= startDate
-      );
-
-      const patientSpend: Record<string, number> = {};
-      
-      clinicTransactions.forEach(t => {
-          const appt = appointments.find(a => a.id === t.appointmentId);
-          if (appt && appt.patientName) {
-              patientSpend[appt.patientName] = (patientSpend[appt.patientName] || 0) + t.amount;
-          }
-      });
-
-      return Object.entries(patientSpend)
-          .map(([name, total]) => ({ name, value: formatCurrency(total), raw: total }))
-          .sort((a, b) => b.raw - a.raw)
-          .slice(0, 5);
-
-  }, [selectedCompanyId, transactions, appointments, timeRange]);
+  const topSpendersInClinic = useMemo(
+      () => calcTopSpendersInClinic(transactions, appointments, selectedCompanyId, getStartDate(timeRange)),
+      [selectedCompanyId, transactions, appointments, timeRange]
+  );
 
   // 5. MATRIZ DE EFICIÊNCIA - Hook 7
-  const procedureEfficiency = useMemo(() => {
-      if (!selectedCompanyId) return [];
-
-      const startDate = getStartDate(timeRange);
-
-      const clinicProcs = procedures.filter(p => p.companyId === selectedCompanyId);
-      const clinicAppts = appointments.filter(a => 
-          a.companyId === selectedCompanyId && 
-          a.status === 'completed' &&
-          new Date(a.date) >= startDate
-      );
-
-      return clinicProcs.map(proc => {
-          const sales = clinicAppts.filter(a => a.service === proc.name);
-          const volume = sales.length;
-          const totalRevenue = sales.reduce((acc, curr) => acc + curr.price, 0);
-          
-          const realTicket = volume > 0 ? totalRevenue / volume : 0;
-          
-          // Classificação Simples (Lógica Atualizada)
-          let status = 'Regular';
-          if (volume > 5 && realTicket > 500) status = 'Estrela ⭐'; // Vende muito e caro
-          else if (volume > 10) status = 'Popular 🔥'; // Vende muito, ticket menor
-          else if (realTicket > 1000) status = 'Premium 💎'; // Vende pouco, mas caro
-          else if (volume < 3) status = 'Baixo Rendimento ⚠️'; // Vende pouco e barato
-
-          return {
-              name: proc.name,
-              volume,
-              totalRevenue,
-              ticket: realTicket,
-              status
-          };
-      }).sort((a, b) => b.totalRevenue - a.totalRevenue); 
-
-  }, [selectedCompanyId, procedures, appointments, timeRange]);
+  const procedureEfficiency = useMemo(
+      () => calcProcedureEfficiency(procedures, appointments, selectedCompanyId, getStartDate(timeRange)),
+      [selectedCompanyId, procedures, appointments, timeRange]
+  );
 
   // 6. HISTÓRICO DE RECEITA - Hook 8 (CORRIGIDO)
-  const monthlyRevenueData = useMemo(() => {
-    if (!selectedCompanyId) return [];
-    
-    const startDate = getStartDate(timeRange);
-    const endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-    
-    let groupBy = 'month';
-    if (['1w', '1m'].includes(timeRange)) {
-        groupBy = 'day';
-    }
-
-    // Alinhar ao dia 1 para garantir iteração mensal limpa sem pular meses (ex: dia 31 -> dia 1)
-    if (groupBy === 'month') {
-        startDate.setDate(1); 
-    }
-
-    const dataMap = new Map<string, { label: string, value: number }>();
-
-    const getKey = (date: Date) => {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        if (groupBy === 'day') {
-            const d = String(date.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
-        return `${y}-${m}`;
-    };
-
-    const getLabel = (date: Date) => {
-        if (groupBy === 'day') {
-            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        }
-        return date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase();
-    };
-
-    // 1. Inicializar slots vazios
-    const loopDate = new Date(startDate);
-    
-    if (!isNaN(loopDate.getTime())) {
-        while (loopDate <= endDate) {
-            const key = getKey(loopDate);
-            if (!dataMap.has(key)) {
-                dataMap.set(key, { label: getLabel(loopDate), value: 0 });
-            }
-            
-            if (groupBy === 'day') {
-                loopDate.setDate(loopDate.getDate() + 1);
-            } else {
-                // Iteração Mensal Segura
-                loopDate.setMonth(loopDate.getMonth() + 1);
-                loopDate.setDate(1); // Força dia 1 para evitar bugs de 31 de Jan -> 3 de Mar
-            }
-        }
-    }
-
-    // 2. Agregar transações
-    transactions.forEach(t => {
-        if (t.companyId !== selectedCompanyId || t.type !== 'income') return;
-        
-        const tDate = new Date(t.date);
-        
-        // Removemos o filtro rígido de data aqui (tDate < startDate) e confiamos na chave do mapa.
-        // Se a chave existir no mapa (que foi inicializado com o range correto), somamos.
-        // Isso evita problemas de fuso horário ou datas limítrofes.
-        
-        const key = getKey(tDate);
-        const entry = dataMap.get(key);
-        if (entry) {
-            entry.value += t.amount;
-        }
-    });
-
-    return Array.from(dataMap.values());
-
-  }, [selectedCompanyId, transactions, timeRange]);
+  const monthlyRevenueData = useMemo(
+    () => calcMonthlyRevenueData(transactions, selectedCompanyId, timeRange),
+    [selectedCompanyId, transactions, timeRange]
+  );
 
   // 7. RETENÇÃO - Hook 9
-  const retentionMetrics = useMemo(() => {
-    if (!selectedCompanyId) return { single: 0, returning: 0, rate: '0' };
-
-    const startDate = getStartDate(timeRange);
-
-    // Consider appointments in the selected range
-    const clinicAppts = appointments.filter(a => 
-        a.companyId === selectedCompanyId && 
-        a.status === 'completed' &&
-        new Date(a.date) >= startDate
-    );
-
-    const patientCounts: Record<string, number> = {};
-    clinicAppts.forEach(a => {
-        if(a.patientId) {
-            patientCounts[a.patientId] = (patientCounts[a.patientId] || 0) + 1;
-        }
-    });
-
-    let returningCount = 0;
-    let singleVisitCount = 0;
-
-    Object.values(patientCounts).forEach(count => {
-        if (count > 1) returningCount++;
-        else singleVisitCount++;
-    });
-
-    const total = returningCount + singleVisitCount;
-    const rate = total > 0 ? (returningCount / total) * 100 : 0;
-
-    return { 
-        returning: returningCount, 
-        single: singleVisitCount, 
-        rate: rate.toFixed(1) 
-    };
-  }, [selectedCompanyId, appointments, timeRange]);
+  const retentionMetrics = useMemo(
+    () => calcRetentionMetrics(appointments, selectedCompanyId, getStartDate(timeRange)),
+    [selectedCompanyId, appointments, timeRange]
+  );
 
   // 8. APPOINTMENT STATS - Hook 10
-  const appointmentStats = useMemo(() => {
-    if (!selectedCompanyId) return { completed: 0, canceled: 0, total: 0, cancelRate: '0' };
-
-    const startDate = getStartDate(timeRange);
-
-    const clinicAppts = appointments.filter(a => 
-        a.companyId === selectedCompanyId &&
-        new Date(a.date) >= startDate
-    );
-    
-    const completed = clinicAppts.filter(a => a.status === 'completed').length;
-    const canceled = clinicAppts.filter(a => a.status === 'canceled').length;
-    const total = clinicAppts.length;
-    const cancelRate = total > 0 ? (canceled / total) * 100 : 0;
-
-    return { completed, canceled, total, cancelRate: cancelRate.toFixed(1) };
-  }, [selectedCompanyId, appointments, timeRange]);
+  const appointmentStats = useMemo(
+    () => calcAppointmentStats(appointments, selectedCompanyId, getStartDate(timeRange)),
+    [selectedCompanyId, appointments, timeRange]
+  );
 
   // 9. PROFESSIONAL PERFORMANCE (NOVO) - Hook 11
-  const professionalPerformance = useMemo(() => {
-      if (!selectedCompanyId) return [];
-      
-      const startDate = getStartDate(timeRange);
-      const monthsCount = getMonthMultiplier(timeRange);
-      
-      // Filtrar profissionais da empresa
-      const clinicPros = professionals.filter(p => p.companyId === selectedCompanyId);
-      
-      // Calcular métricas para cada
-      return clinicPros.map(pro => {
-          const proAppts = appointments.filter(a => 
-              a.professionalId === pro.id && 
-              new Date(a.date) >= startDate
-          );
-
-          const completedAppts = proAppts.filter(a => a.status === 'completed');
-          const canceledAppts = proAppts.filter(a => a.status === 'canceled');
-          
-          const totalRevenue = completedAppts.reduce((acc, curr) => acc + curr.price, 0);
-          const totalAppts = completedAppts.length;
-          const totalCanceled = canceledAppts.length;
-          
-          // Cost Logic
-          let commissionCost = 0;
-          if (pro.remunerationType === 'comissao' || pro.remunerationType === 'misto') {
-              if (pro.commissionRate) {
-                  commissionCost = totalRevenue * (pro.commissionRate / 100);
-              }
-          }
-
-          let salaryCost = 0;
-          if (pro.remunerationType === 'fixo' || pro.remunerationType === 'misto') {
-              if (pro.fixedSalary) {
-                  salaryCost = pro.fixedSalary * monthsCount;
-              }
-          }
-
-          const totalCost = salaryCost + commissionCost;
-          
-          return {
-              name: pro.name,
-              revenue: totalRevenue,
-              completedCount: totalAppts,
-              canceledCount: totalCanceled,
-              commissionCost,
-              salaryCost,
-              totalCost
-          };
-      }).sort((a, b) => b.revenue - a.revenue);
-  }, [selectedCompanyId, professionals, appointments, timeRange]);
+  // NOTA (duplicação conhecida): o cálculo de comissão/salário fixo aqui tem um
+  // equivalente já testado no backend em GET /api/reports/commissions
+  // (aura-backend/src/app/api/reports/commissions/route.ts +
+  // reports-commissions.test.ts) que esta tela NÃO consome. Um refactor futuro
+  // deveria unificar as duas implementações. Lógica pura em utils/reportsCalc.ts.
+  const professionalPerformance = useMemo(
+    () => calcProfessionalPerformance(
+      professionals, appointments, selectedCompanyId,
+      getStartDate(timeRange), getMonthMultiplier(timeRange)
+    ),
+    [selectedCompanyId, professionals, appointments, timeRange]
+  );
 
   // Compute total revenue for the selected company
-  const totalRevenue = useMemo(() => {
-    if (!selectedCompanyId) return 0;
-    const startDate = getStartDate(timeRange);
-    return transactions
-      .filter(t => t.companyId === selectedCompanyId && t.type === 'income' && new Date(t.date) >= startDate)
-      .reduce((acc, t) => acc + t.amount, 0);
-  }, [selectedCompanyId, transactions, timeRange]);
+  const totalRevenue = useMemo(
+    () => totalRevenueInPeriod(transactions, selectedCompanyId, getStartDate(timeRange)),
+    [selectedCompanyId, transactions, timeRange]
+  );
 
   // Compute total patients
   const totalPatients = useMemo(() => {
@@ -538,33 +276,12 @@ const Reports: React.FC = () => {
     return patients.filter(p => p.companyId === selectedCompanyId).length;
   }, [selectedCompanyId, patients]);
 
-  // Compute previous period for trend comparison
-  const getPreviousPeriodDates = (range: string) => {
-    const currentStart = getStartDate(range);
-    const currentEnd = new Date();
-    const periodMs = currentEnd.getTime() - currentStart.getTime();
-    const prevEnd = new Date(currentStart.getTime() - 1);
-    const prevStart = new Date(prevEnd.getTime() - periodMs);
-    return { prevStart, prevEnd };
-  };
-
   const trendData = useMemo(() => {
     if (!selectedCompanyId) return { revenueTrend: 0, appointmentsTrend: 0, retentionTrend: 0 };
     const { prevStart, prevEnd } = getPreviousPeriodDates(timeRange);
 
-    const prevRevenue = transactions
-      .filter(t => t.companyId === selectedCompanyId && t.type === 'income' && new Date(t.date) >= prevStart && new Date(t.date) <= prevEnd)
-      .reduce((acc, t) => acc + t.amount, 0);
-
-    const prevCompleted = appointments.filter(a =>
-      a.companyId === selectedCompanyId && a.status === 'completed' &&
-      new Date(a.date) >= prevStart && new Date(a.date) <= prevEnd
-    ).length;
-
-    const calcTrend = (current: number, previous: number) => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return Math.round(((current - previous) / previous) * 100);
-    };
+    const prevRevenue = sumIncomeBetween(transactions, selectedCompanyId, prevStart, prevEnd);
+    const prevCompleted = countCompletedBetween(appointments, selectedCompanyId, prevStart, prevEnd);
 
     return {
       revenueTrend: calcTrend(totalRevenue, prevRevenue),

@@ -97,6 +97,7 @@ vi.mock('../../services/installmentsApi', () => ({
   installmentsApi: { markInstallmentPaid: vi.fn() },
 }));
 
+import type { SystemModule } from '../../types';
 import { AppProvider, useApp, normalizeProfessional } from '../../context/AppContext';
 import { authApi, patientsApi, appointmentsApi, photosApi, usersApi, inventoryApi, companiesApi, ticketsApi, systemAlertsApi, unavailabilityApi, leadsApi, notificationsApi, transactionsApi, proceduresApi, plansApi } from '../../services/api';
 import { installmentsApi } from '../../services/installmentsApi';
@@ -1695,5 +1696,86 @@ describe('AppContext > isReadOnly (modo somente leitura por status de assinatura
   it('OWNER nunca fica em modo somente leitura, mesmo com assinatura vencida', async () => {
     const { result } = await renderWithCompany({ subscriptionStatus: 'OVERDUE', subscriptionExpiresAt: PAST, role: 'OWNER' });
     expect(result.current.isReadOnly).toBe(false);
+  });
+});
+
+describe('AppContext > checkModuleAccess (gate de módulo por plano)', () => {
+  // Usado pelas abas Relatórios BI (`reports`) e Marketing (`ai_features`).
+  // `plansApi.list` responde com um ARRAY (o código faz `plansRes.data.map`).
+  interface PlanSeed { id: string; name: string; price?: number; modules?: string[] }
+
+  async function renderWithPlan(opts: {
+    role?: 'ADMIN' | 'OWNER';
+    companyPlan?: string;
+    plans?: PlanSeed[];
+  }) {
+    const { role = 'ADMIN', companyPlan = 'PRO', plans = [] } = opts;
+
+    vi.mocked(authApi.me).mockResolvedValue({
+      success: true,
+      data: {
+        user: {
+          id: 'u1', name: 'U', email: 'u@x.com', role, companyId: 'c1',
+          company: { id: 'c1', name: 'Clínica', slug: 'clinica', plan: companyPlan, subscriptionStatus: 'ACTIVE' },
+        },
+      },
+    } as never);
+    // loadPlans() faz `res.data.map(...)` — data é o ARRAY de planos.
+    vi.mocked(plansApi.list).mockResolvedValue({ success: true, data: plans } as never);
+
+    const view = renderHook(() => useApp(), { wrapper });
+    await waitFor(() => expect(view.result.current.isInitializing).toBe(false));
+    await waitFor(() => expect(view.result.current.currentCompany?.id).toBe('c1'));
+
+    if (plans.length > 0) {
+      // loadDataFromApi não roda nos testes (sem token em memória); populamos
+      // saasPlans explicitamente via a ação pública loadPlans.
+      await act(async () => { await view.result.current.loadPlans(true); });
+      await waitFor(() => expect(view.result.current.saasPlans.length).toBe(plans.length));
+    }
+    return view;
+  }
+
+  const REPORTS: SystemModule = 'reports';
+
+  it('OWNER sempre tem acesso (não depende de plano)', async () => {
+    const { result } = await renderWithPlan({ role: 'OWNER', plans: [] });
+    expect(result.current.checkModuleAccess(REPORTS)).toBe(true);
+  });
+
+  it('saasPlans vazio → true (fallback enquanto planos não carregam)', async () => {
+    const { result } = await renderWithPlan({ role: 'ADMIN', plans: [] });
+    expect(result.current.saasPlans).toHaveLength(0);
+    expect(result.current.checkModuleAccess(REPORTS)).toBe(true);
+  });
+
+  it('plano da empresa não encontrado em saasPlans → true (fallback seguro)', async () => {
+    const { result } = await renderWithPlan({
+      role: 'ADMIN',
+      companyPlan: 'PLANO_INEXISTENTE',
+      plans: [{ id: 'p1', name: 'PRO', modules: ['reports'] }],
+    });
+    await waitFor(() => expect(result.current.saasPlans.length).toBeGreaterThan(0));
+    expect(result.current.checkModuleAccess(REPORTS)).toBe(true);
+  });
+
+  it('plano encontrado SEM o módulo "reports" → false', async () => {
+    const { result } = await renderWithPlan({
+      role: 'ADMIN',
+      companyPlan: 'BASIC',
+      plans: [{ id: 'p1', name: 'BASIC', modules: ['financial', 'crm'] }],
+    });
+    await waitFor(() => expect(result.current.saasPlans.length).toBeGreaterThan(0));
+    expect(result.current.checkModuleAccess(REPORTS)).toBe(false);
+  });
+
+  it('plano encontrado COM o módulo "reports" → true (case-insensitive no nome do plano)', async () => {
+    const { result } = await renderWithPlan({
+      role: 'ADMIN',
+      companyPlan: 'pro', // minúsculo de propósito
+      plans: [{ id: 'p1', name: 'PRO', modules: ['reports', 'ai_features'] }],
+    });
+    await waitFor(() => expect(result.current.saasPlans.length).toBeGreaterThan(0));
+    expect(result.current.checkModuleAccess(REPORTS)).toBe(true);
   });
 });

@@ -34,12 +34,12 @@ const RISK_CONFIG: Record<Risk, { label: string; dot: string; badge: string; tex
   },
 };
 
-function formatDate(iso: string): string {
+export function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 }
 
-function buildWhatsAppLink(phone: string, patientName: string, procedure: string, lastVisit: string, clinicName: string): string {
+export function buildWhatsAppLink(phone: string, patientName: string, procedure: string, lastVisit: string, clinicName: string): string {
   const cleanPhone = phone.replace(/\D/g, '');
   const phoneWithCountry = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
   const message = `Oi ${patientName}! 😊\n\nAqui é da ${clinicName}.\nNotamos que faz um tempinho desde sua última visita de ${procedure} em ${formatDate(lastVisit)}.\n\nQue tal agendarmos sua próxima sessão? 🗓️`;
