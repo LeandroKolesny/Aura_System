@@ -120,6 +120,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       data: {
         ...validation.data,
         birthDate: validation.data.birthDate ? new Date(validation.data.birthDate) : undefined,
+        // Converte o ISO string validado pelo Zod em Date para o Prisma
+        ...(validation.data.lastMarketingMessageSentAt !== undefined && {
+          lastMarketingMessageSentAt: validation.data.lastMarketingMessageSentAt
+            ? new Date(validation.data.lastMarketingMessageSentAt)
+            : null,
+        }),
       },
     });
 

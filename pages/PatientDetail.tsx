@@ -188,6 +188,16 @@ const PatientDetail: React.FC = () => {
       setIsEditing(false);
   };
 
+  // LGPD: alterna o consentimento do paciente para receber contato promocional
+  // (WhatsApp). Persiste via PUT /api/patients/[id] e comunica qualquer falha.
+  const handleToggleMarketingOptOut = async () => {
+      if (isReadOnly || !patient) return;
+      const result = await updatePatient(patient.id, { marketingOptOut: !patient.marketingOptOut });
+      if (!result.success) {
+          showAlert(result.error ?? 'Erro ao atualizar a preferência de contato.', { variant: 'danger' });
+      }
+  };
+
   const handleSignatureSave = async (base64: string, correctionReason?: string) => {
       if (!patient) return;
       const result = await signConsent(patient.id, base64, correctionReason);
@@ -404,6 +414,21 @@ const PatientDetail: React.FC = () => {
             </div>
 
             <div className="space-y-6">
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                 <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><MessageCircle className="w-5 h-5 text-slate-600" /> Contato Promocional</h3>
+                 <label className="flex items-start gap-3 cursor-pointer text-sm text-slate-700">
+                   <input
+                     type="checkbox"
+                     checked={!patient.marketingOptOut}
+                     disabled={isReadOnly}
+                     onChange={handleToggleMarketingOptOut}
+                     className="mt-0.5 w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50"
+                   />
+                   <span>Aceita receber contato promocional (WhatsApp)</span>
+                 </label>
+                 <p className="text-xs text-slate-400 mt-2">Desmarque para respeitar o opt-out do paciente (LGPD). Pacientes sem consentimento são excluídos das campanhas de Marketing.</p>
+              </div>
+
               <div className="p-6 rounded-xl bg-gradient-to-br from-stone-600 to-stone-800 text-white shadow-lg">
                  <h3 className="font-bold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-400" /> Aura Assistant</h3>
                  <p className="text-sm opacity-90 mb-4">Pós-venda e retenção inteligente.</p>

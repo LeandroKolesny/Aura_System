@@ -255,6 +255,38 @@ describe('PUT /api/companies/[id] — campo logo aceita data URL de imagem', () 
   })
 })
 
+describe('PUT /api/companies/[id] — lastMarketingSentAt (campanha de retenção SaaS)', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
+  })
+
+  it('aceita e persiste lastMarketingSentAt (antes falhava com 400 pelo schema .strict())', async () => {
+    const iso = '2026-09-10T12:00:00.000Z'
+    const res = await PUT(makePutRequest({ lastMarketingSentAt: iso }), makeParams('c1'))
+
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lastMarketingSentAt: new Date(iso) }) })
+    )
+  })
+
+  it('aceita lastMarketingSentAt: null', async () => {
+    const res = await PUT(makePutRequest({ lastMarketingSentAt: null }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lastMarketingSentAt: null }) })
+    )
+  })
+
+  it('rejeita (400) lastMarketingSentAt que não é datetime ISO', async () => {
+    const res = await PUT(makePutRequest({ lastMarketingSentAt: '10/09/2026' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+})
+
 describe('PUT /api/companies/[id] — .strict() bloqueia campos sensíveis fora do schema', () => {
   beforeEach(() => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)

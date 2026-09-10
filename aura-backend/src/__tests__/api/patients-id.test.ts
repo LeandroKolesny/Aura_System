@@ -141,6 +141,42 @@ describe('PUT /api/patients/[id]', () => {
       expect.objectContaining({ data: expect.objectContaining({ birthDate: expect.any(Date) }) })
     )
   })
+
+  it('persiste lastMarketingMessageSentAt (antes era descartado silenciosamente pelo schema de update)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1', email: 'old@email.com' } as never)
+    vi.mocked(prisma.patient.update).mockResolvedValue({ id: 'p1' } as never)
+
+    const iso = '2026-09-10T12:00:00.000Z'
+    const res = await PUT(makeRequest('PUT', { lastMarketingMessageSentAt: iso }), makeParams())
+
+    expect(res.status).toBe(200)
+    expect(prisma.patient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lastMarketingMessageSentAt: new Date(iso) }) })
+    )
+  })
+
+  it('rejeita (400) lastMarketingMessageSentAt que não é datetime ISO', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1', email: 'old@email.com' } as never)
+
+    const res = await PUT(makeRequest('PUT', { lastMarketingMessageSentAt: 'ontem' }), makeParams())
+    expect(res.status).toBe(400)
+    expect(prisma.patient.update).not.toHaveBeenCalled()
+  })
+
+  it('persiste marketingOptOut: true (opt-out de marketing — LGPD)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1', email: 'old@email.com' } as never)
+    vi.mocked(prisma.patient.update).mockResolvedValue({ id: 'p1', marketingOptOut: true } as never)
+
+    const res = await PUT(makeRequest('PUT', { marketingOptOut: true }), makeParams())
+
+    expect(res.status).toBe(200)
+    expect(prisma.patient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ marketingOptOut: true }) })
+    )
+  })
 })
 
 describe('DELETE /api/patients/[id]', () => {

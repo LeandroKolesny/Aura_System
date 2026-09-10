@@ -366,6 +366,40 @@ describe('authApi.googleSignIn', () => {
   });
 });
 
+describe('patientsApi.update (aba Marketing / PatientDetail)', () => {
+  it('update chama PUT /api/patients/:id repassando marketingOptOut no corpo', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { patient: { id: 'p1', marketingOptOut: true } }));
+
+    const result = await patientsApi.update('p1', { marketingOptOut: true });
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/patients/p1'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ marketingOptOut: true }) })
+    );
+    expect(result).toEqual({ success: true, data: { patient: { id: 'p1', marketingOptOut: true } } });
+  });
+
+  it('update repassa lastMarketingMessageSentAt no corpo (marca "já contatado" da aba Marketing)', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(200, { patient: { id: 'p1' } }));
+    const iso = '2026-09-10T12:00:00.000Z';
+
+    await patientsApi.update('p1', { lastMarketingMessageSentAt: iso });
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/patients/p1'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ lastMarketingMessageSentAt: iso }) })
+    );
+  });
+
+  it('REGRESSÃO: update repassa erro de validação do backend em vez de fingir sucesso', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(400, { error: 'Dados inválidos' }));
+
+    const result = await patientsApi.update('p1', { lastMarketingMessageSentAt: 'data-ruim' });
+
+    expect(result).toEqual({ success: false, error: 'Dados inválidos' });
+  });
+});
+
 describe('Importação de CSV (patientsApi / transactionsApi / proceduresApi / inventoryApi)', () => {
   function makeFile() {
     return new File(['nome,email\nFulano,f@x.com'], 'pacientes.csv', { type: 'text/csv' });

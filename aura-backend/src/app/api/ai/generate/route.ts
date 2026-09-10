@@ -2,6 +2,7 @@
 // Endpoint seguro para geração de mensagens com IA
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { checkModuleAccess } from "@/lib/apiGuards";
 import { GoogleGenAI } from "@google/genai";
 import { SAAS_COMPANY_NAME } from "@/lib/constants";
 
@@ -53,11 +54,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
+    // RBAC: paciente nunca gera mensagens de IA (o portal do paciente não usa
+    // esta rota). Só equipe da clínica / OWNER.
+    if (authUser.role === "PATIENT") {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { type, data } = body;
 
     if (!type || !data) {
       return NextResponse.json({ error: "Tipo e dados são obrigatórios" }, { status: 400 });
+    }
+
+    // A geração de retenção B2B (Customer Success SaaS) é exclusiva do OWNER da
+    // plataforma — clínicas não disparam campanha de churn/upsell para si mesmas.
+    if (type === "retention" && authUser.role !== "OWNER") {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+
+    // Gate de plano: recursos de IA exigem o módulo "ai_features" OU "crm"
+    // habilitado no plano contratado. O OWNER da plataforma não tem companyId
+    // e passa direto (não está sujeito a plano de clínica).
+    if (authUser.role !== "OWNER") {
+      const aiBlocked = await checkModuleAccess(authUser, "ai_features");
+      if (aiBlocked) {
+        const crmBlocked = await checkModuleAccess(authUser, "crm");
+        if (crmBlocked) return crmBlocked;
+      }
     }
 
     const aiInstance = getAI();

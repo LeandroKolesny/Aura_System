@@ -149,6 +149,22 @@ describe('GET /api/patients', () => {
       })
     )
   })
+
+  // A aba Marketing (pages/Marketing.tsx) lê patient.lastMarketingMessageSentAt
+  // (status "já enviado") e patient.marketingOptOut (exclusão LGPD) direto da
+  // listagem. Se sumirem do select, a segmentação volta a contatar quem já foi
+  // contatado / quem pediu opt-out sem nenhum erro visível.
+  it('REGRESSÃO: o select da listagem inclui lastMarketingMessageSentAt e marketingOptOut (consumidos pela aba Marketing)', async () => {
+    await GET_LIST(makeListRequest())
+    expect(prisma.patient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          lastMarketingMessageSentAt: true,
+          marketingOptOut: true,
+        }),
+      })
+    )
+  })
 })
 
 // ── POST /api/patients ────────────────────────────────────────────────────────

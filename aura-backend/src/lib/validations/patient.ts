@@ -61,6 +61,13 @@ export const createPatientSchema = z.object({
 // em vez de entrar em createPatientSchema.
 export const updatePatientSchema = createPatientSchema.partial().extend({
   anamnesisLinkSent: z.boolean().optional(),
+  // Timestamp do último contato de marketing (pós-venda / aniversário) enviado
+  // pela aba Marketing. Sem este campo no schema o valor era descartado
+  // silenciosamente antes do prisma.patient.update e nunca persistia.
+  lastMarketingMessageSentAt: z.string().datetime().nullable().optional(),
+  // Opt-out de contato promocional (LGPD, art. 8º §5º — direito de revogação).
+  // Quando true, o paciente não deve receber mensagens de marketing/WhatsApp.
+  marketingOptOut: z.boolean().optional(),
 });
 
 // Schema para assinar consentimento

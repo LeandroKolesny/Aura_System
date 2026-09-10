@@ -51,6 +51,10 @@ const ClinicMarketing: React.FC = () => {
       const list: MarketingOpportunity[] = [];
 
       patients.forEach(patient => {
+          // LGPD: paciente que optou por não receber contato promocional fica
+          // fora de todas as segmentações (Recuperação / Manutenção / Aniversário).
+          if (patient.marketingOptOut) return;
+
           const patientAppts = appointments
               .filter(a => a.patientId === patient.id && a.status === 'completed')
               .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -159,6 +163,14 @@ const ClinicMarketing: React.FC = () => {
 
   const handleGenerateMessage = async (patient: MarketingOpportunity) => {
       if (isReadOnly) return;
+
+      // LGPD: não gerar mensagem para paciente que recusou contato promocional.
+      const fullPatient = patients.find(p => p.id === patient.id);
+      if (fullPatient?.marketingOptOut) {
+          showAlert('Este paciente optou por não receber contato promocional (WhatsApp).', { variant: 'warning' });
+          return;
+      }
+
       setIsGenerating(true);
       setSelectedPatientId(patient.id);
       setSelectedPatientData(patient); // Guardar dados para poder regenerar
@@ -181,10 +193,23 @@ const ClinicMarketing: React.FC = () => {
       await handleGenerateMessage(selectedPatientData);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
       const patient = patients.find(p => p.id === selectedPatientId);
       if (patient && generatedMsg) {
-          updatePatient(patient.id, { lastMarketingMessageSentAt: new Date().toISOString() });
+          // LGPD: bloqueia o envio se o paciente recusou contato promocional.
+          if (patient.marketingOptOut) {
+              showAlert('Este paciente optou por não receber contato promocional (WhatsApp).', { variant: 'warning' });
+              return;
+          }
+
+          // Espelha SaaSMarketing.handleSendWhatsApp: só abre o WhatsApp se o
+          // registro do "enviado" persistiu de verdade no backend.
+          const result = await updatePatient(patient.id, { lastMarketingMessageSentAt: new Date().toISOString() });
+          if (!result.success) {
+              showAlert(result.error ?? 'Erro inesperado ao registrar o envio.', { variant: 'danger' });
+              return;
+          }
+
           const phone = patient.phone.replace(/\D/g, '');
           const url = `https://wa.me/55${phone}?text=${encodeURIComponent(generatedMsg)}`;
           window.open(url, '_blank');

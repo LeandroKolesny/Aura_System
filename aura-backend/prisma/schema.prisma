@@ -237,6 +237,9 @@ model Patient {
   consentSignatureHistory PatientConsentSignatureHistory[]
   anamnesisLinkSent       Boolean   @default(false)
   lastMarketingMessageSentAt DateTime?
+  // Opt-out de contato promocional (LGPD, art. 8º §5º). true = paciente recusou
+  // receber mensagens de marketing/WhatsApp; a aba Marketing exclui esses pacientes.
+  marketingOptOut         Boolean   @default(false)
 
   lastVisit       DateTime?
   createdAt       DateTime @default(now())

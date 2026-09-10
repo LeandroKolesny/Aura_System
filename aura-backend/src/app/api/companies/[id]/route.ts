@@ -88,6 +88,11 @@ const updateCompanySchema = z.object({
     male: z.boolean().optional(),
     kids: z.boolean().optional(),
   }).optional(),
+  // Timestamp da última campanha de retenção/upsell (Customer Success SaaS) enviada
+  // para esta empresa. Existe no Prisma (Company.lastMarketingSentAt DateTime?) e é
+  // o que SaaSMarketing.handleSendWhatsApp persiste via updateCompany. Sem este campo
+  // aqui o schema .strict() rejeitava o PUT com 400 e a mensagem nunca era enviada.
+  lastMarketingSentAt: z.string().datetime().nullable().optional(),
 }).strict();
 
 interface RouteParams {
@@ -232,6 +237,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       ...(data.facebook !== undefined && { facebook: data.facebook }),
       ...(data.instagram !== undefined && { instagram: data.instagram }),
       ...(data.onboardingCompleted !== undefined && { onboardingCompleted: data.onboardingCompleted }),
+      ...(data.lastMarketingSentAt !== undefined && {
+        lastMarketingSentAt: data.lastMarketingSentAt ? new Date(data.lastMarketingSentAt) : null,
+      }),
     };
 
     // Mapear targetAudience (alias do frontend)

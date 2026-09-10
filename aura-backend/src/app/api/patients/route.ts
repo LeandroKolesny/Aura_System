@@ -101,6 +101,11 @@ export async function GET(request: NextRequest) {
           lastConsentCorrectionAt: true,
           lastConsentCorrectionReason: true,
           anamnesisLinkSent: true,
+          // Campos consumidos pela aba Marketing (pages/Marketing.tsx):
+          // lastMarketingMessageSentAt controla o "já enviado" e marketingOptOut
+          // exclui pacientes que recusaram contato promocional (LGPD).
+          lastMarketingMessageSentAt: true,
+          marketingOptOut: true,
           createdAt: true,
         },
       }),

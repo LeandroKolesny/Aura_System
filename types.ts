@@ -161,7 +161,9 @@ export interface Patient {
   lastConsentCorrectionAt?: string;
   lastConsentCorrectionReason?: string;
   anamnesisLinkSent?: boolean;
-  lastMarketingMessageSentAt?: string; 
+  lastMarketingMessageSentAt?: string;
+  // Opt-out de contato promocional (LGPD). true = paciente recusou marketing/WhatsApp.
+  marketingOptOut?: boolean;
 }
 
 // --- ESTOQUE ---

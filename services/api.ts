@@ -183,6 +183,7 @@ export interface ApiPatient {
   lastConsentCorrectionReason?: string | null;
   anamnesisLinkSent?: boolean;
   lastMarketingMessageSentAt?: string | null;
+  marketingOptOut?: boolean | null;
 }
 
 export interface ApiAppointment {
