@@ -19,6 +19,7 @@ vi.mock('@/lib/prisma', () => ({
     whatsappInstance: { findUnique: vi.fn() },
     company: { findUnique: vi.fn() },
     patientSubscription: { findFirst: vi.fn(), update: vi.fn() },
+    $transaction: vi.fn(),
   },
 }))
 vi.mock('@/lib/auth', () => ({
@@ -107,6 +108,14 @@ beforeEach(() => {
   vi.mocked(prisma.inventoryItem.update).mockResolvedValue({} as never)
   vi.mocked(prisma.inventoryItem.findUnique).mockResolvedValue(null)
   vi.mocked(prisma.stockMovement.create).mockResolvedValue({} as never)
+  // $transaction interativo: executa o callback com o próprio prisma mockado
+  // (mesmo padrão dos outros testes do projeto — ex: inventory-adjust.test.ts).
+  vi.mocked(prisma.$transaction).mockImplementation(
+    (arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (tx: unknown) => Promise<unknown>)(prisma)
+        : Promise.all(arg as unknown[])
+  )
   vi.mocked(prisma.transaction.create).mockResolvedValue({} as never)
   vi.mocked(prisma.activity.create).mockResolvedValue({} as Activity)
   vi.mocked(prisma.whatsappInstance.findUnique).mockResolvedValue(null)
@@ -156,7 +165,7 @@ describe('PATCH /api/appointments/[id]/status', () => {
   it('COMPLETED deduz estoque quando stockDeducted=false', async () => {
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(MOCK_APPOINTMENT_CONFIRMED)
     vi.mocked(prisma.procedureSupply.findMany).mockResolvedValue([
-      { inventoryItemId: 'item-001', quantityUsed: 2, inventoryItem: { name: 'Creme' } },
+      { inventoryItemId: 'item-001', quantityUsed: 2, inventoryItem: { name: 'Creme', currentStock: 5 } },
     ] as never)
     vi.mocked(prisma.inventoryItem.findUnique).mockResolvedValue({
       id: 'item-001',
@@ -170,6 +179,7 @@ describe('PATCH /api/appointments/[id]/status', () => {
       expect.objectContaining({ data: expect.objectContaining({ currentStock: { decrement: 2 } }) })
     )
     expect(prisma.stockMovement.create).toHaveBeenCalled()
+    expect(prisma.$transaction).toHaveBeenCalled()
   })
 
   it('COMPLETED não deduz estoque quando stockDeducted=true', async () => {
@@ -240,7 +250,7 @@ describe('PATCH /api/appointments/[id]/status', () => {
   it('cria alerta de estoque baixo quando currentStock ≤ minStock após dedução', async () => {
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(MOCK_APPOINTMENT_CONFIRMED)
     vi.mocked(prisma.procedureSupply.findMany).mockResolvedValue([
-      { inventoryItemId: 'item-001', quantityUsed: 5, inventoryItem: { name: 'Creme' } },
+      { inventoryItemId: 'item-001', quantityUsed: 5, inventoryItem: { name: 'Creme', currentStock: 7 } },
     ] as never)
     vi.mocked(prisma.inventoryItem.findUnique).mockResolvedValue({
       id: 'item-001',
@@ -252,6 +262,69 @@ describe('PATCH /api/appointments/[id]/status', () => {
     await PATCH(makeRequest({ status: 'COMPLETED' }), ROUTE_PARAMS)
     expect(prisma.appNotification.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ type: 'WARNING' }) })
+    )
+  })
+
+  // ── deductStock: transacional + bloqueio de estoque negativo ───────────────
+
+  it('bloqueia a conclusão (409) quando um insumo ficaria com estoque negativo — nada deduzido, status não muda', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(MOCK_APPOINTMENT_CONFIRMED)
+    vi.mocked(prisma.procedureSupply.findMany).mockResolvedValue([
+      { inventoryItemId: 'item-001', quantityUsed: 5, inventoryItem: { name: 'Toxina', currentStock: 1 } },
+    ] as never)
+
+    const res = await PATCH(makeRequest({ status: 'COMPLETED' }), ROUTE_PARAMS)
+    const body = await res.json()
+
+    expect(res.status).toBe(409)
+    expect(body.error).toContain('Estoque insuficiente')
+    expect(body.error).toContain('Toxina')
+    // nada foi deduzido, nenhum movimento criado
+    expect(prisma.inventoryItem.update).not.toHaveBeenCalled()
+    expect(prisma.stockMovement.create).not.toHaveBeenCalled()
+    // status NÃO muda pra COMPLETED e stockDeducted continua false (retry seguro)
+    expect(prisma.appointment.update).not.toHaveBeenCalled()
+  })
+
+  it('falha no meio da dedução (2º insumo rejeita) → 500, transação reverte, status não muda, stockDeducted continua false', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(MOCK_APPOINTMENT_CONFIRMED)
+    vi.mocked(prisma.procedureSupply.findMany).mockResolvedValue([
+      { inventoryItemId: 'item-A', quantityUsed: 2, inventoryItem: { name: 'Creme A', currentStock: 10 } },
+      { inventoryItemId: 'item-B', quantityUsed: 3, inventoryItem: { name: 'Creme B', currentStock: 10 } },
+    ] as never)
+    vi.mocked(prisma.inventoryItem.update)
+      .mockResolvedValueOnce({} as never) // 1º insumo processa
+      .mockRejectedValueOnce(new Error('conexão perdida')) // 2º insumo falha no meio
+
+    const res = await PATCH(makeRequest({ status: 'COMPLETED' }), ROUTE_PARAMS)
+
+    expect(res.status).toBe(500)
+    // como tudo está numa única $transaction, o appointment.update({stockDeducted:true})
+    // nunca roda — um retro-retry volta a rodar deductStock com segurança
+    expect(prisma.appointment.update).not.toHaveBeenCalled()
+  })
+
+  it('caso feliz com 2 insumos: ambos decrementados dentro de UMA transação e stockDeducted vira true', async () => {
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(MOCK_APPOINTMENT_CONFIRMED)
+    vi.mocked(prisma.procedureSupply.findMany).mockResolvedValue([
+      { inventoryItemId: 'item-A', quantityUsed: 2, inventoryItem: { name: 'Creme A', currentStock: 10 } },
+      { inventoryItemId: 'item-B', quantityUsed: 3, inventoryItem: { name: 'Creme B', currentStock: 8 } },
+    ] as never)
+
+    await PATCH(makeRequest({ status: 'COMPLETED' }), ROUTE_PARAMS)
+
+    expect(prisma.$transaction).toHaveBeenCalled()
+    expect(prisma.inventoryItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'item-A' }, data: { currentStock: { decrement: 2 } } })
+    )
+    expect(prisma.inventoryItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'item-B' }, data: { currentStock: { decrement: 3 } } })
+    )
+    expect(prisma.stockMovement.create).toHaveBeenCalledTimes(2)
+    expect(prisma.appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETED', stockDeducted: true }),
+      })
     )
   })
 

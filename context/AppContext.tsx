@@ -126,6 +126,7 @@ interface AppContextType {
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'companyId'>) => Promise<{ success: boolean; error?: string; item?: InventoryItem }>;
   updateInventoryItem: (id: string, data: Partial<InventoryItem>) => Promise<{ success: boolean; error?: string }>;
+  adjustInventoryStock: (id: string, data: { quantity: number; type: 'IN' | 'OUT' | 'LOSS' | 'ADJUSTMENT'; reason: string }) => Promise<{ success: boolean; error?: string }>;
   removeInventoryItem: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   checkModuleAccess: (module: SystemModule) => boolean;
@@ -2159,6 +2160,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  // Ajuste de estoque AUDITADO (cria StockMovement + Activity + notificação no
+  // backend). Usar sempre que só o currentStock muda — nunca mandar currentStock
+  // no PUT do item, que não deixa trilha de auditoria.
+  const adjustInventoryStock = async (
+    id: string,
+    data: { quantity: number; type: 'IN' | 'OUT' | 'LOSS' | 'ADJUSTMENT'; reason: string },
+  ) => {
+      checkWriteAccess();
+      try {
+        const response = await inventoryApi.adjust(id, data);
+        if (response.success && response.data?.item) {
+          const updated = response.data.item;
+          setInventory(prev => prev.map(i => i.id === id ? { ...i, ...updated } : i));
+          return { success: true };
+        }
+        console.error('❌ Erro ao ajustar estoque:', response.error);
+        return { success: false, error: response.error };
+      } catch (error) {
+        console.error('❌ Erro de conexão ao ajustar estoque:', error);
+        return { success: false, error: 'Erro de sistema. Tente novamente.' };
+      }
+  };
+
   const removeInventoryItem = async (id: string) => {
       checkWriteAccess();
       try {
@@ -2265,6 +2289,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       inventory: user?.role === UserRole.OWNER ? inventory : inventory.filter(i => i.companyId === user?.companyId),
       addInventoryItem,
       updateInventoryItem,
+      adjustInventoryStock,
       removeInventoryItem,
       
       checkModuleAccess,

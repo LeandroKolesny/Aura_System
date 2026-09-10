@@ -1051,18 +1051,56 @@ export const ProfessionalModal: React.FC<{ onClose: () => void; initialData?: Us
 };
 
 export const InventoryModal: React.FC<{ onClose: () => void; initialData?: InventoryItem }> = ({ onClose, initialData }) => {
-  const { addInventoryItem, updateInventoryItem } = useApp();
+  const { addInventoryItem, updateInventoryItem, adjustInventoryStock } = useApp();
   const { showAlert: showInventoryAlert } = useDialog();
   const [formData, setFormData] = useState({ name: initialData?.name || '', unit: initialData?.unit || 'un', currentStock: initialData?.currentStock !== undefined ? initialData.currentStock.toString() : '', minStock: initialData?.minStock !== undefined ? initialData.minStock.toString() : '', costPerUnit: initialData?.costPerUnit !== undefined ? initialData.costPerUnit.toString() : '' });
   const [isSubmittingInv, setIsSubmittingInv] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const dataToSave = { name: formData.name, unit: formData.unit, currentStock: Number(formData.currentStock) || 0, minStock: Number(formData.minStock) || 0, costPerUnit: Number(formData.costPerUnit) || 0 };
+    const currentStock = Number(formData.currentStock) || 0;
+    const minStock = Number(formData.minStock) || 0;
+    const costPerUnit = Number(formData.costPerUnit) || 0;
     setIsSubmittingInv(true);
-    const result = initialData
-      ? await updateInventoryItem(initialData.id, dataToSave)
-      : await addInventoryItem(dataToSave as Omit<InventoryItem, 'id' | 'companyId' | 'lastRestockDate'>);
+
+    if (initialData) {
+      // EDIÇÃO: os campos do cadastro (nome, unidade, custo, mínimo) vão pelo PUT.
+      // A mudança de "Estoque Atual" NÃO vai no PUT — passa pela rota de ajuste
+      // AUDITADO (StockMovement + Activity + notificação), com o delta.
+      const putResult = await updateInventoryItem(initialData.id, {
+        name: formData.name,
+        unit: formData.unit,
+        minStock,
+        costPerUnit,
+      });
+      if (!putResult.success) {
+        setIsSubmittingInv(false);
+        showInventoryAlert(putResult.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
+
+      const stockDelta = currentStock - initialData.currentStock;
+      if (stockDelta !== 0) {
+        const adjustResult = await adjustInventoryStock(initialData.id, {
+          type: 'ADJUSTMENT',
+          quantity: stockDelta,
+          reason: 'Ajuste manual pela ficha do item',
+        });
+        if (!adjustResult.success) {
+          setIsSubmittingInv(false);
+          showInventoryAlert(adjustResult.error ?? 'Erro ao ajustar o estoque. Tente novamente.', { variant: 'danger' });
+          return;
+        }
+      }
+      setIsSubmittingInv(false);
+      onClose();
+      return;
+    }
+
+    // CRIAÇÃO: manda tudo, inclusive o estoque inicial.
+    const result = await addInventoryItem(
+      { name: formData.name, unit: formData.unit, currentStock, minStock, costPerUnit } as Omit<InventoryItem, 'id' | 'companyId' | 'lastRestockDate'>,
+    );
     setIsSubmittingInv(false);
     if (!result.success) {
       showInventoryAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });

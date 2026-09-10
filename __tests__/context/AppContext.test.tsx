@@ -49,6 +49,7 @@ vi.mock('../../services/api', () => ({
   inventoryApi: {
     create: vi.fn(),
     update: vi.fn(),
+    adjust: vi.fn(),
     delete: vi.fn(),
   },
   dashboardApi: {},
@@ -682,6 +683,48 @@ describe('AppContext > updateInventoryItem / removeInventoryItem', () => {
     });
 
     expect(outcome).toEqual({ success: false, error: 'Sem permissão' });
+  });
+});
+
+describe('AppContext > adjustInventoryStock', () => {
+  it('chama inventoryApi.adjust com o delta e o tipo ADJUSTMENT e atualiza o item na lista', async () => {
+    const { result } = await renderReadyApp();
+    vi.mocked(inventoryApi.adjust).mockResolvedValue({
+      success: true,
+      data: { item: { id: 'item-1', currentStock: 7 } },
+    } as never);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      outcome = await result.current.adjustInventoryStock('item-1', {
+        type: 'ADJUSTMENT',
+        quantity: -3,
+        reason: 'Ajuste manual pela ficha do item',
+      });
+    });
+
+    expect(inventoryApi.adjust).toHaveBeenCalledWith('item-1', {
+      type: 'ADJUSTMENT',
+      quantity: -3,
+      reason: 'Ajuste manual pela ficha do item',
+    });
+    expect(outcome).toEqual({ success: true });
+  });
+
+  it('propaga o erro da API em vez de fingir sucesso', async () => {
+    const { result } = await renderReadyApp();
+    vi.mocked(inventoryApi.adjust).mockResolvedValue({ success: false, error: 'Estoque insuficiente' } as never);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      outcome = await result.current.adjustInventoryStock('item-1', {
+        type: 'OUT',
+        quantity: 999,
+        reason: 'Uso excessivo',
+      });
+    });
+
+    expect(outcome).toEqual({ success: false, error: 'Estoque insuficiente' });
   });
 });
 

@@ -1,6 +1,7 @@
 // Aura System - API de Status do Agendamento
 // LÓGICA CRÍTICA: Baixa de estoque ao completar atendimento
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma, type AppointmentStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { updateStatusSchema } from "@/lib/validations/appointment";
@@ -12,43 +13,122 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
+  include: {
+    patient: { select: { id: true; name: true } };
+    professional: { select: { id: true; name: true } };
+    procedure: { select: { id: true; name: true } };
+  };
+}>;
+
 /**
- * Deduz estoque dos insumos utilizados no procedimento
- * EXECUTADO NO SERVIDOR - Garante integridade dos dados
+ * Erro sinalizando que a conclusão do atendimento foi bloqueada porque algum
+ * insumo ficaria com estoque negativo. Mapeado para HTTP 409 no handler.
  */
-async function deductStock(appointmentId: string, procedureId: string, companyId: string) {
-  // Buscar insumos do procedimento
+class InsufficientStockError extends Error {
+  constructor(public readonly itemName: string) {
+    super(`Estoque insuficiente para o insumo ${itemName}`);
+    this.name = "InsufficientStockError";
+  }
+}
+
+/**
+ * Conclui o atendimento aplicando, numa ÚNICA transação atômica:
+ *  - a dedução de estoque de TODOS os insumos do procedimento (decrement atômico)
+ *  - o StockMovement (type OUT) de cada insumo
+ *  - a atualização de lastVisit do paciente
+ *  - a Transaction de DESPESA com o custo dos insumos (se houver)
+ *  - o appointment.update({ status, stockDeducted: true })
+ *
+ * Ou tudo é aplicado, ou nada. Se qualquer passo falhar, a transação reverte e
+ * um retry roda com segurança (stockDeducted continua false, status inalterado) —
+ * sem risco de dupla dedução dos insumos já processados.
+ *
+ * DECISÃO (estoque negativo): bloqueamos a conclusão com 409 se algum insumo
+ * ficaria negativo, consistente com POST /api/inventory/[id]/adjust (que já
+ * bloqueia resultado < 0). A checagem roda ANTES de qualquer escrita; como tudo
+ * está na $transaction, nada é deduzido e o status não muda quando o bloqueio
+ * dispara.
+ */
+async function completeAppointmentWithStock(opts: {
+  appointmentId: string;
+  procedureId: string;
+  patientId: string;
+  patientName: string;
+  companyId: string;
+  newStatus: AppointmentStatus;
+}): Promise<AppointmentWithRelations> {
+  const { appointmentId, procedureId, patientId, patientName, companyId, newStatus } = opts;
+
   const supplies = await prisma.procedureSupply.findMany({
     where: { procedureId },
     include: { inventoryItem: true },
   });
 
+  // Bloqueio de estoque negativo — antes de qualquer escrita.
   for (const supply of supplies) {
-    // Atualizar estoque
-    await prisma.inventoryItem.update({
-      where: { id: supply.inventoryItemId },
-      data: {
-        currentStock: {
-          decrement: supply.quantityUsed,
+    const stock = Number(supply.inventoryItem?.currentStock ?? 0);
+    if (stock - Number(supply.quantityUsed) < 0) {
+      throw new InsufficientStockError(supply.inventoryItem?.name ?? supply.inventoryItemId);
+    }
+  }
+
+  const procedure = await prisma.procedure.findUnique({ where: { id: procedureId } });
+
+  const updated = await prisma.$transaction(async (tx) => {
+    for (const supply of supplies) {
+      // decrement é atômico no Prisma
+      await tx.inventoryItem.update({
+        where: { id: supply.inventoryItemId },
+        data: { currentStock: { decrement: supply.quantityUsed } },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          inventoryItemId: supply.inventoryItemId,
+          quantity: supply.quantityUsed,
+          type: "OUT",
+          reason: `Procedimento - Agendamento ${appointmentId}`,
         },
-      },
+      });
+    }
+
+    await tx.patient.update({
+      where: { id: patientId },
+      data: { lastVisit: new Date() },
     });
 
-    // Registrar movimento de estoque
-    await prisma.stockMovement.create({
-      data: {
-        inventoryItemId: supply.inventoryItemId,
-        quantity: supply.quantityUsed,
-        type: "OUT",
-        reason: `Procedimento - Agendamento ${appointmentId}`,
+    if (procedure && Number(procedure.cost) > 0) {
+      await tx.transaction.create({
+        data: {
+          companyId,
+          date: new Date(),
+          description: `Custo Insumos: ${procedure.name} - ${patientName}`,
+          amount: procedure.cost,
+          type: "EXPENSE",
+          category: "Insumos",
+          status: "PAID",
+          appointmentId,
+        },
+      });
+    }
+
+    return tx.appointment.update({
+      where: { id: appointmentId },
+      data: { status: newStatus, stockDeducted: true },
+      include: {
+        patient: { select: { id: true, name: true } },
+        professional: { select: { id: true, name: true } },
+        procedure: { select: { id: true, name: true } },
       },
     });
+  });
 
-    // Verificar se estoque ficou baixo e criar alerta
+  // Alertas de estoque baixo — pós-transação (não é crítico p/ consistência).
+  for (const supply of supplies) {
     const item = await prisma.inventoryItem.findUnique({
       where: { id: supply.inventoryItemId },
     });
-
     if (item && Number(item.currentStock) <= Number(item.minStock)) {
       await prisma.appNotification.create({
         data: {
@@ -59,6 +139,8 @@ async function deductStock(appointmentId: string, procedureId: string, companyId
       });
     }
   }
+
+  return updated;
 }
 
 // PATCH - Atualizar status do agendamento
@@ -124,35 +206,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Se completando atendimento, executar lógicas de negócio
+    // Se completando atendimento, executar lógicas de negócio numa única transação.
+    let updated: AppointmentWithRelations | undefined;
     if (status === "COMPLETED" && !appointment.stockDeducted) {
-      // 1. Baixar estoque
-      await deductStock(id, appointment.procedureId, user.companyId);
-
-      // 2. Atualizar última visita do paciente
-      await prisma.patient.update({
-        where: { id: appointment.patientId },
-        data: { lastVisit: new Date() },
-      });
-
-      // 3. Criar transação de DESPESA para custo dos insumos (se houver)
-      const procedure = await prisma.procedure.findUnique({
-        where: { id: appointment.procedureId },
-      });
-
-      if (procedure && Number(procedure.cost) > 0) {
-        await prisma.transaction.create({
-          data: {
-            companyId: user.companyId,
-            date: new Date(),
-            description: `Custo Insumos: ${procedure.name} - ${appointment.patient.name}`,
-            amount: procedure.cost,
-            type: "EXPENSE",
-            category: "Insumos",
-            status: "PAID",
-            appointmentId: id,
-          },
+      try {
+        updated = await completeAppointmentWithStock({
+          appointmentId: id,
+          procedureId: appointment.procedureId,
+          patientId: appointment.patientId,
+          patientName: appointment.patient.name,
+          companyId: user.companyId,
+          newStatus: status,
         });
+      } catch (err) {
+        if (err instanceof InsufficientStockError) {
+          return NextResponse.json({ error: err.message }, { status: 409 });
+        }
+        throw err;
       }
     }
 
@@ -188,19 +258,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
     // ── fim deduction ──
 
-    // Atualizar status
-    const updated = await prisma.appointment.update({
-      where: { id },
-      data: {
-        status,
-        stockDeducted: status === "COMPLETED" ? true : appointment.stockDeducted,
-      },
-      include: {
-        patient: { select: { id: true, name: true } },
-        professional: { select: { id: true, name: true } },
-        procedure: { select: { id: true, name: true } },
-      },
-    });
+    // Atualizar status (quando não passou pela transação de conclusão acima)
+    if (!updated) {
+      updated = await prisma.appointment.update({
+        where: { id },
+        data: {
+          status,
+          stockDeducted: status === "COMPLETED" ? true : appointment.stockDeducted,
+        },
+        include: {
+          patient: { select: { id: true, name: true } },
+          professional: { select: { id: true, name: true } },
+          procedure: { select: { id: true, name: true } },
+        },
+      });
+    }
 
     // Log de atividade
     const activityType = status === "COMPLETED" ? "APPOINTMENT_COMPLETED" :
@@ -260,4 +332,3 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
-

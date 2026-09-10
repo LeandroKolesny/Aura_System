@@ -9,6 +9,19 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * Erro de concorrência: entre a leitura inicial de currentStock (fora da
+ * transação) e a escrita, outra operação já reduziu o estoque a ponto de este
+ * ajuste deixá-lo negativo. Mapeado para HTTP 400 (mesma resposta da checagem
+ * síncrona de "Estoque insuficiente").
+ */
+class ConcurrentStockError extends Error {
+  constructor() {
+    super("Estoque insuficiente");
+    this.name = "ConcurrentStockError";
+  }
+}
+
 // POST - Ajustar estoque
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -49,51 +62,74 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const { quantity, type, reason } = validation.data;
 
-    // Calcular novo estoque
-    let newStock: number;
     const currentStock = Number(item.currentStock);
 
+    // Delta com sinal: IN soma, OUT/LOSS subtraem, ADJUSTMENT usa o sinal recebido.
+    let delta: number;
     switch (type) {
       case "IN":
-        // Entrada sempre adiciona
-        newStock = currentStock + Math.abs(quantity);
+        delta = Math.abs(quantity);
         break;
       case "OUT":
       case "LOSS":
-        // Saída e perda sempre subtraem
-        newStock = currentStock - Math.abs(quantity);
+        delta = -Math.abs(quantity);
         break;
       case "ADJUSTMENT":
-        // Ajuste pode ser positivo ou negativo
-        newStock = currentStock + quantity;
+        delta = quantity;
         break;
       default:
-        newStock = currentStock;
+        delta = 0;
     }
 
-    // Validar que estoque não ficará negativo
-    if (newStock < 0) {
+    // Valor projetado (a partir da leitura fora da transação) — usado só para
+    // feedback rápido, o log de auditoria e a mensagem de retorno.
+    const projectedStock = currentStock + delta;
+
+    // Pré-checagem síncrona: bloqueia de imediato o que já é claramente inválido.
+    if (projectedStock < 0) {
       return NextResponse.json(
-        { 
-          error: "Estoque insuficiente", 
-          message: `Estoque atual: ${currentStock}. Não é possível remover ${Math.abs(quantity)}.`
+        {
+          error: "Estoque insuficiente",
+          message: `Estoque atual: ${currentStock}. Não é possível remover ${Math.abs(quantity)}.`,
         },
         { status: 400 }
       );
     }
 
-    // Executar ajuste em transação
+    // Ajuste dentro da transação usando increment/decrement ATÔMICO do Prisma —
+    // nunca gravamos o valor absoluto calculado a partir de uma leitura fora da
+    // transação (isso causava lost update em ajustes concorrentes).
+    // Para o delta negativo, usamos um updateMany CONDICIONAL (where currentStock
+    // >= |delta|): se uma operação concorrente já baixou o estoque, o updateMany
+    // afeta 0 linhas e abortamos a transação — sem lost update e sem estoque
+    // negativo.
     const result = await prisma.$transaction(async (tx) => {
-      // Atualizar estoque
-      const updatedItem = await tx.inventoryItem.update({
-        where: { id },
-        data: {
-          currentStock: newStock,
-          lastRestockDate: type === "IN" ? new Date() : item.lastRestockDate,
-        },
-      });
+      if (delta < 0) {
+        const decrement = Math.abs(delta);
+        const affected = await tx.inventoryItem.updateMany({
+          where: { id, currentStock: { gte: decrement } },
+          data: { currentStock: { decrement } },
+        });
+        if (affected.count === 0) {
+          throw new ConcurrentStockError();
+        }
+      } else if (delta > 0) {
+        await tx.inventoryItem.updateMany({
+          where: { id },
+          data: { currentStock: { increment: delta } },
+        });
+      }
 
-      // Registrar movimento
+      if (type === "IN") {
+        await tx.inventoryItem.update({
+          where: { id },
+          data: { lastRestockDate: new Date() },
+        });
+      }
+
+      // Re-leitura DENTRO da transação para devolver o estado consistente.
+      const updatedItem = await tx.inventoryItem.findFirst({ where: { id } });
+
       const movement = await tx.stockMovement.create({
         data: {
           inventoryItemId: id,
@@ -105,6 +141,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       return { item: updatedItem, movement };
     });
+
+    // Para o log de auditoria, a notificação e a mensagem usamos o valor
+    // projetado (currentStock + delta): o delta e o motivo são a fonte de verdade
+    // do ajuste. `result.item` (re-lido na transação) vai só no corpo da resposta.
+    const newStock = projectedStock;
 
     // Log de atividade
     await prisma.activity.create({
@@ -141,8 +182,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       message: `Estoque atualizado: ${currentStock} → ${newStock} ${item.unit}`,
     });
   } catch (error) {
+    if (error instanceof ConcurrentStockError) {
+      return NextResponse.json(
+        {
+          error: "Estoque insuficiente",
+          message: "Outro ajuste concorrente alterou o estoque. Recarregue e tente novamente.",
+        },
+        { status: 400 }
+      );
+    }
     console.error("Erro ao ajustar estoque:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
-
