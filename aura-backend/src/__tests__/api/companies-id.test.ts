@@ -360,3 +360,104 @@ describe('PUT /api/companies/[id] — .strict() bloqueia campos sensíveis fora 
     expect(prisma.company.update).not.toHaveBeenCalled()
   })
 })
+
+describe('PUT /api/companies/[id] — onlineBookingConfig (regras de horário da Agenda Online)', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
+  })
+
+  it('aceita e persiste um onlineBookingConfig válido (200)', async () => {
+    const cfg = {
+      slotInterval: 15,
+      minAdvanceTime: 60,
+      maxBookingPeriod: 30,
+      cancellationNotice: 1440,
+      cancellationPolicy: 'Cancele com 24h de antecedência.',
+    }
+    const res = await PUT(makePutRequest({ onlineBookingConfig: cfg }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ onlineBookingConfig: cfg }) })
+    )
+  })
+
+  it('rejeita (400) onlineBookingConfig.minAdvanceTime negativo', async () => {
+    const res = await PUT(makePutRequest({ onlineBookingConfig: { minAdvanceTime: -100 } }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita (400) onlineBookingConfig.slotInterval não numérico', async () => {
+    const res = await PUT(makePutRequest({ onlineBookingConfig: { slotInterval: 'abc' } }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita (400) onlineBookingConfig.maxBookingPeriod igual a 0', async () => {
+    const res = await PUT(makePutRequest({ onlineBookingConfig: { maxBookingPeriod: 0 } }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita (400) quando minAdvanceTime (convertido p/ dias) excede maxBookingPeriod', async () => {
+    // 100000 min ≈ 69,4 dias > 30 dias
+    const res = await PUT(
+      makePutRequest({ onlineBookingConfig: { minAdvanceTime: 100000, maxBookingPeriod: 30 } }),
+      makeParams('c1')
+    )
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('aceita onlineBookingConfig parcial (só slotInterval) — a tela pode mandar só parte', async () => {
+    const res = await PUT(makePutRequest({ onlineBookingConfig: { slotInterval: 30 } }), makeParams('c1'))
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('PUT /api/companies/[id] — layoutConfig (aparência da página pública)', () => {
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
+  })
+
+  it('aceita e persiste um layoutConfig válido (200)', async () => {
+    const cfg = {
+      backgroundColor: '#fdfcfb',
+      primaryColor: '#bd7b65',
+      textColor: '#1c1917',
+      fontFamily: 'inter',
+      baseFontSize: 'md',
+    }
+    const res = await PUT(makePutRequest({ layoutConfig: cfg }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ layoutConfig: cfg }) })
+    )
+  })
+
+  it('rejeita (400) layoutConfig.primaryColor fora do padrão hexadecimal', async () => {
+    const res = await PUT(makePutRequest({ layoutConfig: { primaryColor: 'nao-e-cor' } }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita (400) layoutConfig.fontFamily fora do enum (inter|serif|system)', async () => {
+    const res = await PUT(makePutRequest({ layoutConfig: { fontFamily: 'comic-sans' } }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('PUT com só primaryColor substitui o objeto layoutConfig inteiro (replace total — sem merge no backend)', async () => {
+    const res = await PUT(makePutRequest({ layoutConfig: { primaryColor: '#000000' } }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    // O backend grava exatamente o que veio no corpo — não faz merge com o
+    // layoutConfig já salvo. O frontend precisa reenviar o objeto completo.
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ layoutConfig: { primaryColor: '#000000' } }) })
+    )
+  })
+})

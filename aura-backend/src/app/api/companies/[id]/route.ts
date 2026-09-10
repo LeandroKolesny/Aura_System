@@ -6,6 +6,10 @@ import { cpf, cnpj as cnpjValidator } from "cpf-cnpj-validator";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { businessHoursSchema } from "@/lib/validations/businessHours";
+import {
+  onlineBookingConfigSchema,
+  publicLayoutConfigSchema,
+} from "@/lib/validations/onlineBooking";
 
 // Logo é enviado pelo frontend (handleLogoUpload em Settings.tsx) como data URL
 // base64 da imagem — não como URL hospedada. O schema antigo exigia
@@ -64,8 +68,13 @@ const updateCompanySchema = z.object({
   // Horário de funcionamento: os 7 dias, formato HH:mm e abertura < fechamento
   // por dia aberto (schema compartilhado em @/lib/validations/businessHours).
   businessHours: businessHoursSchema.optional(),
-  onlineBookingConfig: z.record(z.unknown()).optional(),
-  layoutConfig: z.record(z.unknown()).optional(),
+  // Regras de horário da Agenda Online (slotInterval, minAdvanceTime,
+  // maxBookingPeriod, cancellationNotice, cancellationPolicy) e aparência da
+  // página pública (cores hex, fontFamily, baseFontSize). Schemas estruturados
+  // em @/lib/validations/onlineBooking — antes eram z.record(z.unknown()) (sem
+  // validação nenhuma de conteúdo).
+  onlineBookingConfig: onlineBookingConfigSchema.optional(),
+  layoutConfig: publicLayoutConfigSchema.optional(),
   // Alias para socialMedia enviado pelo frontend
   socialMedia: z.object({
     website: z.string().url().max(200).nullable().optional(),
@@ -216,8 +225,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       ...(data.presentation !== undefined && { presentation: data.presentation }),
       ...(data.phones !== undefined && { phones: data.phones }),
       ...(data.businessHours !== undefined && { businessHours: data.businessHours }),
-      ...(data.onlineBookingConfig !== undefined && { onlineBookingConfig: data.onlineBookingConfig as Prisma.InputJsonValue }),
-      ...(data.layoutConfig !== undefined && { layoutConfig: data.layoutConfig as Prisma.InputJsonValue }),
+      // NOTA: o PUT substitui `onlineBookingConfig`/`layoutConfig` por completo
+      // (replace total do JSON) — NÃO há merge com o valor salvo. O frontend
+      // (AccessLink.tsx) reenvia o objeto inteiro a cada save. Comportamento
+      // caracterizado por teste em companies-id.test.ts.
+      ...(data.onlineBookingConfig !== undefined && { onlineBookingConfig: data.onlineBookingConfig as unknown as Prisma.InputJsonValue }),
+      ...(data.layoutConfig !== undefined && { layoutConfig: data.layoutConfig as unknown as Prisma.InputJsonValue }),
       ...(data.paymentMethods !== undefined && { paymentMethods: [...new Set(data.paymentMethods)] }),
       ...(data.targetFemale !== undefined && { targetFemale: data.targetFemale }),
       ...(data.targetMale !== undefined && { targetMale: data.targetMale }),

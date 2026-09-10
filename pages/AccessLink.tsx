@@ -14,13 +14,14 @@ const AccessLink: React.FC = () => {
   const [isLayoutConfigOpen, setIsLayoutConfigOpen] = useState(false);
 
   // Online Booking Configuration State
-  const [onlineConfig, setOnlineConfig] = useState<OnlineBookingConfig>({
+  const defaultOnlineConfig: OnlineBookingConfig = {
       slotInterval: 30,
       minAdvanceTime: 60,
       maxBookingPeriod: 30,
       cancellationNotice: 1440,
       cancellationPolicy: ''
-  });
+  };
+  const [onlineConfig, setOnlineConfig] = useState<OnlineBookingConfig>(defaultOnlineConfig);
 
   // Layout Configuration State
   const defaultLayout: PublicLayoutConfig = {
@@ -139,7 +140,12 @@ const AccessLink: React.FC = () => {
         });
     }
     if (currentCompany?.onlineBookingConfig) {
-        setOnlineConfig(currentCompany.onlineBookingConfig);
+        // Merge com os defaults: o config salvo pode ser parcial (campos novos
+        // como maxBookingPeriod/cancellationNotice podem não existir ainda).
+        setOnlineConfig({
+            ...defaultOnlineConfig,
+            ...currentCompany.onlineBookingConfig
+        });
     }
   }, [currentCompany]);
 
@@ -311,7 +317,7 @@ const AccessLink: React.FC = () => {
 
                       <div>
                           <label className="block text-sm font-medium text-slate-700 mb-2">Tempo de Antecedência Mínimo</label>
-                          <select 
+                          <select
                               className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-primary-500 outline-none"
                               value={onlineConfig.minAdvanceTime}
                               onChange={(e) => setOnlineConfig({...onlineConfig, minAdvanceTime: Number(e.target.value)})}
@@ -320,7 +326,49 @@ const AccessLink: React.FC = () => {
                               <option value={1440}>24 hora antes</option>
                           </select>
                       </div>
+
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Até quantos dias à frente o cliente pode agendar</label>
+                          <select
+                              className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                              value={onlineConfig.maxBookingPeriod}
+                              onChange={(e) => setOnlineConfig({...onlineConfig, maxBookingPeriod: Number(e.target.value)})}
+                          >
+                              <option value={7}>Até 7 dias</option>
+                              <option value={15}>Até 15 dias</option>
+                              <option value={30}>Até 30 dias</option>
+                              <option value={60}>Até 60 dias</option>
+                              <option value={90}>Até 90 dias</option>
+                          </select>
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">Antecedência mínima para cancelamento</label>
+                          <select
+                              className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                              value={onlineConfig.cancellationNotice}
+                              onChange={(e) => setOnlineConfig({...onlineConfig, cancellationNotice: Number(e.target.value)})}
+                          >
+                              <option value={120}>2 horas antes</option>
+                              <option value={360}>6 horas antes</option>
+                              <option value={720}>12 horas antes</option>
+                              <option value={1440}>24 horas antes</option>
+                              <option value={2880}>48 horas antes</option>
+                          </select>
+                      </div>
                   </div>
+
+                  <div className="mb-6">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Política de cancelamento (texto exibido ao cliente)</label>
+                      <textarea
+                          className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-y min-h-[80px]"
+                          rows={3}
+                          value={onlineConfig.cancellationPolicy ?? ''}
+                          onChange={(e) => setOnlineConfig({...onlineConfig, cancellationPolicy: e.target.value})}
+                          placeholder="Ex: Cancelamentos com menos de 24h de antecedência podem ser cobrados."
+                      />
+                  </div>
+
                   <div className="flex justify-end items-center pt-4">
                       {configMsg && <span className="text-green-600 font-medium text-sm mr-4 animate-fade-in flex items-center gap-1"><Check className="w-4 h-4" /> {configMsg}</span>}
                       <button 

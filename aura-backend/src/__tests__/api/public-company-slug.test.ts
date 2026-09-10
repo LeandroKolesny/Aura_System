@@ -127,4 +127,28 @@ describe('GET /api/public/company/[slug]', () => {
     const res = await GET(makeRequest(), makeParams())
     expect(res.status).toBe(500)
   })
+
+  it('inclui layoutConfig e onlineBookingConfig no payload da resposta pública', async () => {
+    // A página pública (PublicBooking.tsx) depende desses campos para aplicar
+    // cores/fonte e limitar a janela de agendamento. Este teste trava contra a
+    // remoção acidental dos campos do `select` da rota.
+    const layoutConfig = { primaryColor: '#bd7b65', fontFamily: 'inter', baseFontSize: 'md' }
+    const onlineBookingConfig = { slotInterval: 30, minAdvanceTime: 60, maxBookingPeriod: 30 }
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      ...COMPANY,
+      layoutConfig,
+      onlineBookingConfig,
+    } as never)
+
+    const res = await GET(makeRequest(), makeParams())
+    const body = await res.json()
+
+    expect(body.company.layoutConfig).toEqual(layoutConfig)
+    expect(body.company.onlineBookingConfig).toEqual(onlineBookingConfig)
+    expect(prisma.company.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ layoutConfig: true, onlineBookingConfig: true }),
+      })
+    )
+  })
 })
