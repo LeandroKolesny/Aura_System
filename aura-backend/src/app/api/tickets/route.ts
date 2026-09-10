@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma, TicketStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkWriteAccess } from "@/lib/apiGuards";
@@ -15,13 +16,13 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    const where: any = {};
+    const where: Prisma.TicketWhereInput = {};
     
     // OWNER vê todos, outros só da própria empresa
-    if (user.role !== "OWNER") {
+    if (user.role !== "OWNER" && user.companyId) {
       where.companyId = user.companyId;
     }
-    if (status) where.status = status.toUpperCase();
+    if (status) where.status = status.toUpperCase() as TicketStatus;
 
     const tickets = await prisma.ticket.findMany({
       where,
@@ -88,6 +89,13 @@ export async function POST(request: NextRequest) {
 }
 
 // PATCH - Atualizar ticket (responder ou fechar)
+//
+// NOTA: não chama checkWriteAccess() de propósito — quem responde aqui pode
+// ser o OWNER (suporte do próprio SaaS), que não tem o mesmo vínculo de
+// plano/assinatura da empresa dona do ticket. Bloquear respostas pelo status
+// de assinatura da empresa cliente impediria dar suporte justo quando ela
+// mais precisa (ex: empresa com pagamento atrasado pedindo ajuda). POST
+// (abrir ticket) continua exigindo checkWriteAccess normalmente.
 export async function PATCH(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
@@ -100,6 +108,32 @@ export async function PATCH(request: NextRequest) {
 
     if (!ticketId) {
       return NextResponse.json({ error: "ticketId obrigatório" }, { status: 400 });
+    }
+
+    const existingTicket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { id: true, companyId: true, status: true },
+    });
+
+    if (!existingTicket) {
+      return NextResponse.json({ error: "Chamado não encontrado" }, { status: 404 });
+    }
+
+    // SECURITY: só o OWNER (suporte do SaaS) pode agir sobre chamados de
+    // qualquer empresa — equipe de uma clínica só pode responder/fechar os
+    // próprios chamados. 404 (não 403) para não vazar a existência do
+    // chamado de outra empresa.
+    if (user.role !== "OWNER" && existingTicket.companyId !== user.companyId) {
+      return NextResponse.json({ error: "Chamado não encontrado" }, { status: 404 });
+    }
+
+    // Chamado encerrado não aceita novas mensagens (mudança de status, ex:
+    // reabrir, continua permitida).
+    if (message && existingTicket.status === "CLOSED") {
+      return NextResponse.json(
+        { error: "Este chamado está encerrado." },
+        { status: 400 }
+      );
     }
 
     // Se tem mensagem, adicionar resposta

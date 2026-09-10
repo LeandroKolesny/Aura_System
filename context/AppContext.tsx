@@ -154,6 +154,7 @@ interface AppContextType {
   loadPhotos: (patientId?: string, forceReload?: boolean) => Promise<void>;
   loadLeads: (forceReload?: boolean) => Promise<void>;
   loadUnavailabilityRules: (forceReload?: boolean) => Promise<void>;
+  loadTickets: (forceReload?: boolean) => Promise<void>;
   pendingSubscriptionsCount: number;
   loadPendingSubscriptions: () => Promise<void>;
   newLeadsCount: number;
@@ -411,6 +412,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     photos: false,
     leads: false,
     unavailabilityRules: false,
+    tickets: false,
   });
 
   const loadedRef = React.useRef({
@@ -424,6 +426,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     photos: false,
     leads: false,
     unavailabilityRules: false,
+    tickets: false,
   });
 
   const loadPatients = useCallback(async (forceReload?: boolean) => {
@@ -946,8 +949,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('Erro no logout via API:', error);
       }
       // Reset dos refs de lazy loading
-      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false };
-      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false };
+      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false, tickets: false };
+      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false, tickets: false };
       setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false });
       // Limpar dados
       setPatients([]);
@@ -957,6 +960,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setProfessionals([]);
       setInventory([]);
       setPhotos([]);
+      setTickets([]);
       setCompanies([]);
       setSaasPlans([]); // Reset - planos serão carregados da API
       setUser(null);
@@ -2058,6 +2062,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  // REGRESSÃO: ticketsApi.list() nunca era chamado em lugar nenhum — o
+  // histórico de chamados existia só em memória (populado por createTicket
+  // na própria sessão) e sumia a cada reload/nova sessão, mesmo com
+  // chamados abertos no banco.
+  const loadTickets = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.tickets || loadingRef.current.tickets)) return;
+    if (forceReload) loadedRef.current.tickets = false;
+    loadingRef.current.tickets = true;
+    try {
+      const res = await ticketsApi.list();
+      if (res.success && res.data?.tickets) {
+        const mapped = res.data.tickets.map(t => ({
+          ...t,
+          companyName: t.company?.name || 'Unknown',
+          status: t.status?.toLowerCase(),
+        } as unknown as Ticket));
+        setTickets(mapped);
+        loadedRef.current.tickets = true;
+        console.log('✅ Chamados de suporte carregados:', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar chamados de suporte:', error);
+    } finally {
+      loadingRef.current.tickets = false;
+    }
+  }, []);
+
   const loadUnavailabilityRules = useCallback(async (forceReload = false) => {
     if (!forceReload && (loadedRef.current.unavailabilityRules || loadingRef.current.unavailabilityRules)) return;
     if (forceReload) loadedRef.current.unavailabilityRules = false;
@@ -2216,6 +2247,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addLead,
       moveLead,
       tickets: user?.role === UserRole.OWNER ? tickets : tickets.filter(t => t.companyId === user?.companyId),
+      loadTickets,
       createTicket,
       replyTicket,
       closeTicket,

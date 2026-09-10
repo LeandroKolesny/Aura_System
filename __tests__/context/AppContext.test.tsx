@@ -66,6 +66,7 @@ vi.mock('../../services/api', () => ({
     delete: vi.fn(),
   },
   ticketsApi: {
+    list: vi.fn(),
     create: vi.fn(),
     reply: vi.fn(),
     close: vi.fn(),
@@ -698,6 +699,39 @@ describe('AppContext > addLead / createTicket / replyTicket / addSystemAlert / a
     });
 
     expect(outcome).toEqual({ success: false, error: 'Ticket já encerrado' });
+  });
+
+  it('closeTicket: caminho de sucesso marca o ticket como closed no estado', async () => {
+    const { result } = await renderReadyAppLoggedIn('c1');
+    vi.mocked(ticketsApi.list).mockResolvedValue({ success: true, data: { tickets: [
+      { id: 'ticket-1', companyId: 'c1', subject: 'X', status: 'OPEN', company: { id: 'c1', name: 'Clínica X' }, messages: [] },
+    ] } } as never);
+    vi.mocked(ticketsApi.close).mockResolvedValue({ success: true } as never);
+
+    await act(async () => { await result.current.loadTickets(true); });
+    expect(result.current.tickets).toHaveLength(1);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => { outcome = await result.current.closeTicket('ticket-1'); });
+
+    expect(ticketsApi.close).toHaveBeenCalledWith('ticket-1');
+    expect(outcome).toEqual({ success: true });
+    expect(result.current.tickets[0].status).toBe('closed');
+  });
+
+  it('loadTickets chama ticketsApi.list e popula o estado tickets (antes não era chamado em lugar nenhum)', async () => {
+    const { result } = await renderReadyAppLoggedIn('c1');
+    vi.mocked(ticketsApi.list).mockResolvedValue({ success: true, data: { tickets: [
+      { id: 't1', companyId: 'c1', subject: 'A', status: 'OPEN', company: { id: 'c1', name: 'Clínica X' }, messages: [] },
+      { id: 't2', companyId: 'c1', subject: 'B', status: 'CLOSED', company: { id: 'c1', name: 'Clínica X' }, messages: [] },
+    ] } } as never);
+
+    await act(async () => { await result.current.loadTickets(true); });
+
+    expect(ticketsApi.list).toHaveBeenCalled();
+    expect(result.current.tickets).toHaveLength(2);
+    expect(result.current.tickets[0].status).toBe('open');
+    expect(result.current.tickets[1].status).toBe('closed');
   });
 
   it('addSystemAlert (OWNER) chama systemAlertsApi.create e adiciona o alerta', async () => {

@@ -59,6 +59,24 @@ describe('GET /api/tickets', () => {
     )
   })
 
+  it('combina filtro de status com o escopo de companyId para não-OWNER', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    await GET(makeGetRequest('?status=closed'))
+    expect(prisma.ticket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { companyId: 'c1', status: 'CLOSED' } })
+    )
+  })
+
+  it('respeita o parâmetro limit e usa 50 como padrão quando omitido', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    await GET(makeGetRequest('?limit=5'))
+    expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 5 }))
+
+    vi.mocked(prisma.ticket.findMany).mockClear()
+    await GET(makeGetRequest())
+    expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }))
+  })
+
   it('filtra por status normalizado para maiúsculas', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     await GET(makeGetRequest('?status=open'))
@@ -108,11 +126,26 @@ describe('POST /api/tickets', () => {
       })
     )
   })
-})
 
+
+  it('grava sempre o companyId do usuário autenticado, ignorando o companyId enviado no corpo', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never) // companyId 'c1'
+    vi.mocked(prisma.ticket.create).mockResolvedValue({ id: 't1' } as never)
+
+    await POST(makeRequest('POST', { subject: 'Assunto', message: 'Msg', companyId: 'c999' }))
+
+    expect(prisma.ticket.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ companyId: 'c1' }) })
+    )
+  })
+})
 describe('PATCH /api/tickets', () => {
   beforeEach(() => {
-    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1' } as never)
+    // findUnique é chamado 2x por requisição: 1) checagem de posse do ticket
+    // (companyId/status), 2) busca final pra devolver o ticket com mensagens.
+    // Ambas usam o mesmo mock por padrão — testes que precisam de valores
+    // diferentes entre as duas chamadas usam mockResolvedValueOnce.
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1', companyId: 'c1', status: 'OPEN' } as never)
   })
 
   it('retorna 401 quando não autenticado', async () => {
@@ -162,12 +195,75 @@ describe('PATCH /api/tickets', () => {
 
   it('retorna o ticket atualizado com as mensagens', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
-    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1', messages: [] } as never)
+    // 1ª chamada: checagem de posse (companyId bate com ADMIN); 2ª: ticket final
+    vi.mocked(prisma.ticket.findUnique)
+      .mockResolvedValueOnce({ id: 'ticket1', companyId: 'c1', status: 'OPEN' } as never)
+      .mockResolvedValueOnce({ id: 'ticket1', messages: [] } as never)
 
     const res = await PATCH(makeRequest('PATCH', { ticketId: 'ticket1', message: 'x' }))
     const body = await res.json()
 
     expect(res.status).toBe(200)
     expect(body.ticket.id).toBe('ticket1')
+  })
+
+  it('SECURITY: ADMIN de outra empresa não pode responder o chamado (404, sem tocar no banco)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never) // companyId 'c1'
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1', companyId: 'c2', status: 'OPEN' } as never)
+
+    const res = await PATCH(makeRequest('PATCH', { ticketId: 'ticket1', message: 'invasao' }))
+
+    expect(res.status).toBe(404)
+    expect(prisma.ticketMessage.create).not.toHaveBeenCalled()
+  })
+
+  it('SECURITY: ADMIN de outra empresa não pode encerrar o chamado (404, sem tocar no banco)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1', companyId: 'c2', status: 'OPEN' } as never)
+
+    const res = await PATCH(makeRequest('PATCH', { ticketId: 'ticket1', status: 'CLOSED' }))
+
+    expect(res.status).toBe(404)
+    expect(prisma.ticket.update).not.toHaveBeenCalled()
+  })
+
+  it('OWNER (suporte do SaaS) pode responder/encerrar chamado de qualquer empresa', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1', companyId: 'c99', status: 'OPEN' } as never)
+
+    const res = await PATCH(makeRequest('PATCH', { ticketId: 'ticket1', message: 'suporte respondendo' }))
+
+    expect(res.status).toBe(200)
+    expect(prisma.ticketMessage.create).toHaveBeenCalled()
+  })
+
+  it('não aceita nova mensagem em chamado já CLOSED (400)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1', companyId: 'c1', status: 'CLOSED' } as never)
+
+    const res = await PATCH(makeRequest('PATCH', { ticketId: 'ticket1', message: 'mais uma' }))
+
+    expect(res.status).toBe(400)
+    expect(prisma.ticketMessage.create).not.toHaveBeenCalled()
+  })
+
+  it('permite mudar o status de um chamado CLOSED (reabrir) mesmo sem mensagem', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 'ticket1', companyId: 'c1', status: 'CLOSED' } as never)
+
+    const res = await PATCH(makeRequest('PATCH', { ticketId: 'ticket1', status: 'open' }))
+
+    expect(res.status).toBe(200)
+    expect(prisma.ticket.update).toHaveBeenCalledWith({ where: { id: 'ticket1' }, data: { status: 'OPEN' } })
+  })
+
+  it('retorna 404 quando o ticketId não corresponde a nenhum chamado', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.ticket.findUnique).mockResolvedValue(null)
+
+    const res = await PATCH(makeRequest('PATCH', { ticketId: 'inexistente', message: 'x' }))
+
+    expect(res.status).toBe(404)
+    expect(prisma.ticketMessage.create).not.toHaveBeenCalled()
   })
 })

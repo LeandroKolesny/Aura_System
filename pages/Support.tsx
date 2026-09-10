@@ -7,11 +7,16 @@ import { UpgradeOverlay } from '../components/UpgradeOverlay';
 import { useDialog } from '../context/DialogContext';
 
 const Support: React.FC = () => {
-  const { tickets, createTicket, replyTicket, closeTicket, user, checkModuleAccess } = useApp();
+  const { tickets, loadTickets, createTicket, replyTicket, closeTicket, user, checkModuleAccess } = useApp();
   const { showAlert } = useDialog();
 
   const hasSupportAccess = checkModuleAccess('support');
-  
+
+  // Carregar histórico de chamados ao abrir a aba (lazy loading)
+  useEffect(() => {
+    loadTickets();
+  }, [loadTickets]);
+
   // ALTERAÇÃO CRÍTICA: Usar apenas o ID para referenciar o ticket selecionado
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   
