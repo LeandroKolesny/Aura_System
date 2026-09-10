@@ -96,6 +96,33 @@ describe('PUT /api/procedures/[id]', () => {
     expect(prisma.procedureSupply.deleteMany).not.toHaveBeenCalled()
   })
 
+  it('supplies: [] explícito remove todos os insumos e recalcula cost para 0', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.procedure.findFirst).mockResolvedValue({ id: 'proc1' } as never)
+    vi.mocked(prisma.procedure.update).mockResolvedValue({ id: 'proc1' } as never)
+
+    const res = await PUT(makeRequest('PUT', { supplies: [] }), makeParams())
+
+    expect(res.status).toBe(200)
+    expect(prisma.procedureSupply.deleteMany).toHaveBeenCalledWith({ where: { procedureId: 'proc1' } })
+    expect(prisma.procedure.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cost: 0 }) })
+    )
+  })
+
+  it('supplies: [] mas com cost enviado maior mantém o cost enviado (Math.max)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.procedure.findFirst).mockResolvedValue({ id: 'proc1' } as never)
+    vi.mocked(prisma.procedure.update).mockResolvedValue({ id: 'proc1' } as never)
+
+    await PUT(makeRequest('PUT', { supplies: [], cost: 45 }), makeParams())
+
+    expect(prisma.procedureSupply.deleteMany).toHaveBeenCalledWith({ where: { procedureId: 'proc1' } })
+    expect(prisma.procedure.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cost: 45 }) })
+    )
+  })
+
   it('substitui os insumos e recalcula o custo quando supplies é enviado', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     vi.mocked(prisma.procedure.findFirst).mockResolvedValue({ id: 'proc1' } as never)

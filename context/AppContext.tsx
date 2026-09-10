@@ -1500,6 +1500,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         durationMinutes: proc.durationMinutes,
         maintenanceRequired: proc.maintenanceRequired,
         maintenanceIntervalDays: proc.maintenanceIntervalDays,
+        // Bug 3 (Opção B): só insumos vinculados ao Estoque são persistidos — o
+        // schema Zod do backend exige inventoryItemId e o modelo Prisma
+        // ProcedureSupply não tem campos para nome/custo livres. Insumos manuais
+        // já são excluídos (e o usuário avisado) no NewProcedureModal antes de
+        // chegar aqui; este filtro é a última linha de defesa.
         supplies: proc.supplies?.filter(s => s.inventoryItemId).map(s => ({
           inventoryItemId: s.inventoryItemId,
           quantityUsed: s.quantityUsed
@@ -1546,6 +1551,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         durationMinutes: data.durationMinutes,
         maintenanceRequired: data.maintenanceRequired,
         maintenanceIntervalDays: data.maintenanceIntervalDays,
+        // Bug 3 (Opção B): ver comentário em addProcedure — só insumos de Estoque
+        // persistem; insumos manuais são filtrados aqui como defesa final.
         supplies: data.supplies?.filter(s => s.inventoryItemId).map(s => ({
           inventoryItemId: s.inventoryItemId,
           quantityUsed: s.quantityUsed

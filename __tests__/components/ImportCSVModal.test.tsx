@@ -127,6 +127,29 @@ describe('ImportCSVModal — onSuccess', () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
   });
 
+  it('wiring de Procedimentos: passa o File selecionado para onImport e chama onSuccess (force reload)', async () => {
+    const importCSV = vi.fn().mockResolvedValue({ imported: 2, updated: 1, errors: [] });
+    const onSuccess = vi.fn();
+    render(
+      <ImportCSVModal
+        title="Importar Procedimentos via Planilha"
+        templateFilename="template-procedimentos.xlsx"
+        templateHeaders={['nome', 'preco', 'duracaominutos', 'custo', 'descricao']}
+        templateSampleRows={[['Limpeza de Pele', '150', '60', '20', '']]}
+        onImport={(file) => importCSV(file)}
+        onClose={vi.fn()}
+        onSuccess={onSuccess}
+      />,
+    );
+
+    const f = makeFile('procedimentos.csv');
+    fireEvent.change(fileInput(), { target: { files: [f] } });
+    fireEvent.click(screen.getByRole('button', { name: /Importar/i }));
+
+    await waitFor(() => expect(importCSV).toHaveBeenCalledWith(f));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+  });
+
   it('NÃO chama onSuccess quando nada foi importado (só erros)', async () => {
     const onSuccess = vi.fn();
     const onImport = vi.fn().mockResolvedValue({

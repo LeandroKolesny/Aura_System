@@ -94,6 +94,17 @@ describe('POST /api/procedures/import', () => {
     expect((call.data as { price: number }).price).toBe(150)
   })
 
+  it('preço "0" via import é aceito (procedimento cortesia por outra via de entrada)', async () => {
+    const csv = `nome,preco,duracaominutos\nAvaliação Cortesia,0,30`
+    const res = await POST(makeCSV(csv))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.imported).toBe(1)
+    expect(body.errors).toHaveLength(0)
+    const call = vi.mocked(prisma.procedure.create).mock.calls[0][0]
+    expect((call.data as { price: number }).price).toBe(0)
+  })
+
   it('registra erro quando duração é inválida', async () => {
     const csv = `nome,preco,duracaominutos\nLimpeza,150,abc`
     const res = await POST(makeCSV(csv))

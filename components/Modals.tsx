@@ -753,8 +753,8 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || '');
-  const [price, setPrice] = useState<string | number>(initialData?.price || '');
-  const [duration, setDuration] = useState<string | number>(initialData?.durationMinutes || '');
+  const [price, setPrice] = useState<string | number>(initialData?.price ?? '');
+  const [duration, setDuration] = useState<string | number>(initialData?.durationMinutes ?? '');
   const [supplies, setSupplies] = useState<Supply[]>(initialData?.supplies || []);
   
   const [selectedInvId, setSelectedInvId] = useState('');
@@ -795,12 +795,30 @@ export const NewProcedureModal: React.FC<{ onClose: () => void; initialData?: Pr
     try {
         if (!name) throw new Error("O nome do procedimento é obrigatório.");
         const numPrice = Number(price);
-        if (isNaN(numPrice) || numPrice <= 0) throw new Error("Preço inválido.");
+        // Bug 1: o backend aceita preço 0 (procedimento "cortesia"/gratuito) — só
+        // rejeitamos preço negativo ou não numérico. Duração 0 continua inválida.
+        if (isNaN(numPrice) || numPrice < 0) throw new Error("Preço inválido.");
         const numDuration = Number(duration);
         if (isNaN(numDuration) || numDuration <= 0) throw new Error("Duração inválida.");
+
+        // Bug 3 (Opção B): o backend só persiste insumos vinculados ao Estoque (o
+        // schema Zod exige inventoryItemId e o modelo Prisma ProcedureSupply não
+        // guarda nome/custo livres). Insumos manuais nunca são salvos — então
+        // avisamos o usuário e NÃO somamos o custo deles no `cost` enviado, para o
+        // custo do procedimento não cair silenciosamente numa edição posterior.
+        const stockSupplies = finalSuppliesList.filter((s) => s.inventoryItemId);
+        const manualSupplies = finalSuppliesList.filter((s) => !s.inventoryItemId);
+        if (manualSupplies.length > 0) {
+            const nomes = manualSupplies.map((s) => `"${s.name}"`).join(', ');
+            await showDialogAlert(
+                `Insumos manuais não são salvos no procedimento — somente insumos vinculados ao Estoque são persistidos. ${manualSupplies.length === 1 ? `O insumo ${nomes} e seu custo não serão considerados` : `Os insumos ${nomes} e seus custos não serão considerados`}. Cadastre o item no Estoque para vinculá-lo ao procedimento.`,
+                { variant: 'warning', title: 'Insumos manuais não salvos' }
+            );
+        }
+
         setIsSubmitting(true);
-        const finalTotalCost = finalSuppliesList.reduce((acc, curr) => acc + curr.cost, 0);
-        const procedureData: Partial<Procedure> = { name, description, imageUrl, price: numPrice, cost: finalTotalCost, durationMinutes: numDuration, supplies: finalSuppliesList, maintenanceRequired, maintenanceIntervalDays: maintenanceRequired ? Number(maintenanceInterval) : undefined };
+        const finalTotalCost = stockSupplies.reduce((acc, curr) => acc + curr.cost, 0);
+        const procedureData: Partial<Procedure> = { name, description, imageUrl, price: numPrice, cost: finalTotalCost, durationMinutes: numDuration, supplies: stockSupplies, maintenanceRequired, maintenanceIntervalDays: maintenanceRequired ? Number(maintenanceInterval) : undefined };
         const result = initialData
           ? await updateProcedure(initialData.id, procedureData)
           : await addProcedure(procedureData as Omit<Procedure, 'id' | 'companyId'>);

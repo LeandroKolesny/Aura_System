@@ -147,4 +147,31 @@ describe('POST /api/procedures', () => {
       expect.objectContaining({ data: expect.objectContaining({ cost: 30 }) })
     )
   })
+
+  it('CARACTERIZAÇÃO: dois procedimentos com o MESMO name na mesma companyId são ambos aceitos (duplicata não é bloqueada)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.procedure.create)
+      .mockResolvedValueOnce({ id: 'proc1', ...VALID_PROCEDURE } as never)
+      .mockResolvedValueOnce({ id: 'proc2', ...VALID_PROCEDURE } as never)
+
+    const res1 = await POST(makePostRequest(VALID_PROCEDURE))
+    const res2 = await POST(makePostRequest(VALID_PROCEDURE))
+
+    expect(res1.status).toBe(201)
+    expect(res2.status).toBe(201)
+    // A rota não faz nenhuma checagem de unicidade de nome — cria os dois.
+    expect(prisma.procedure.create).toHaveBeenCalledTimes(2)
+  })
+
+  it('CARACTERIZAÇÃO (Bug 3 / Opção B): supply manual (sem inventoryItemId) é rejeitado com 400 pelo schema', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+
+    const res = await POST(makePostRequest({
+      ...VALID_PROCEDURE,
+      supplies: [{ name: 'Luva descartável', quantityUsed: 1, cost: 2 }],
+    }))
+
+    expect(res.status).toBe(400)
+    expect(prisma.procedure.create).not.toHaveBeenCalled()
+  })
 })

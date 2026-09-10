@@ -101,7 +101,9 @@ const Procedures: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {procedures.map((proc) => {
           const margin = proc.price - proc.cost;
-          const marginPercent = (margin / proc.price) * 100;
+          // Bug 2: evita divisão por zero (price 0 = procedimento cortesia) que
+          // renderizava "NaN%" no card. Sem preço de venda não há margem %.
+          const marginPercentLabel = proc.price > 0 ? `${((margin / proc.price) * 100).toFixed(0)}%` : '—';
 
           return (
             <div
@@ -169,7 +171,7 @@ const Procedures: React.FC = () => {
                     <div className="flex items-center gap-2">
                     <span className={`text-sm font-bold ${proc.imageUrl ? 'text-green-300' : 'text-green-600'}`}>{formatCurrency(margin)}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${proc.imageUrl ? 'bg-green-500/30 text-green-200' : 'bg-green-100 text-green-800'}`}>
-                        {marginPercent.toFixed(0)}%
+                        {marginPercentLabel}
                     </span>
                     </div>
                 </div>

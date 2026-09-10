@@ -69,6 +69,14 @@ describe('createProcedureSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('CARACTERIZAÇÃO (Bug 3 / Opção B): supply manual sem inventoryItemId → falha (schema exige vínculo de estoque; insumos manuais não são persistidos)', () => {
+    const result = createProcedureSchema.safeParse({
+      name: 'Botox', price: 800, durationMinutes: 30,
+      supplies: [{ name: 'Luva descartável', quantityUsed: 1, cost: 2 }],
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('supplies válido → sucesso', () => {
     const result = createProcedureSchema.safeParse({
       name: 'Botox', price: 800, durationMinutes: 30,
