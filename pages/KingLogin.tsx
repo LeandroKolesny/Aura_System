@@ -3,12 +3,11 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ArrowRight, Lock, User, ArrowLeft, Crown, AlertTriangle } from 'lucide-react';
-import AuraLogo from '../components/AuraLogo';
 import { SAAS_COMPANY_NAME } from '../constants';
 import { UserRole } from '../types';
 
 const KingLogin: React.FC = () => {
-  const { login, user } = useApp();
+  const { login, user, logout } = useApp();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -16,6 +15,11 @@ const KingLogin: React.FC = () => {
   const [loginError, setLoginError] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
+  // Marca que um login foi acabado de tentar nesta tela — usado pelo efeito
+  // abaixo para diferenciar "acabei de logar com um papel errado" (deve
+  // avisar e deslogar) de "já existia uma sessão de outro papel ao abrir
+  // esta página" (não deve mexer em nada, só mostrar o formulário).
+  const [pendingRoleCheck, setPendingRoleCheck] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +30,9 @@ const KingLogin: React.FC = () => {
       try {
           const success = await login(email, password);
           if (success) {
-            // Redirecionar para o dashboard do King
-            navigate('/king/dashboard');
+            // Não navega direto: o efeito abaixo decide o destino assim que
+            // o `user` do contexto for atualizado, verificando o role real.
+            setPendingRoleCheck(true);
           } else {
             setLoginError('Acesso negado. Verifique suas credenciais.');
           }
@@ -39,12 +44,25 @@ const KingLogin: React.FC = () => {
     }
   };
 
-  // Redirecionamento automático se já logado como OWNER
+  // Redirecionamento automático se já logado como OWNER (sessão restaurada
+  // ou login recém-feito). Se um login foi tentado nesta tela (pendingRoleCheck)
+  // e o usuário autenticado NÃO é OWNER, o acesso ao painel King é negado
+  // explicitamente: mostramos o motivo e encerramos a sessão — em vez de
+  // deixar o usuário logado "por baixo dos panos" sem nenhum retorno na tela.
   React.useEffect(() => {
-      if (user && user.role === UserRole.OWNER) {
+      if (!user) return;
+
+      if (user.role === UserRole.OWNER) {
           navigate('/king/dashboard');
+          return;
       }
-  }, [user, navigate]);
+
+      if (pendingRoleCheck) {
+          setPendingRoleCheck(false);
+          setLoginError('Acesso restrito ao proprietário da plataforma.');
+          logout();
+      }
+  }, [user, pendingRoleCheck, navigate, logout]);
 
   const fillDemo = () => {
       setEmail('king@aura.system');

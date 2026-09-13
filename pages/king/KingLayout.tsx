@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import {
   Crown, LayoutDashboard, Building, Users, CalendarCheck,
@@ -9,9 +9,21 @@ import { UserRole } from '../../types';
 import { SAAS_COMPANY_NAME } from '../../constants';
 
 const KingLayout: React.FC = () => {
-  const { user, logout, newLeadsCount, isInitializing } = useApp();
+  const { user, logout, newLeadsCount, isInitializing, loadLeads } = useApp();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // O contador de "novos leads" (badge do menu CRM e widget do Dashboard)
+  // depende de `leads`, que só é carregado por KingLeads.tsx ao ser aberto.
+  // Sem isto, quem loga e fica no Dashboard nunca vê o aviso de leads novos
+  // até visitar o CRM pelo menos uma vez na sessão. Carrega aqui, uma vez,
+  // assim que o acesso de OWNER é confirmado — loadLeads() já é idempotente
+  // (não refaz a busca se já tiver carregado nesta sessão).
+  useEffect(() => {
+    if (user?.role === UserRole.OWNER) {
+      loadLeads();
+    }
+  }, [user, loadLeads]);
 
   // Enquanto a sessão ainda está sendo restaurada (ex: logo após um F5), mostra
   // o loading. Uma vez resolvido, decide de forma definitiva — nunca fica preso

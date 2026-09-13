@@ -19,6 +19,12 @@ import { getAuthUser } from '@/lib/auth'
 
 const MOCK_OWNER = { id: 'owner-001', role: 'OWNER', companyId: null }
 const MOCK_ADMIN = { id: 'admin-001', role: 'ADMIN', companyId: 'company-001' }
+const MOCK_RECEPTIONIST = { id: 'recep-001', role: 'RECEPTIONIST', companyId: 'company-001' }
+const MOCK_ESTHETICIAN = { id: 'esth-001', role: 'ESTHETICIAN', companyId: 'company-001' }
+const MOCK_PATIENT = { id: 'pat-001', role: 'PATIENT', companyId: 'company-001' }
+// Edge case: um OWNER com companyId preenchido "por engano" — o guard não deve
+// se importar com isso (o dashboard é sempre global, nunca escopado por empresa).
+const MOCK_OWNER_WITH_COMPANY = { id: 'owner-002', role: 'OWNER', companyId: 'company-999' }
 
 const MOCK_STATS = {
   totalCompanies: 42,
@@ -76,11 +82,39 @@ describe('GET /api/king/dashboard', () => {
     expect(queryGlobalStats).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['RECEPTIONIST', MOCK_RECEPTIONIST],
+    ['ESTHETICIAN', MOCK_ESTHETICIAN],
+    ['PATIENT', MOCK_PATIENT],
+  ])('retorna 403 para role %s', async (_label, mockUser) => {
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser as never)
+    const res = await GET(makeRequest())
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe('Acesso restrito ao Owner')
+    expect(queryGlobalStats).not.toHaveBeenCalled()
+  })
+
+  it('OWNER com companyId preenchido "por engano" ainda tem acesso (stats são sempre globais)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(MOCK_OWNER_WITH_COMPANY as never)
+    const res = await GET(makeRequest())
+    expect(res.status).toBe(200)
+    expect(queryGlobalStats).toHaveBeenCalledOnce()
+  })
+
   it('retorna 500 quando query lança erro', async () => {
     vi.mocked(queryGlobalStats).mockRejectedValue(new Error('DB error'))
     const res = await GET(makeRequest())
     expect(res.status).toBe(500)
     const body = await res.json()
     expect(body.success).toBe(false)
+  })
+
+  it('em erro 500 não vaza detalhes internos do erro na resposta (só mensagem genérica)', async () => {
+    vi.mocked(queryGlobalStats).mockRejectedValue(new Error('senha do banco: hunter2'))
+    const res = await GET(makeRequest())
+    const body = await res.json()
+    expect(body.error).toBe('Erro interno')
+    expect(JSON.stringify(body)).not.toContain('hunter2')
   })
 })
