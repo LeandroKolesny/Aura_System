@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
 import { generateJWT } from "@/lib/auth";
+import { checkDurationFitsBeforeClosing, type BusinessHours } from "@/lib/businessHours";
 
 const schema = z.object({
   companyId: z.string().cuid("ID de empresa inválido"),
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
-      select: { id: true },
+      select: { id: true, businessHours: true },
     });
     if (!company) return NextResponse.json({ error: "Empresa não encontrada" }, { status: 404 });
 
@@ -81,6 +82,23 @@ export async function POST(request: NextRequest) {
     });
     if (!procedure)
       return NextResponse.json({ error: "Procedimento não encontrado" }, { status: 404 });
+
+    // Rede de segurança (Passo 3 da auditoria): esta rota pública nunca validou
+    // horário de funcionamento (validação completa fica fora do escopo agora —
+    // ver docs/test-audit/cliente-agendamento-publico.md). Aqui checamos apenas
+    // se o TÉRMINO do procedimento cabe antes do fechamento, cobrindo o cenário
+    // "aba aberta há tempo, grade desatualizada".
+    const durationCheck = checkDurationFitsBeforeClosing(
+      new Date(date),
+      procedure.durationMinutes,
+      company.businessHours as BusinessHours | null
+    );
+    if (!durationCheck.valid) {
+      return NextResponse.json(
+        { error: durationCheck.message, code: "DURATION_EXCEEDS_CLOSING" },
+        { status: 400 }
+      );
+    }
 
     if (professionalId) {
       const professional = await prisma.user.findFirst({

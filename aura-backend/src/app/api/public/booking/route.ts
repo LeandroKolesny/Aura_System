@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
+import { checkDurationFitsBeforeClosing, type BusinessHours } from "@/lib/businessHours";
 
 // Sentinel lançado dentro da transação quando a re-checagem encontra conflito
 class ScheduleConflictError extends Error {
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     // Verificar se empresa existe e tem booking online ativo
     const company = await prisma.company.findUnique({
       where: { id: companyId },
-      select: { id: true, name: true, onlineBookingConfig: true },
+      select: { id: true, name: true, onlineBookingConfig: true, businessHours: true },
     });
 
     if (!company) {
@@ -97,6 +98,23 @@ export async function POST(request: NextRequest) {
     }
 
     const appointmentDate = new Date(date);
+
+    // Rede de segurança (Passo 3 da auditoria): esta rota pública nunca validou
+    // horário de funcionamento (fora do escopo agora — ver
+    // docs/test-audit/cliente-agendamento-publico.md). Aqui checamos apenas se
+    // o TÉRMINO do procedimento cabe antes do fechamento, cobrindo o cenário
+    // "aba aberta há tempo, grade desatualizada".
+    const durationCheck = checkDurationFitsBeforeClosing(
+      appointmentDate,
+      procedure.durationMinutes,
+      company.businessHours as BusinessHours | null
+    );
+    if (!durationCheck.valid) {
+      return NextResponse.json(
+        { error: durationCheck.message, code: "DURATION_EXCEEDS_CLOSING" },
+        { status: 400 }
+      );
+    }
 
     // Verificar conflito de horário
     const dayStart = new Date(appointmentDate);

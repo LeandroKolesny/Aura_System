@@ -126,4 +126,67 @@ describe('POST /api/public/booking', () => {
     const res = await POST(makeRequest(VALID_BODY))
     expect(res.status).toBe(409)
   })
+
+  // ── Passo 3 da auditoria: duração do procedimento não pode ultrapassar o
+  // fechamento. Rota pública histórica NUNCA validou horário de funcionamento
+  // — esta é a rede de segurança mínima (checkDurationFitsBeforeClosing), não
+  // a validação completa de abertura/fechamento (fora do escopo desta tarefa).
+  describe('duração do procedimento não pode ultrapassar o fechamento', () => {
+    const BUSINESS_HOURS_ALL_OPEN_8_18 = {
+      monday: { isOpen: true, start: '08:00', end: '18:00' },
+      tuesday: { isOpen: true, start: '08:00', end: '18:00' },
+      wednesday: { isOpen: true, start: '08:00', end: '18:00' },
+      thursday: { isOpen: true, start: '08:00', end: '18:00' },
+      friday: { isOpen: true, start: '08:00', end: '18:00' },
+      saturday: { isOpen: true, start: '08:00', end: '18:00' },
+      sunday: { isOpen: true, start: '08:00', end: '18:00' },
+    }
+
+    it('procedimento de 90min começando 17:30 (clínica fecha 18:00) → 400 com mensagem clara', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_ALL_OPEN_8_18,
+      } as never)
+      vi.mocked(prisma.procedure.findFirst).mockResolvedValue({
+        ...MOCK_PROCEDURE,
+        durationMinutes: 90,
+      } as never)
+
+      // 17:30 local do Brasil (America/Sao_Paulo, UTC-3) == 20:30 UTC
+      const date = '2026-09-14T20:30:00.000Z' // segunda-feira
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('90 min')
+      expect(body.error).toContain('18:00')
+      expect(prisma.appointment.create).not.toHaveBeenCalled()
+    })
+
+    it('procedimento de 30min começando 17:30 (termina 18:00, não ultrapassa) → 201', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_ALL_OPEN_8_18,
+      } as never)
+      vi.mocked(prisma.procedure.findFirst).mockResolvedValue({
+        ...MOCK_PROCEDURE,
+        durationMinutes: 30,
+      } as never)
+
+      const date = '2026-09-14T20:30:00.000Z' // 17:30 local
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      expect(res.status).toBe(201)
+    })
+
+    it('company sem businessHours configurado → não bloqueia (comportamento pré-existente preservado)', async () => {
+      // MOCK_COMPANY (beforeEach) não tem campo businessHours
+      vi.mocked(prisma.procedure.findFirst).mockResolvedValue({
+        ...MOCK_PROCEDURE,
+        durationMinutes: 90,
+      } as never)
+      const date = '2026-09-14T20:30:00.000Z'
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      expect(res.status).toBe(201)
+    })
+  })
 })

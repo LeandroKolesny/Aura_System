@@ -283,18 +283,26 @@ export async function POST(request: NextRequest) {
       company?.businessHours as BusinessHours | null
     );
 
-    // VALIDAÇÃO: Verificar horário de funcionamento e indisponibilidade
+    // VALIDAÇÃO: Verificar horário de funcionamento (incluindo se o término do
+    // procedimento cabe antes do fechamento — ver isWithinBusinessHours) e
+    // indisponibilidade
     const timeValidation = validateAppointmentTime(
       appointmentDate,
       professionalId,
       effectiveBusinessHours,
-      unavailabilityRules as UnavailabilityRule[]
+      unavailabilityRules as UnavailabilityRule[],
+      durationMinutes
     );
 
     if (!timeValidation.valid) {
       return NextResponse.json(
         {
-          error: "Horário indisponível",
+          // `error` é o campo lido pelo frontend (services/api.ts fetchApi) —
+          // usar a mensagem específica de timeValidation.message aqui garante
+          // que o usuário veja o motivo real (ex.: dia fechado, antes da
+          // abertura, ou "procedimento dura X min e a clínica encerra às Y")
+          // em vez de um texto genérico.
+          error: timeValidation.message || "Horário indisponível",
           message: timeValidation.message,
           code: "INVALID_TIME",
         },

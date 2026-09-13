@@ -70,6 +70,8 @@ const MOCK_PATIENT_USER = {
   companyId: COMPANY_ID,
 }
 
+const SUBSCRIPTION_ID = 'cksub00000000000000000001'
+
 const MOCK_PATIENT = { id: PATIENT_ID, name: 'Maria Silva', phone: '11999990000', companyId: COMPANY_ID } as Patient
 const MOCK_PROCEDURE = { id: PROCEDURE_ID, name: 'Limpeza', durationMinutes: 60, price: 150, cost: 20, companyId: COMPANY_ID } as unknown as Procedure
 const MOCK_APPOINTMENT = {
@@ -261,6 +263,58 @@ describe('POST /api/appointments', () => {
   it('registra log de atividade ao criar agendamento', async () => {
     await POST(makeRequest(VALID_BODY))
     expect(prisma.activity.create).toHaveBeenCalledOnce()
+  })
+
+  // ── Bug C da auditoria: PATIENT que envia subscriptionId deve ser vinculado ──
+  // Antes da correção do frontend (PublicBooking.tsx), o paciente logado nunca
+  // enviava subscriptionId — este teste comprova que, quando o campo É enviado,
+  // este ramo do backend (que já existia) vincula corretamente.
+  it('PATIENT que envia subscriptionId de uma assinatura ativa recebe o agendamento vinculado com price 0', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(MOCK_PATIENT_USER as never)
+    // Mock explícito (não depender do que um teste anterior deixou em
+    // findUnique via vi.clearAllMocks(), que limpa chamadas mas não a
+    // implementação) — mantém este teste isolado e determinístico.
+    vi.mocked(prisma.patientSubscription.findUnique).mockResolvedValue(null)
+
+    const res = await POST(makeRequest({ ...VALID_BODY, patientId: '', subscriptionId: SUBSCRIPTION_ID }))
+    const body = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(prisma.appointment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ subscriptionId: SUBSCRIPTION_ID, price: 0 }),
+      })
+    )
+    expect(body.subscriptionCoverage).toEqual({
+      covered: true,
+      subscriptionId: SUBSCRIPTION_ID,
+      sessionsRemaining: 0,
+    })
+  })
+
+  it('PATIENT que NÃO envia subscriptionId cria agendamento normalmente (price original, sem vínculo)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(MOCK_PATIENT_USER as never)
+
+    const res = await POST(makeRequest({ ...VALID_BODY, patientId: '' }))
+
+    expect(res.status).toBe(201)
+    expect(prisma.appointment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ subscriptionId: null, price: 150 }),
+      })
+    )
+  })
+
+  // ── Passo 3 da auditoria: duração do procedimento não pode ultrapassar o fechamento ──
+  it('passa durationMinutes para validateAppointmentTime (checagem de término dentro do expediente)', async () => {
+    await POST(makeRequest({ ...VALID_BODY, durationMinutes: 90 }))
+    expect(validateAppointmentTime).toHaveBeenCalledWith(
+      expect.any(Date),
+      PROFESSIONAL_ID,
+      expect.anything(),
+      expect.anything(),
+      90
+    )
   })
 
   // ── Horário INDIVIDUAL do profissional tem precedência sobre o da empresa ──

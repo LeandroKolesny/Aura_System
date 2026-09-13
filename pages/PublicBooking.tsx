@@ -354,7 +354,13 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
             }
         }
 
-        const showAsUnavailable = isPastOrTooSoon || isBlockedByRule || isOccupied;
+        // Lacuna corrigida: um slot que começa dentro do expediente mas cujo
+        // término (início + duração do procedimento) ultrapassaria o
+        // fechamento do dia não pode ser oferecido.
+        const slotEndMinutes = currentMinutes + (selectedProcedure?.durationMinutes || intervalMinutes);
+        const wouldExceedClosing = slotEndMinutes > endTotalMinutes;
+
+        const showAsUnavailable = isPastOrTooSoon || isBlockedByRule || isOccupied || wouldExceedClosing;
         const isAvailable = !showAsUnavailable;
 
         slots.push({
@@ -446,7 +452,16 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
       let result;
 
       if (isLoggedInPatient) {
-        // Paciente logado: sempre usa API autenticada (backend detecta plano automaticamente)
+        // Paciente logado: sempre usa API autenticada. Em modo plano, o
+        // backend só vincula a assinatura (PatientSubscription, não o
+        // SubscriptionPlan) e zera o preço se RECEBER subscriptionId — por
+        // isso buscamos aqui a assinatura ATIVA do paciente para o plano
+        // selecionado e enviamos o ID dela (bug corrigido: antes nunca era
+        // enviado, apesar do comentário dizer que o backend detectava sozinho).
+        const ownSubscriptionForPlan = bookingMode === 'plan' && selectedPlan
+          ? patientOwnSubscriptions.find(s => s.planId === selectedPlan.id && s.status === 'ACTIVE')
+          : undefined;
+
         result = await appointmentsApi.create({
           patientId: '', // O backend sobrescreve com o ID correto via email+companyId
           procedureId: selectedProcedure.id,
@@ -454,6 +469,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
           date: isoDate.toISOString(),
           durationMinutes: selectedProcedure.durationMinutes,
           price: bookingMode === 'plan' ? 0 : selectedProcedure.price,
+          subscriptionId: ownSubscriptionForPlan?.id,
           notes: bookingMode === 'plan' && selectedPlan
             ? `Agendamento via plano ${selectedPlan.name}`
             : `Agendamento via portal - ${patientData.phone || user?.email}`,
@@ -560,7 +576,22 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                     <p><strong>Data:</strong> {selectedDate.toLocaleDateString()} às {selectedTimeSlot}</p>
                     <p><strong>Profissional:</strong> {selectedProfessional ? selectedProfessional.name : 'A definir'}</p>
                 </div>
-                <button onClick={() => { logout(); navigate('/login'); }} className="w-full text-white py-4 rounded-2xl font-bold transition-all hover:scale-105" style={{ backgroundColor: '#1c1917' }}>Acessar Portal do Paciente</button>
+                <button
+                    onClick={() => {
+                        // Bug corrigido: quando quem agendou já estava logado, o botão
+                        // NÃO pode deslogar a conta ativa — deve só levar de volta ao
+                        // portal. O logout()+navigate('/login') fica só para o visitante
+                        // novo que acabou de criar conta neste fluxo.
+                        if (isLoggedInPatient) {
+                            navigate(`${getPortalBasePath()}/minha-conta`);
+                        } else {
+                            logout();
+                            navigate('/login');
+                        }
+                    }}
+                    className="w-full text-white py-4 rounded-2xl font-bold transition-all hover:scale-105"
+                    style={{ backgroundColor: '#1c1917' }}
+                >Acessar Portal do Paciente</button>
             </div>
         </div>
     );

@@ -8,6 +8,7 @@ import {
   validateAppointmentTime,
   isCompleteBusinessHours,
   resolveEffectiveBusinessHours,
+  checkDurationFitsBeforeClosing,
 } from '../../lib/businessHours'
 
 // ---------------------------------------------------------------------------
@@ -206,6 +207,141 @@ describe('isWithinBusinessHours', () => {
       const result = isWithinBusinessHours(makeDate(WEEK.friday, 9, 0), bh)
       expect(result).toEqual({ valid: true })
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isWithinBusinessHours — Bug A: fuso horário UTC (servidor) vs. hora local
+// do Brasil (America/Sao_Paulo, UTC-3), usada para gerar o Date no navegador.
+// ---------------------------------------------------------------------------
+// O bug só se manifesta quando o horário de LEITURA (.getHours()) roda num
+// processo em fuso diferente do fuso da clínica. Na máquina de dev (rodando
+// em America/Sao_Paulo), o bug antigo ficava mascarado porque criação e
+// leitura do Date aconteciam no mesmo fuso (-3), então o teste "por acidente"
+// acertava.
+//
+// Nota sobre `process.env.TZ` em testes: tentamos originalmente forçar
+// `process.env.TZ = 'UTC'` aqui para simular o servidor de produção (Vercel)
+// e então restaurar no `afterAll`. Descartamos essa abordagem: o V8/Node cacheia
+// a resolução de fuso horário internamente e `delete process.env.TZ` (ou
+// reatribuir o valor original) NÃO reverte o comportamento de `Date#getHours()`
+// dentro do mesmo processo — confirmado empiricamente nesta máquina. Isso
+// vazaria "TZ=UTC" para todos os testes seguintes do arquivo (poluição de
+// estado global entre testes, incluindo o helper `makeDate` usado em todo o
+// resto do arquivo). Em vez disso, construímos os `Date` diretamente a partir
+// de strings ISO UTC explícitas (exatamente o que `isoDate.toISOString()`
+// produz no navegador) e comparamos contra o resultado esperado no horário
+// local da clínica. Como a implementação corrigida usa um offset FIXO (não
+// consulta `process.env.TZ`/fuso do processo — ver `toClinicLocalParts` em
+// businessHours.ts), estes testes são corretos e determinísticos em QUALQUER
+// fuso horário de máquina, sem precisar mutar estado global do processo.
+describe('isWithinBusinessHours — fuso horário (Bug A: UTC do servidor vs. local do Brasil)', () => {
+  it('17:00 local do Brasil (dentro do expediente 08h-18h) chega ao servidor como 20:00 UTC — deve continuar válido', () => {
+    // 17:00 em America/Sao_Paulo (UTC-3) == 20:00 UTC, segunda-feira (2025-01-06)
+    const date = new Date('2025-01-06T20:00:00.000Z')
+    const result = isWithinBusinessHours(date, makeBusinessHours())
+    expect(result).toEqual({ valid: true })
+  })
+
+  it('23:00 local do Brasil (após o fechamento às 18h) chega como 02:00 UTC do dia seguinte — deve continuar inválido', () => {
+    // 23:00 de segunda em SP == 02:00 UTC de terça (2025-01-07)
+    const date = new Date('2025-01-07T02:00:00.000Z')
+    const result = isWithinBusinessHours(date, makeBusinessHours())
+    expect(result.valid).toBe(false)
+  })
+
+  it('00:30 local do Brasil na terça (dia fechado só configurado para terça) chega como 03:30 UTC de terça — dia da semana deve ser resolvido pelo horário LOCAL', () => {
+    // 00:30 de terça em SP == 03:30 UTC de terça — mesma data UTC, mas serve
+    // para travar que usamos o dia da semana local (não um cálculo ingênuo).
+    const bh = makeBusinessHours({ tuesday: { isOpen: false, start: '08:00', end: '18:00' } })
+    const date = new Date('2025-01-07T03:30:00.000Z')
+    const result = isWithinBusinessHours(date, bh)
+    expect(result.valid).toBe(false)
+    expect(result.message).toMatch(/Terça/i)
+  })
+
+  it('07:59 local do Brasil (1 min antes da abertura) chega como 10:59 UTC — deve continuar inválido (antes da abertura)', () => {
+    // 07:59 de segunda em SP == 10:59 UTC
+    const date = new Date('2025-01-06T10:59:00.000Z')
+    const result = isWithinBusinessHours(date, makeBusinessHours())
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('08:00')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isWithinBusinessHours — duração não pode ultrapassar o fechamento (Passo 3:
+// lacuna real, hoje a função só valida o horário de INÍCIO)
+// ---------------------------------------------------------------------------
+
+describe('isWithinBusinessHours — duração do procedimento não pode ultrapassar o fechamento', () => {
+  it('Segunda 17:30, procedimento de 90min (clínica fecha às 18:00) → valid:false com mensagem específica', () => {
+    const result = isWithinBusinessHours(makeDate(WEEK.monday, 17, 30), makeBusinessHours(), 90)
+    expect(result.valid).toBe(false)
+    expect(result.message).toBe(
+      'Esse horário não é possível: o procedimento dura 90 min e a clínica encerra às 18:00. Escolha um horário mais cedo.'
+    )
+  })
+
+  it('Segunda 16:00, procedimento de 90min (termina 17:30, antes do fechamento) → valid:true', () => {
+    const result = isWithinBusinessHours(makeDate(WEEK.monday, 16, 0), makeBusinessHours(), 90)
+    expect(result).toEqual({ valid: true })
+  })
+
+  it('Segunda 16:30, procedimento de 90min (termina EXATAMENTE às 18:00, no fechamento) → valid:true (não ultrapassa)', () => {
+    // Diferente da checagem de INÍCIO (>= fechamento é inválido), terminar
+    // exatamente no horário de fechamento não "ultrapassa" o expediente.
+    const result = isWithinBusinessHours(makeDate(WEEK.monday, 16, 30), makeBusinessHours(), 90)
+    expect(result).toEqual({ valid: true })
+  })
+
+  it('Segunda 16:31, procedimento de 90min (termina às 18:01, 1 min depois do fechamento) → valid:false', () => {
+    const result = isWithinBusinessHours(makeDate(WEEK.monday, 16, 31), makeBusinessHours(), 90)
+    expect(result.valid).toBe(false)
+  })
+
+  it('sem durationMinutes (undefined) → comportamento antigo preservado, só valida horário de início', () => {
+    const result = isWithinBusinessHours(makeDate(WEEK.monday, 17, 30), makeBusinessHours())
+    expect(result).toEqual({ valid: true })
+  })
+
+  it('durationMinutes = 0 → não aplica a checagem de término (evita falso positivo com dado ausente)', () => {
+    const result = isWithinBusinessHours(makeDate(WEEK.monday, 17, 30), makeBusinessHours(), 0)
+    expect(result).toEqual({ valid: true })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// checkDurationFitsBeforeClosing — usada pelas rotas públicas (que hoje não
+// chamam isWithinBusinessHours/validateAppointmentTime) como rede de
+// segurança mínima contra o cenário "aba aberta há tempo, grade desatualizada"
+// ---------------------------------------------------------------------------
+
+describe('checkDurationFitsBeforeClosing', () => {
+  it('businessHours null → valid:true (sem configuração, nada a checar)', () => {
+    expect(checkDurationFitsBeforeClosing(makeDate(WEEK.monday, 17, 30), 90, null)).toEqual({ valid: true })
+  })
+
+  it('dia fechado → valid:true (checagem de dia fechado não é responsabilidade desta função)', () => {
+    const result = checkDurationFitsBeforeClosing(makeDate(WEEK.saturday, 10, 0), 90, makeBusinessHours())
+    expect(result).toEqual({ valid: true })
+  })
+
+  it('duração ultrapassa o fechamento → valid:false com mensagem contendo duração e horário de fechamento', () => {
+    const result = checkDurationFitsBeforeClosing(makeDate(WEEK.monday, 17, 30), 90, makeBusinessHours())
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('90 min')
+    expect(result.message).toContain('18:00')
+  })
+
+  it('duração cabe antes do fechamento → valid:true', () => {
+    const result = checkDurationFitsBeforeClosing(makeDate(WEEK.monday, 10, 0), 30, makeBusinessHours())
+    expect(result).toEqual({ valid: true })
+  })
+
+  it('durationMinutes = 0 → valid:true (nada a checar)', () => {
+    const result = checkDurationFitsBeforeClosing(makeDate(WEEK.monday, 17, 30), 0, makeBusinessHours())
+    expect(result).toEqual({ valid: true })
   })
 })
 
@@ -574,6 +710,33 @@ describe('validateAppointmentTime', () => {
         [rule]
       )
       expect(result.valid).toBe(false)
+    })
+  })
+
+  // --- durationMinutes: fim do procedimento não pode ultrapassar o fechamento ---
+  describe('durationMinutes repassado para isWithinBusinessHours', () => {
+    it('horário de início válido mas término ultrapassa o fechamento → valid:false', () => {
+      const bh = makeBusinessHours()
+      const result = validateAppointmentTime(
+        makeDate(WEEK.monday, 17, 30),
+        'prof-1',
+        bh,
+        [],
+        90
+      )
+      expect(result.valid).toBe(false)
+      expect(result.message).toContain('90 min')
+    })
+
+    it('sem durationMinutes → não quebra o comportamento existente', () => {
+      const bh = makeBusinessHours()
+      const result = validateAppointmentTime(
+        makeDate(WEEK.monday, 17, 30),
+        'prof-1',
+        bh,
+        []
+      )
+      expect(result).toEqual({ valid: true })
     })
   })
 
