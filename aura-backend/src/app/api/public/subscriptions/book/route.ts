@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
 import { generateJWT } from "@/lib/auth";
-import { checkDurationFitsBeforeClosing, type BusinessHours } from "@/lib/businessHours";
+import { validateAppointmentTime, resolveEffectiveBusinessHours, type BusinessHours, type UnavailabilityRule } from "@/lib/businessHours";
 
 const schema = z.object({
   companyId: z.string().cuid("ID de empresa inválido"),
@@ -83,29 +83,43 @@ export async function POST(request: NextRequest) {
     if (!procedure)
       return NextResponse.json({ error: "Procedimento não encontrado" }, { status: 404 });
 
-    // Rede de segurança (Passo 3 da auditoria): esta rota pública nunca validou
-    // horário de funcionamento (validação completa fica fora do escopo agora —
-    // ver docs/test-audit/cliente-agendamento-publico.md). Aqui checamos apenas
-    // se o TÉRMINO do procedimento cabe antes do fechamento, cobrindo o cenário
-    // "aba aberta há tempo, grade desatualizada".
-    const durationCheck = checkDurationFitsBeforeClosing(
-      new Date(date),
-      procedure.durationMinutes,
-      company.businessHours as BusinessHours | null
-    );
-    if (!durationCheck.valid) {
-      return NextResponse.json(
-        { error: durationCheck.message, code: "DURATION_EXCEEDS_CLOSING" },
-        { status: 400 }
-      );
+    let requestedProfessional: { businessHours: unknown } | null = null;
+    if (professionalId) {
+      requestedProfessional = await prisma.user.findFirst({
+        where: { id: professionalId, companyId },
+        select: { businessHours: true },
+      });
+      if (!requestedProfessional)
+        return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 });
     }
 
-    if (professionalId) {
-      const professional = await prisma.user.findFirst({
-        where: { id: professionalId, companyId },
-      });
-      if (!professional)
-        return NextResponse.json({ error: "Profissional não encontrado" }, { status: 404 });
+    // Validação de horário de funcionamento (dia fechado / fora do expediente /
+    // término depois do fechamento / indisponibilidade do profissional). Até
+    // aqui esta rota só cobria o encaixe da duração antes do fechamento (ver
+    // histórico em docs/test-audit/cliente-agendamento-publico.md) — reaproveita
+    // validateAppointmentTime, a mesma função já usada em POST /api/appointments
+    // e em POST /api/public/booking. Sem professionalId definido ainda (agenda
+    // resolvida depois via fallback), a checagem de indisponibilidade por
+    // profissional não se aplica — só o horário de funcionamento da empresa.
+    const unavailabilityRules = professionalId
+      ? await prisma.unavailabilityRule.findMany({ where: { companyId } })
+      : [];
+    const effectiveBusinessHours = resolveEffectiveBusinessHours(
+      requestedProfessional?.businessHours,
+      company.businessHours as BusinessHours | null
+    );
+    const timeValidation = validateAppointmentTime(
+      new Date(date),
+      professionalId ?? "",
+      effectiveBusinessHours,
+      unavailabilityRules as UnavailabilityRule[],
+      procedure.durationMinutes
+    );
+    if (!timeValidation.valid) {
+      return NextResponse.json(
+        { error: timeValidation.message, code: "INVALID_TIME" },
+        { status: 400 }
+      );
     }
 
     // Find or create Patient (para agendamento e assinatura)

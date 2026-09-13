@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, getClientIP } from "@/lib/rateLimiter";
-import { checkDurationFitsBeforeClosing, type BusinessHours } from "@/lib/businessHours";
+import { validateAppointmentTime, resolveEffectiveBusinessHours, type BusinessHours, type UnavailabilityRule } from "@/lib/businessHours";
 
 // Sentinel lançado dentro da transação quando a re-checagem encontra conflito
 class ScheduleConflictError extends Error {
@@ -99,19 +99,30 @@ export async function POST(request: NextRequest) {
 
     const appointmentDate = new Date(date);
 
-    // Rede de segurança (Passo 3 da auditoria): esta rota pública nunca validou
-    // horário de funcionamento (fora do escopo agora — ver
-    // docs/test-audit/cliente-agendamento-publico.md). Aqui checamos apenas se
-    // o TÉRMINO do procedimento cabe antes do fechamento, cobrindo o cenário
-    // "aba aberta há tempo, grade desatualizada".
-    const durationCheck = checkDurationFitsBeforeClosing(
-      appointmentDate,
-      procedure.durationMinutes,
+    // Validação de horário de funcionamento (dia fechado / fora do expediente /
+    // término depois do fechamento / indisponibilidade do profissional). Até
+    // aqui esta rota pública só cobria o encaixe da duração antes do
+    // fechamento (ver histórico em docs/test-audit/cliente-agendamento-publico.md)
+    // — reaproveita a mesma validateAppointmentTime já usada e testada em
+    // POST /api/appointments (rota autenticada), incluindo a precedência do
+    // horário individual do profissional sobre o da empresa.
+    const unavailabilityRules = await prisma.unavailabilityRule.findMany({
+      where: { companyId },
+    });
+    const effectiveBusinessHours = resolveEffectiveBusinessHours(
+      professional.businessHours,
       company.businessHours as BusinessHours | null
     );
-    if (!durationCheck.valid) {
+    const timeValidation = validateAppointmentTime(
+      appointmentDate,
+      professionalId,
+      effectiveBusinessHours,
+      unavailabilityRules as UnavailabilityRule[],
+      procedure.durationMinutes
+    );
+    if (!timeValidation.valid) {
       return NextResponse.json(
-        { error: durationCheck.message, code: "DURATION_EXCEEDS_CLOSING" },
+        { error: timeValidation.message, code: "INVALID_TIME" },
         { status: 400 }
       );
     }

@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => ({
     user: { findFirst: vi.fn(), create: vi.fn() },
     appointment: { findMany: vi.fn(), create: vi.fn() },
     patient: { findFirst: vi.fn(), create: vi.fn() },
+    unavailabilityRule: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(),
   },
 }))
@@ -60,6 +61,7 @@ beforeEach(() => {
   vi.mocked(prisma.procedure.findFirst).mockResolvedValue(MOCK_PROCEDURE as never)
   vi.mocked(prisma.user.findFirst).mockResolvedValue(MOCK_PROFESSIONAL as never)
   vi.mocked(prisma.appointment.findMany).mockResolvedValue([])
+  vi.mocked(prisma.unavailabilityRule.findMany).mockResolvedValue([])
   vi.mocked(prisma.patient.findFirst).mockResolvedValue(null)
   vi.mocked(prisma.patient.create).mockResolvedValue(MOCK_PATIENT as never)
   vi.mocked(prisma.appointment.create).mockResolvedValue(MOCK_APPOINTMENT as never)
@@ -185,6 +187,131 @@ describe('POST /api/public/booking', () => {
         durationMinutes: 90,
       } as never)
       const date = '2026-09-14T20:30:00.000Z'
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      expect(res.status).toBe(201)
+    })
+  })
+
+  // Pendência documentada em docs/test-audit/cliente-agendamento-publico.md:
+  // esta rota pública nunca validava dia fechado / fora do expediente /
+  // indisponibilidade do profissional — só o encaixe da duração antes do
+  // fechamento (bloco acima). Fechada aqui reaproveitando validateAppointmentTime,
+  // a mesma função já usada e testada em POST /api/appointments (autenticada).
+  describe('validação completa de horário de funcionamento (dia fechado / fora do expediente / indisponibilidade)', () => {
+    const BUSINESS_HOURS_MON_CLOSED = {
+      monday: { isOpen: false, start: '08:00', end: '18:00' },
+      tuesday: { isOpen: true, start: '08:00', end: '18:00' },
+      wednesday: { isOpen: true, start: '08:00', end: '18:00' },
+      thursday: { isOpen: true, start: '08:00', end: '18:00' },
+      friday: { isOpen: true, start: '08:00', end: '18:00' },
+      saturday: { isOpen: true, start: '08:00', end: '18:00' },
+      sunday: { isOpen: true, start: '08:00', end: '18:00' },
+    }
+    const BUSINESS_HOURS_ALL_OPEN_8_18 = {
+      monday: { isOpen: true, start: '08:00', end: '18:00' },
+      tuesday: { isOpen: true, start: '08:00', end: '18:00' },
+      wednesday: { isOpen: true, start: '08:00', end: '18:00' },
+      thursday: { isOpen: true, start: '08:00', end: '18:00' },
+      friday: { isOpen: true, start: '08:00', end: '18:00' },
+      saturday: { isOpen: true, start: '08:00', end: '18:00' },
+      sunday: { isOpen: true, start: '08:00', end: '18:00' },
+    }
+
+    it('dia fechado na agenda da clínica → 400, sem criar agendamento', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_MON_CLOSED,
+      } as never)
+      const date = '2026-09-14T14:00:00.000Z' // segunda-feira, 11:00 local — dia fechado
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toMatch(/não funciona.*segunda/i)
+      expect(prisma.appointment.create).not.toHaveBeenCalled()
+    })
+
+    it('antes da abertura → 400', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_ALL_OPEN_8_18,
+      } as never)
+      const date = '2026-09-15T09:00:00.000Z' // terça, 06:00 local — antes das 08:00
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toMatch(/antes da abertura/i)
+    })
+
+    it('depois do fechamento → 400', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_ALL_OPEN_8_18,
+      } as never)
+      const date = '2026-09-15T23:00:00.000Z' // terça, 20:00 local — depois das 18:00
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toMatch(/após o fechamento/i)
+    })
+
+    it('horário bloqueado por regra de indisponibilidade do profissional → 400', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_ALL_OPEN_8_18,
+      } as never)
+      vi.mocked(prisma.unavailabilityRule.findMany).mockResolvedValue([
+        {
+          id: 'rule-1',
+          description: 'Consulta médica',
+          startTime: '10:00',
+          endTime: '12:00',
+          dates: ['2026-09-15'],
+          professionalIds: [PROFESSIONAL_ID],
+        },
+      ] as never)
+      const date = '2026-09-15T14:00:00.000Z' // terça, 11:00 local — dentro do bloqueio
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toBe('Consulta médica')
+      expect(prisma.appointment.create).not.toHaveBeenCalled()
+    })
+
+    it('respeita o horário individual do profissional quando os 7 dias estão configurados (precedência sobre a empresa)', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_ALL_OPEN_8_18, // empresa: 08-18
+      } as never)
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({
+        ...MOCK_PROFESSIONAL,
+        businessHours: {
+          monday: { isOpen: true, start: '08:00', end: '12:00' },
+          tuesday: { isOpen: true, start: '08:00', end: '12:00' },
+          wednesday: { isOpen: true, start: '08:00', end: '12:00' },
+          thursday: { isOpen: true, start: '08:00', end: '12:00' },
+          friday: { isOpen: true, start: '08:00', end: '12:00' },
+          saturday: { isOpen: true, start: '08:00', end: '12:00' },
+          sunday: { isOpen: true, start: '08:00', end: '12:00' },
+        },
+      } as never)
+      const date = '2026-09-15T17:00:00.000Z' // terça, 14:00 local — dentro do horário da empresa, fora do do profissional
+      const res = await POST(makeRequest({ ...VALID_BODY, date }))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toMatch(/após o fechamento/i)
+    })
+
+    it('dentro do expediente e sem bloqueio → 201 (não regride o caso feliz)', async () => {
+      vi.mocked(prisma.company.findUnique).mockResolvedValue({
+        ...MOCK_COMPANY,
+        businessHours: BUSINESS_HOURS_ALL_OPEN_8_18,
+      } as never)
+      const date = '2026-09-15T14:00:00.000Z' // terça, 11:00 local
       const res = await POST(makeRequest({ ...VALID_BODY, date }))
       expect(res.status).toBe(201)
     })
