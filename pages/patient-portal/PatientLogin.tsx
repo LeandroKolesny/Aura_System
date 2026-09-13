@@ -10,7 +10,7 @@ import { ArrowRight, Lock, Mail, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { UserRole } from '../../types';
 
 const PatientLogin: React.FC = () => {
-  const { login, user } = useApp();
+  const { login, user, logout, isInitializing } = useApp();
   const { clinic } = useClinic();
   const navigate = useNavigate();
   const basePath = getPortalBasePath();
@@ -20,12 +20,20 @@ const PatientLogin: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Redireciona se já estiver logado como paciente
+  // Redireciona se já estiver logado como paciente — mas só da MESMA clínica.
+  // A sessão é global (cookie httpOnly, restaurada independente do slug da URL),
+  // então um paciente de outra empresa não pode ser levado para este portal.
   useEffect(() => {
-    if (user && user.role === UserRole.PATIENT) {
-      navigate(`${basePath}/minha-conta`);
+    if (!user || user.role !== UserRole.PATIENT) return;
+
+    if (clinic && user.companyId !== clinic.id) {
+      setError('Esta conta pertence a outra clínica. Faça login com a conta correta.');
+      logout();
+      return;
     }
-  }, [user, navigate, basePath]);
+
+    navigate(`${basePath}/minha-conta`);
+  }, [user, clinic, navigate, basePath, logout]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +58,16 @@ const PatientLogin: React.FC = () => {
   // Estilo baseado nas cores da clínica
   const primaryColor = clinic?.layoutConfig?.primaryColor || '#8b5cf6';
   const backgroundColor = clinic?.layoutConfig?.backgroundColor || '#fafaf9';
+
+  // Sessão ainda sendo restaurada (via cookie) — evita mostrar o formulário
+  // e depois "piscar" um redirecionamento assim que a sessão resolver.
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor }}>
+        <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div

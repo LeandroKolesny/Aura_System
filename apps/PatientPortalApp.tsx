@@ -5,8 +5,9 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
 import { ClinicProvider, useClinic } from '../context/ClinicContext';
 import { AppProvider, useApp } from '../context/AppContext';
-import { UserRole, PublicLayoutConfig } from '../types';
+import { UserRole, PublicLayoutConfig, Appointment } from '../types';
 import { getPortalBasePath } from '../utils/subdomain';
+import { formatDateTime } from '../utils/formatUtils';
 import { Menu } from 'lucide-react';
 
 // Páginas reutilizadas
@@ -61,11 +62,17 @@ const ClinicNotFound: React.FC = () => (
 );
 
 // Layout privado do portal (paciente logado)
-const PatientPortalLayout: React.FC = () => {
-  const { user } = useApp();
+export const PatientPortalLayout: React.FC = () => {
+  const { user, isInitializing } = useApp();
   const { clinic } = useClinic();
   const basePath = getPortalBasePath();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Sessão ainda sendo restaurada (via cookie) — não decide nenhum redirecionamento
+  // ainda, para não "piscar" a tela de login antes de saber se há sessão válida.
+  if (isInitializing) {
+    return <ClinicLoading />;
+  }
 
   // Se não está logado, redireciona para login do portal
   if (!user) {
@@ -75,6 +82,13 @@ const PatientPortalLayout: React.FC = () => {
   // Se não é paciente, não deveria estar aqui
   if (user.role !== UserRole.PATIENT) {
     return <Navigate to={`${basePath}/`} replace />;
+  }
+
+  // Isolamento entre clínicas: um paciente autenticado (sessão global, restaurada
+  // via cookie independente do slug da URL) só pode acessar o portal da clínica
+  // à qual pertence — nunca o portal de outra empresa.
+  if (clinic && user.companyId !== clinic.id) {
+    return <Navigate to={`${basePath}/login`} replace />;
   }
 
   // Cores do layout
@@ -172,10 +186,29 @@ const PatientPortalRoutes: React.FC<{ clinicSlug: string }> = ({ clinicSlug }) =
   );
 };
 
+// Calcula o próximo agendamento futuro (não cancelado) de um paciente,
+// ordenado pela data mais próxima.
+const getNextAppointment = (
+  appointments: Appointment[],
+  patientId: string | undefined
+): Appointment | null => {
+  if (!patientId) return null;
+  const now = Date.now();
+  const upcoming = appointments
+    .filter((a) => a.patientId === patientId && a.status !== 'canceled' && new Date(a.date).getTime() >= now)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  return upcoming[0] || null;
+};
+
 // Dashboard simples do paciente
-const PatientDashboard: React.FC = () => {
-  const { user } = useApp();
+export const PatientDashboard: React.FC = () => {
+  const { user, appointments } = useApp();
   const { clinic } = useClinic();
+
+  const nextAppointment = getNextAppointment(appointments, user?.patientId);
+  const nextAppointmentDescription = nextAppointment
+    ? `${nextAppointment.service} em ${formatDateTime(nextAppointment.date)}`
+    : 'Você não tem agendamentos próximos';
 
   // Cores do layout
   const layoutConfig = clinic?.layoutConfig;
@@ -227,7 +260,7 @@ const PatientDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <DashboardCard
           title="Próximo Agendamento"
-          description="Você não tem agendamentos próximos"
+          description={nextAppointmentDescription}
           link={`${getPortalBasePath()}/agendamentos`}
           linkText="Ver agendamentos"
           cardStyle={cardStyle}
