@@ -1,13 +1,14 @@
 // pages/patient-portal/PatientPlans.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, RefreshCw, Clock, CheckCircle } from 'lucide-react';
+import { Sparkles, RefreshCw, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useClinic } from '../../context/ClinicContext';
 import { getPortalBasePath, getClinicSlug } from '../../utils/subdomain';
 import { getAuthToken, API_BASE_URL } from '../../services/api';
 import { PlanCard, PlanForCard, PlanStatus } from '../../components/patient-portal/PlanCard';
 import { PlanContractModal } from '../../components/patient-portal/PlanContractModal';
 import { PlanHistoryDrawer } from '../../components/patient-portal/PlanHistoryDrawer';
+import { DialogProvider, useDialog } from '../../context/DialogContext';
 
 
 interface SubscriptionItem {
@@ -34,11 +35,27 @@ interface MySubscription {
   items: SubscriptionItem[];
 }
 
-const PatientPlans: React.FC = () => {
+// `apps/PatientPortalApp.tsx` (fora do escopo desta auditoria) ainda não
+// envolve o portal com <DialogProvider> — só o AdminApp em App.tsx tem esse
+// provider hoje. Sem ele, useDialog() lançaria "useDialog deve ser usado
+// dentro de DialogProvider" e quebraria a página inteira. Para cumprir a
+// regra obrigatória do projeto (nunca `alert()`/`window.confirm()`, sempre
+// useDialog()) sem mexer em arquivo de outro agente, esta página cria seu
+// próprio DialogProvider local, restrito à sua própria árvore. Recomendação
+// para uma tarefa futura: mover o DialogProvider para a raiz do
+// PatientPortalApp e remover este wrapper local.
+const PatientPlans: React.FC = () => (
+  <DialogProvider>
+    <PatientPlansContent />
+  </DialogProvider>
+);
+
+const PatientPlansContent: React.FC = () => {
   const { clinic } = useClinic();
   const navigate = useNavigate();
   const basePath = getPortalBasePath();
   const clinicSlug = getClinicSlug();
+  const { showAlert } = useDialog();
 
   // Colors from clinic layout
   const layoutConfig = clinic?.layoutConfig;
@@ -67,9 +84,11 @@ const PatientPlans: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [contractModal, setContractModal] = useState<PlanForCard | null>(null);
   const [historyDrawer, setHistoryDrawer] = useState<{ id: string; name: string } | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchData = async () => {
     const token = getAuthToken();
+    setLoadError(false);
 
     const promises: Promise<void>[] = [
       // Fetch my subscriptions
@@ -80,8 +99,18 @@ const PatientPlans: React.FC = () => {
         },
         credentials: 'include',
       }).then(r => r.json()).then((json: { success: boolean; data?: MySubscription[] }) => {
-        if (json.success && json.data) setSubscriptions(json.data);
-      }).catch(() => {}),
+        // Uma resposta sem sucesso (401/500/etc.) NÃO deve renderizar como
+        // "você não possui planos" — isso esconderia um erro real atrás do
+        // estado vazio legítimo de quem realmente não tem plano nenhum.
+        if (json.success && json.data) {
+          setSubscriptions(json.data);
+        } else {
+          setLoadError(true);
+        }
+      }).catch((err) => {
+        console.error('Erro ao buscar assinaturas do paciente:', err);
+        setLoadError(true);
+      }),
     ];
 
     // Fetch available plans from public company endpoint
@@ -126,26 +155,37 @@ const PatientPlans: React.FC = () => {
 
   const handleContract = async () => {
     if (!contractModal) return;
-    const token = getAuthToken();
-    const res = await fetch(`${API_BASE_URL}/api/subscriptions/patients/self`, {
-      method: 'POST',
-      headers: {
-        Authorization: token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ planId: contractModal.id }),
-    });
-    const json = await res.json() as { success?: boolean; error?: string; data?: { subscriptionId: string } };
-
-    // 201 = created, 409 = already exists — both cases navigate to booking
-    if (res.ok || res.status === 409) {
-      setContractModal(null);
-      navigate(`${basePath}/`, {
-        state: {
-          pendingPlanId: contractModal.id,
-          pendingPlanName: contractModal.name,
+    const plan = contractModal;
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/subscriptions/patients/self`, {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ planId: plan.id }),
       });
+      const json = await res.json() as { error?: string };
+
+      // 201 = criada agora, 200 = já existia uma PENDING/ACTIVE/PAUSED para
+      // este plano (POST /api/subscriptions/patients/self retorna 200 nesse
+      // caso, nunca 409 — o `res.status === 409` abaixo é só uma defesa extra
+      // caso o contrato da rota mude no futuro) — ambos navegam para o agendamento.
+      if (res.ok || res.status === 409) {
+        setContractModal(null);
+        navigate(`${basePath}/`, {
+          state: {
+            pendingPlanId: plan.id,
+            pendingPlanName: plan.name,
+          },
+        });
+      } else {
+        await showAlert(json.error ?? 'Não foi possível contratar o plano. Tente novamente.', { variant: 'danger' });
+      }
+    } catch (err) {
+      console.error('Erro ao contratar plano:', err);
+      await showAlert('Não foi possível contratar o plano. Verifique sua conexão e tente novamente.', { variant: 'danger' });
     }
   };
 
@@ -171,6 +211,26 @@ const PatientPlans: React.FC = () => {
 
   return (
     <div className="space-y-10">
+      {loadError && (
+        <div
+          className="rounded-2xl border p-4 flex items-center gap-3"
+          style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+        >
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700">Não foi possível carregar seus planos agora.</p>
+            <p className="text-xs text-red-600/80 mt-0.5">Verifique sua conexão e tente novamente.</p>
+          </div>
+          <button
+            onClick={() => { setLoading(true); fetchData(); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shrink-0"
+            style={{ backgroundColor: '#dc2626' }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       {/* ===== SECTION 1: Available Plans ===== */}
       {availablePlans.length > 0 && (
         <section>
@@ -211,18 +271,23 @@ const PatientPlans: React.FC = () => {
         </div>
 
         {activeSubscriptions.length === 0 && subscriptions.filter(s => s.status === 'PENDING').length === 0 ? (
-          <div
-            className="rounded-2xl border p-10 text-center"
-            style={{ backgroundColor: cardBg, borderColor, color: cardText }}
-          >
-            <Sparkles className="w-10 h-10 mx-auto mb-4 opacity-30" style={{ color: primaryColor }} />
-            <p className="font-semibold mb-2">Você não possui planos ativos</p>
-            <p className="text-sm opacity-60">
-              {availablePlans.length > 0
-                ? 'Contrate um plano acima para começar!'
-                : 'Assine um plano promocional para aproveitar sessões incluídas todo mês'}
-            </p>
-          </div>
+          // Se o carregamento falhou (loadError), o banner de erro acima já
+          // avisa o paciente — não mostrar também a mensagem de "você não tem
+          // planos", que é enganosa quando na verdade é um erro de rede/API.
+          loadError ? null : (
+            <div
+              className="rounded-2xl border p-10 text-center"
+              style={{ backgroundColor: cardBg, borderColor, color: cardText }}
+            >
+              <Sparkles className="w-10 h-10 mx-auto mb-4 opacity-30" style={{ color: primaryColor }} />
+              <p className="font-semibold mb-2">Você não possui planos ativos</p>
+              <p className="text-sm opacity-60">
+                {availablePlans.length > 0
+                  ? 'Contrate um plano acima para começar!'
+                  : 'Assine um plano promocional para aproveitar sessões incluídas todo mês'}
+              </p>
+            </div>
+          )
         ) : (
           <div className="space-y-6">
             {/* Pending subscriptions */}

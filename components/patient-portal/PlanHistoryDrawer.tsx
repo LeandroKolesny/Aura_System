@@ -36,9 +36,12 @@ export const PlanHistoryDrawer: React.FC<PlanHistoryDrawerProps> = ({
 }) => {
   const [appointments, setAppointments] = useState<AppointmentHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchHistory = async () => {
+      setError(false);
       try {
         const token = getAuthToken();
         const res = await fetch(
@@ -46,12 +49,23 @@ export const PlanHistoryDrawer: React.FC<PlanHistoryDrawerProps> = ({
           { headers: { Authorization: token ? `Bearer ${token}` : '' } }
         );
         const json = await res.json() as { success: boolean; data?: AppointmentHistory[] };
-        if (json.success && json.data) setAppointments(json.data);
+        if (cancelled) return;
+        if (json.success && json.data) {
+          setAppointments(json.data);
+        } else {
+          // Resposta sem sucesso (ex.: 403/404/500) — não deixar o estado
+          // vazio ("Nenhuma sessão realizada ainda") mascarar um erro real.
+          setError(true);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar histórico do plano:', err);
+        if (!cancelled) setError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchHistory();
+    return () => { cancelled = true; };
   }, [subscriptionId]);
 
   return (
@@ -94,7 +108,19 @@ export const PlanHistoryDrawer: React.FC<PlanHistoryDrawerProps> = ({
             </div>
           )}
 
-          {!loading && appointments.length === 0 && (
+          {!loading && error && (
+            <div className="text-center py-12">
+              <Clock className="w-10 h-10 mx-auto mb-3 opacity-20 text-red-400" />
+              <p className="text-sm font-medium text-red-500">
+                Não foi possível carregar o histórico agora.
+              </p>
+              <p className="text-xs opacity-40 mt-1" style={{ color: cardText }}>
+                Tente novamente em alguns instantes.
+              </p>
+            </div>
+          )}
+
+          {!loading && !error && appointments.length === 0 && (
             <div className="text-center py-12">
               <Clock className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: cardText }} />
               <p className="text-sm opacity-50" style={{ color: cardText }}>

@@ -19,6 +19,8 @@ import { checkWriteAccess } from '@/lib/apiGuards'
 import prisma from '@/lib/prisma'
 
 const ADMIN = { id: 'u1', email: 'admin@clinica.com', role: 'ADMIN', companyId: 'c1' }
+const PATIENT = { id: 'u3', email: 'paciente@email.com', role: 'PATIENT', companyId: 'c1' }
+const ESTHETICIAN = { id: 'u4', email: 'esteticista@clinica.com', role: 'ESTHETICIAN', companyId: 'c1' }
 
 function makeRequest() {
   return new NextRequest('http://localhost/api/subscriptions/patients/sub1/cancel', { method: 'PUT' })
@@ -97,5 +99,34 @@ describe('PUT /api/subscriptions/patients/[id]/cancel', () => {
 
     expect(res.status).toBe(200)
     expect(prisma.appointment.update).not.toHaveBeenCalled()
+  })
+
+  // ── RBAC — auditoria "cliente-planos-assinaturas" ──
+  // Antes desta correção não havia NENHUMA checagem de role nesta rota:
+  // checkWriteAccess só valida modo somente-leitura do plano da empresa, e o
+  // `findFirst` só restringe por companyId — nunca por dono da assinatura. Um
+  // PATIENT autenticado conseguia cancelar a assinatura de QUALQUER OUTRO
+  // paciente da mesma empresa (sabotagem entre pacientes), já que a rota nunca
+  // verificava se `subscription.patientId` correspondia ao paciente autenticado
+  // nem se o autor tinha papel de equipe.
+  it('retorna 403 quando um PATIENT tenta cancelar uma assinatura (rota é só para a equipe da clínica)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT as never)
+    const res = await PUT(makeRequest(), makeParams())
+    expect(res.status).toBe(403)
+    expect(prisma.patientSubscription.update).not.toHaveBeenCalled()
+  })
+
+  it('retorna 403 quando um ESTHETICIAN (sem permissão de billing) tenta cancelar', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ESTHETICIAN as never)
+    const res = await PUT(makeRequest(), makeParams())
+    expect(res.status).toBe(403)
+  })
+
+  it('permite RECEPTIONIST cancelar (papel de equipe com permissão de billing)', async () => {
+    const RECEPTIONIST = { id: 'u5', email: 'recepcao@clinica.com', role: 'RECEPTIONIST', companyId: 'c1' }
+    vi.mocked(getAuthUser).mockResolvedValue(RECEPTIONIST as never)
+    vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue({ id: 'sub1', status: 'ACTIVE', companyId: 'c1' } as never)
+    const res = await PUT(makeRequest(), makeParams())
+    expect(res.status).toBe(200)
   })
 })

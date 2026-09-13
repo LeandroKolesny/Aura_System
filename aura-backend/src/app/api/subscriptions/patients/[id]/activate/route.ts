@@ -18,6 +18,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const writeBlock = await checkWriteAccess(user);
     if (writeBlock) return writeBlock;
 
+    // Rota administrativa: ativa a assinatura PENDING de QUALQUER paciente da
+    // empresa. checkWriteAccess acima só valida se o plano da empresa permite
+    // escrita (modo somente leitura) — não valida QUEM está chamando. Sem esta
+    // checagem de role, um PATIENT autenticado (inclusive um paciente diferente
+    // do dono da assinatura, desde que da mesma empresa) conseguia se
+    // auto-ativar ou ativar a assinatura de outro paciente, pulando a aprovação
+    // manual da clínica.
+    const allowedRoles = ["OWNER", "ADMIN", "RECEPTIONIST"];
+    if (!allowedRoles.includes(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+
     const subscription = await prisma.patientSubscription.findFirst({
       where: { id, companyId: user.companyId! },
     });

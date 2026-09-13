@@ -459,8 +459,14 @@ export async function POST(request: NextRequest) {
       throw err;
     }
 
-    // Decrementar sessão da assinatura se coberta
-    if (subscriptionCoverage.covered && subscriptionCoverage.subscriptionId) {
+    // Decrementar sessão da assinatura se coberta.
+    // IMPORTANTE: só decrementa aqui para STAFF (!isPatient). Para PATIENT, a
+    // dedução é DEFERIDA para a aprovação em PATCH /api/appointments/[id]/status
+    // (PENDING_APPROVAL → SCHEDULED) — ver comentário acima em
+    // "isPatient && subscriptionId". Decrementar também aqui duplicaria a
+    // dedução (1 sessão de plano consumiria 2 do ciclo) quando o agendamento do
+    // paciente fosse aprovado, e nunca restauraria a sessão se fosse rejeitado.
+    if (!isPatient && subscriptionCoverage.covered && subscriptionCoverage.subscriptionId) {
       const sub = await prisma.patientSubscription.findUnique({
         where: { id: subscriptionCoverage.subscriptionId },
         select: { sessionsUsedThisCycle: true },

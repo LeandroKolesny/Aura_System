@@ -292,6 +292,32 @@ describe('POST /api/appointments', () => {
     })
   })
 
+  // ── Auditoria "cliente-planos-assinaturas" (Passo 2) — bug de dupla dedução ──
+  // Antes desta correção, o ramo `isPatient && subscriptionId` marcava
+  // `subscriptionCoverage.covered = true`, e o bloco de decremento logo abaixo
+  // (usado originalmente só para staff) rodava para QUALQUER `covered`,
+  // decrementando sessionsUsedThisCycle já na criação (PENDING_APPROVAL) —
+  // apesar do comentário do próprio arquivo dizer explicitamente "NÃO deduzir
+  // agora" porque a dedução real é feita em PATCH /api/appointments/[id]/status
+  // na aprovação (PENDING_APPROVAL → SCHEDULED, ver bloco "Clube de
+  // Assinaturas: deduzir sessão ao aprovar"). Resultado real (não mockado):
+  // 1 sessão de plano agendada por um paciente e depois aprovada consumia 2
+  // sessões da cota, não 1. Isso era invisível antes da correção do Bug C do
+  // agente anterior (PublicBooking.tsx), porque o frontend nunca enviava
+  // subscriptionId — este branch nunca era exercido em produção.
+  it('PATIENT que envia subscriptionId NÃO decrementa sessionsUsedThisCycle na criação — dedução é só na aprovação (regressão do bug de dupla dedução)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(MOCK_PATIENT_USER as never)
+    vi.mocked(prisma.patientSubscription.findUnique).mockResolvedValue({
+      sessionsUsedThisCycle: { [PROCEDURE_ID]: 0 },
+    } as never)
+    vi.mocked(prisma.patientSubscription.update).mockResolvedValue({} as never)
+
+    const res = await POST(makeRequest({ ...VALID_BODY, patientId: '', subscriptionId: SUBSCRIPTION_ID }))
+
+    expect(res.status).toBe(201)
+    expect(prisma.patientSubscription.update).not.toHaveBeenCalled()
+  })
+
   it('PATIENT que NÃO envia subscriptionId cria agendamento normalmente (price original, sem vínculo)', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(MOCK_PATIENT_USER as never)
 

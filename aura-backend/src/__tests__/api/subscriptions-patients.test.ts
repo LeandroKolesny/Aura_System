@@ -21,6 +21,7 @@ import { checkWriteAccess } from '@/lib/apiGuards'
 import prisma from '@/lib/prisma'
 
 const ADMIN = { id: 'u1', email: 'admin@clinica.com', role: 'ADMIN', companyId: 'c1' }
+const PATIENT = { id: 'u3', email: 'paciente@email.com', role: 'PATIENT', companyId: 'c1' }
 
 const PLAN = { id: 'plan1', companyId: 'c1', isActive: true, items: [{ procedureId: 'proc1' }] }
 
@@ -88,6 +89,18 @@ describe('GET /api/subscriptions/patients', () => {
     expect(prisma.patientSubscription.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { companyId: 'c1', status: 'PENDING' } })
     )
+  })
+
+  // ── RBAC — auditoria "cliente-planos-assinaturas" ──
+  // Rota administrativa: lista assinantes (nome, telefone, e-mail e uso do
+  // plano) de TODA a empresa. Não havia nenhuma checagem de role — um PATIENT
+  // autenticado conseguia listar os dados de assinatura de QUALQUER outro
+  // paciente da mesma empresa (vazamento de PII entre pacientes).
+  it('retorna 403 quando um PATIENT tenta listar assinantes da empresa', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT as never)
+    const res = await GET(makeGetRequest())
+    expect(res.status).toBe(403)
+    expect(prisma.patientSubscription.findMany).not.toHaveBeenCalled()
   })
 })
 
@@ -157,5 +170,19 @@ describe('POST /api/subscriptions/patients', () => {
     expect(prisma.patientSubscription.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ patientId: 'p1', planId: 'plan1', sessionsUsedThisCycle: { proc1: 0 } }) })
     )
+  })
+
+  // ── RBAC — auditoria "cliente-planos-assinaturas" ──
+  // Diferente de POST /api/subscriptions/patients/self (que cria sempre
+  // PENDING para o PRÓPRIO paciente autenticado), esta rota aceita qualquer
+  // `patientId` no corpo e cria a assinatura já ACTIVE (default do schema) —
+  // sem checagem de role, um PATIENT autenticado conseguia inscrever
+  // QUALQUER paciente da empresa (inclusive outro) num plano já ativo,
+  // pulando toda a aprovação da clínica.
+  it('retorna 403 quando um PATIENT tenta inscrever um paciente diretamente (deve usar /self)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT as never)
+    const res = await POST(makePostRequest(VALID_BODY))
+    expect(res.status).toBe(403)
+    expect(prisma.patientSubscription.create).not.toHaveBeenCalled()
   })
 })

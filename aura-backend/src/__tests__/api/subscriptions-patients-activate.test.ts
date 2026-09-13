@@ -18,6 +18,8 @@ import { checkWriteAccess } from '@/lib/apiGuards'
 import prisma from '@/lib/prisma'
 
 const ADMIN = { id: 'u1', email: 'admin@clinica.com', role: 'ADMIN', companyId: 'c1' }
+const PATIENT = { id: 'u3', email: 'paciente@email.com', role: 'PATIENT', companyId: 'c1' }
+const ESTHETICIAN = { id: 'u4', email: 'esteticista@clinica.com', role: 'ESTHETICIAN', companyId: 'c1' }
 
 function makeRequest() {
   return new NextRequest('http://localhost/api/subscriptions/patients/sub1/activate', { method: 'PATCH' })
@@ -88,5 +90,37 @@ describe('PATCH /api/subscriptions/patients/[id]/activate', () => {
     expect(prisma.patientSubscription.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'sub1', companyId: 'c1' } })
     )
+  })
+
+  // ── RBAC — auditoria "cliente-planos-assinaturas" ──
+  // Rota administrativa (comentário do arquivo: "Admin activates a PENDING
+  // subscription"), mas antes desta correção não havia NENHUMA checagem de role:
+  // checkWriteAccess só valida se o plano da empresa permite escrita (modo
+  // somente leitura), não quem está fazendo a chamada. Qualquer PATIENT
+  // autenticado (inclusive um paciente diferente do dono da assinatura, desde
+  // que da mesma empresa) conseguia ativar QUALQUER assinatura PENDING da
+  // empresa, pulando a aprovação manual da clínica.
+  it('retorna 403 quando um PATIENT tenta ativar uma assinatura (rota é só para a equipe da clínica)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT as never)
+    const res = await PATCH(makeRequest(), makeParams())
+    expect(res.status).toBe(403)
+    expect(prisma.patientSubscription.update).not.toHaveBeenCalled()
+  })
+
+  it('retorna 403 quando um ESTHETICIAN (sem permissão de billing) tenta ativar', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ESTHETICIAN as never)
+    const res = await PATCH(makeRequest(), makeParams())
+    expect(res.status).toBe(403)
+  })
+
+  it('permite RECEPTIONIST ativar (papel de equipe com permissão de billing)', async () => {
+    const RECEPTIONIST = { id: 'u5', email: 'recepcao@clinica.com', role: 'RECEPTIONIST', companyId: 'c1' }
+    vi.mocked(getAuthUser).mockResolvedValue(RECEPTIONIST as never)
+    vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue({ id: 'sub1', status: 'PENDING', companyId: 'c1' } as never)
+    vi.mocked(prisma.patientSubscription.update).mockResolvedValue({
+      id: 'sub1', status: 'ACTIVE', patient: { id: 'p1', name: 'Maria' }, plan: { id: 'plan1', name: 'Plano Mensal' },
+    } as never)
+    const res = await PATCH(makeRequest(), makeParams())
+    expect(res.status).toBe(200)
   })
 })

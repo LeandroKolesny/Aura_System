@@ -11,6 +11,16 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     if (!user.companyId) return NextResponse.json({ error: "Usuário sem empresa" }, { status: 403 });
 
+    // Rota administrativa: lista assinantes de TODA a empresa (nome, telefone,
+    // e-mail e uso do plano de cada paciente). Um PATIENT autenticado usa
+    // GET /api/subscriptions/patients/my para ver só a própria assinatura —
+    // sem esta checagem, ele conseguiria listar os dados de QUALQUER outro
+    // paciente da mesma empresa.
+    const allowedRoles = ["OWNER", "ADMIN", "RECEPTIONIST"];
+    if (!allowedRoles.includes(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") ?? undefined;
     const patientId = searchParams.get("patientId") ?? undefined;
@@ -48,6 +58,16 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+
+    // Rota administrativa: inscreve QUALQUER patientId informado no corpo,
+    // já como assinatura ACTIVE (default do schema) — diferente de
+    // POST /api/subscriptions/patients/self, que só cria PENDING para o
+    // próprio paciente autenticado. Sem esta checagem, um PATIENT conseguiria
+    // inscrever a si mesmo ou outro paciente da empresa pulando a aprovação.
+    const allowedRoles = ["OWNER", "ADMIN", "RECEPTIONIST"];
+    if (!allowedRoles.includes(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
 
     const writeBlock = await checkWriteAccess(user);
     if (writeBlock) return writeBlock;

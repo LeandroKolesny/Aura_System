@@ -113,6 +113,38 @@ describe('GET /api/subscriptions/patients/[id]/history', () => {
     ])
   })
 
+  // ── Caracterização (auditoria "cliente-planos-assinaturas", Passo 2) ──
+  // Confirma que o histórico NÃO filtra por status: um agendamento recém-criado
+  // por um paciente (que sempre nasce PENDING_APPROVAL, aguardando aprovação da
+  // clínica) e um agendamento CANCELED aparecem no histórico normalmente — o
+  // `where` já usado (só `subscriptionId`, sem filtro de status, confirmado no
+  // teste "busca agendamentos ordenados..." abaixo) garante isso. O frontend
+  // (PlanHistoryDrawer.tsx) é quem decide como exibir cada status.
+  it('inclui agendamentos PENDING_APPROVAL e CANCELED no histórico (não filtra por status)', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue(SUBSCRIPTION as never)
+    vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+      {
+        id: 'appt-pending', date: new Date('2026-02-01'), status: 'PENDING_APPROVAL',
+        procedure: { id: 'proc1', name: 'Limpeza de Pele' },
+        professional: { id: 'prof1', name: 'Dra. Ana' },
+      },
+      {
+        id: 'appt-canceled', date: new Date('2026-01-20'), status: 'CANCELED',
+        procedure: { id: 'proc1', name: 'Limpeza de Pele' },
+        professional: { id: 'prof1', name: 'Dra. Ana' },
+      },
+    ] as never)
+
+    const res = await GET(makeRequest(), makeParams())
+    const body = await res.json()
+
+    expect(body.data.map((a: { id: string; status: string }) => ({ id: a.id, status: a.status }))).toEqual([
+      { id: 'appt-pending', status: 'PENDING_APPROVAL' },
+      { id: 'appt-canceled', status: 'CANCELED' },
+    ])
+  })
+
   it('busca agendamentos ordenados por data decrescente', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     vi.mocked(prisma.patientSubscription.findFirst).mockResolvedValue(SUBSCRIPTION as never)

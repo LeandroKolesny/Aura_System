@@ -23,6 +23,11 @@ export const PlanContractModal: React.FC<PlanContractModalProps> = ({
     setLoading(true);
     try {
       await onConfirm();
+    } catch {
+      // O tratamento/exibição do erro ao usuário é responsabilidade do
+      // callback `onConfirm` do chamador (ex.: useDialog().showAlert em
+      // PatientPlans.tsx); aqui só evitamos uma rejeição de Promise não
+      // tratada caso `onConfirm` rejeite mesmo assim.
     } finally {
       setLoading(false);
     }

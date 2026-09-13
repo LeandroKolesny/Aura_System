@@ -18,6 +18,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const writeBlock = await checkWriteAccess(user);
     if (writeBlock) return writeBlock;
 
+    // Rota administrativa: cancela a assinatura de QUALQUER paciente da
+    // empresa. checkWriteAccess acima só valida se o plano da empresa permite
+    // escrita (modo somente leitura) — não valida QUEM está chamando, e o
+    // findFirst abaixo só restringe por companyId, nunca pelo dono da
+    // assinatura. Sem esta checagem de role, um PATIENT autenticado conseguia
+    // cancelar a assinatura de QUALQUER OUTRO paciente da mesma empresa.
+    const allowedRoles = ["OWNER", "ADMIN", "RECEPTIONIST"];
+    if (!allowedRoles.includes(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+
     const subscription = await prisma.patientSubscription.findFirst({
       where: { id, companyId: user.companyId! },
     });
