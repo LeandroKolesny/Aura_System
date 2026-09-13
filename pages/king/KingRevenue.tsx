@@ -152,6 +152,13 @@ const KingRevenue: React.FC = () => {
       const companiesData = companiesRes.data as { success: boolean; data: { companies: Company[] } };
       if (companiesRes.success && companiesData?.success && companiesData?.data) {
         setCompanies(companiesData.data.companies);
+      } else {
+        // BUG CORRIGIDO: uma falha aqui (companiesRes.success === false, ou
+        // corpo malformado) nunca setava `error` — a tela só zerava
+        // `loading` e mostrava métricas de R$ 0,00 / "Nenhuma empresa
+        // cadastrada", indistinguível de um sistema saudável sem clientes.
+        console.error('❌ Erro ao carregar empresas:', companiesRes.error);
+        setError(companiesRes.error || 'Erro ao carregar empresas.');
       }
 
       // Planos vêm como array direto ou dentro de data
@@ -160,6 +167,9 @@ const KingRevenue: React.FC = () => {
         const plans = Array.isArray(plansData) ? plansData : (plansData as { plans: SaasPlan[] }).plans || [];
         setSaasPlans(plans);
         console.log('✅ Planos carregados do banco:', plans.length);
+      } else if (!plansRes.success) {
+        console.error('❌ Erro ao carregar planos:', plansRes.error);
+        setError(prev => prev ?? (plansRes.error || 'Erro ao carregar planos.'));
       }
     } catch (err) {
       console.error('Error loading data:', err);

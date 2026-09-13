@@ -6,7 +6,7 @@ import {
   ChevronRight, Link as LinkIcon, Tag, Eye, EyeOff
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { SaasPlan, Company } from '../../types';
+import { SaasPlan, Company, SubscriptionStatus } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatUtils';
 import { SAAS_COMPANY_NAME } from '../../constants';
 import { useDialog } from '../../context/DialogContext';
@@ -142,7 +142,16 @@ const KingSettings: React.FC = () => {
 
     const result = await updateCompany(company.id, {
       subscriptionExpiresAt: newExpiration.toISOString(),
-      subscriptionStatus: 'active'
+      // BUG CORRIGIDO: era 'active' (minúsculo). O enum Prisma
+      // SubscriptionStatus só aceita ACTIVE/TRIAL/OVERDUE/CANCELED
+      // (maiúsculo); o valor antigo era rejeitado pela validação do backend
+      // (aura-backend/.../api/companies/[id]/route.ts). O tipo local
+      // `SubscriptionStatus` (types.ts) é intencionalmente minúsculo — é a
+      // convenção de estado em memória (ver AppContext `.toLowerCase()` ao
+      // ler da API) — mas o valor enviado pela rede precisa bater com o
+      // enum do Prisma, daí o cast explícito abaixo (mesmo valor que
+      // `KingLeads.tsx` já envia com sucesso via `companiesApi.update`).
+      subscriptionStatus: 'ACTIVE' as unknown as SubscriptionStatus
     });
     if (!result.success) {
       showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
@@ -152,10 +161,16 @@ const KingSettings: React.FC = () => {
     setTimeModal({ isOpen: false, company: null });
   };
 
-  const handleChangePlan = async (planId: string) => {
+  const handleChangePlan = async (planName: string) => {
     if (!planChangeModal.company) return;
 
-    const result = await updateCompany(planChangeModal.company.id, { plan: planId });
+    // BUG CORRIGIDO: o chamador (JSX abaixo) enviava `plan.id` (o cuid do
+    // SaasPlan no banco) em vez de `plan.name` (o valor do enum Prisma
+    // `Plan` que a coluna `Company.plan` de fato armazena — FREE/BASIC/
+    // STARTER/PROFESSIONAL/PREMIUM/ENTERPRISE). Como os dois nunca
+    // coincidem, toda troca de plano pelo Owner falhava na validação do
+    // backend (aura-backend/.../api/companies/[id]/route.ts).
+    const result = await updateCompany(planChangeModal.company.id, { plan: planName });
     if (!result.success) {
       showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
       return;
@@ -383,7 +398,14 @@ const KingSettings: React.FC = () => {
                         companies.map(company => {
                           const days = getDaysRemaining(company.subscriptionExpiresAt);
                           const isExpired = days <= 0;
-                          const planData = saasPlans.find(p => p.id === company.plan);
+                          // BUG CORRIGIDO: comparava `p.id` (cuid do SaasPlan)
+                          // com `company.plan` (nome do enum Prisma, ex.
+                          // "starter") — nunca batia, então `planData` era
+                          // sempre undefined e o botão mostrava o enum cru em
+                          // vez do `displayName` do plano. Comparação correta
+                          // é por nome, normalizando caixa (o estado local de
+                          // `company.plan` fica em minúsculo — ver AppContext).
+                          const planData = saasPlans.find(p => p.name?.toUpperCase() === company.plan?.toUpperCase());
 
                           return (
                             <tr key={company.id} className="hover:bg-slate-50/50 transition-colors">
@@ -775,12 +797,20 @@ const KingSettings: React.FC = () => {
 
             <div className="p-6 overflow-y-auto space-y-3 bg-slate-50">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Planos Disponiveis</p>
-              {saasPlans.filter(p => p.active).map(plan => (
+              {saasPlans.filter(p => p.active).map(plan => {
+                // BUG CORRIGIDO: comparava `company.plan` (nome do enum
+                // Prisma, ex. "starter") com `plan.id` (cuid do SaasPlan) —
+                // nunca batia, então o badge "Atual" nunca aparecia no plano
+                // certo e `handleChangePlan` recebia o cuid em vez do nome do
+                // plano (ver handleChangePlan acima). Comparação e envio
+                // corretos usam `plan.name`, normalizando caixa.
+                const isCurrent = planChangeModal.company?.plan?.toUpperCase() === plan.name?.toUpperCase();
+                return (
                 <button
                   key={plan.id}
-                  onClick={() => handleChangePlan(plan.id)}
+                  onClick={() => handleChangePlan(plan.name)}
                   className={`w-full p-4 border rounded-xl flex items-center justify-between group transition-all text-left ${
-                    planChangeModal.company?.plan === plan.id
+                    isCurrent
                       ? 'border-amber-500 bg-white ring-2 ring-amber-500/20'
                       : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/30'
                   }`}
@@ -788,19 +818,20 @@ const KingSettings: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-slate-800">{plan.name}</p>
-                      {planChangeModal.company?.plan === plan.id && (
+                      {isCurrent && (
                         <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">Atual</span>
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">{formatCurrency(plan.price)} / mes</p>
                   </div>
-                  {planChangeModal.company?.plan === plan.id ? (
+                  {isCurrent ? (
                     <CheckCircle className="w-5 h-5 text-amber-600" />
                   ) : (
                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500" />
                   )}
                 </button>
-              ))}
+                );
+              })}
             </div>
 
             <div className="p-4 bg-white border-t border-slate-100 flex justify-end">

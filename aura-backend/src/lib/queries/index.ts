@@ -186,6 +186,14 @@ export async function queryCompanies(options: QueryOptions & { status?: string }
         name: true,
         slug: true,
         plan: true,
+        // BUG CORRIGIDO: faltava aqui — sem esse campo, `KingRevenue.tsx`
+        // (MRR em Risco / lista de Inadimplentes) sempre recebe `lastPlan:
+        // undefined`, caindo no fallback `c.lastPlan || c.plan`, que usa
+        // `c.plan` (já BASIC/preço 0 após o cron de expiração ter rebaixado
+        // a empresa) em vez do plano efetivamente perdido. Resultado: "MRR em
+        // Risco" sempre mostrava R$ 0,00 e a lista de inadimplentes sempre
+        // rotulava "Era: BASIC" independente do plano real anterior.
+        lastPlan: true,
         subscriptionStatus: true,
         subscriptionExpiresAt: true,
         createdAt: true,

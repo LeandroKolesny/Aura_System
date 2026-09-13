@@ -99,4 +99,35 @@ describe('POST /api/plans', () => {
       expect.objectContaining({ data: expect.objectContaining({ maxProfessionals: 1, maxPatients: 50, isActive: true, modules: [], features: [] }) })
     )
   })
+
+  // BUG CORRIGIDO: a rota não validava o corpo com Zod (regra obrigatória do
+  // CLAUDE.md) — apenas `if (!name || price === undefined)`. Preço negativo,
+  // string, ou nome só com espaços passavam direto para o Prisma.
+  it('retorna 400 quando price é negativo', async () => {
+    vi.mocked(verifyAuth).mockResolvedValue({ success: true, user: OWNER as never })
+    const res = await POST(makePostRequest({ name: 'Novo Plano', price: -10 }))
+    expect(res.status).toBe(400)
+    expect(prisma.saasPlan.create).not.toHaveBeenCalled()
+  })
+
+  it('retorna 400 quando price não é number (string)', async () => {
+    vi.mocked(verifyAuth).mockResolvedValue({ success: true, user: OWNER as never })
+    const res = await POST(makePostRequest({ name: 'Novo Plano', price: '50' }))
+    expect(res.status).toBe(400)
+    expect(prisma.saasPlan.create).not.toHaveBeenCalled()
+  })
+
+  it('retorna 400 quando name é string vazia', async () => {
+    vi.mocked(verifyAuth).mockResolvedValue({ success: true, user: OWNER as never })
+    const res = await POST(makePostRequest({ name: '', price: 50 }))
+    expect(res.status).toBe(400)
+    expect(prisma.saasPlan.create).not.toHaveBeenCalled()
+  })
+
+  it('aceita price: 0 (plano gratuito)', async () => {
+    vi.mocked(verifyAuth).mockResolvedValue({ success: true, user: OWNER as never })
+    vi.mocked(prisma.saasPlan.create).mockResolvedValue({ ...SAAS_PLAN, id: 'free-plan', price: { toString: () => '0' } } as never)
+    const res = await POST(makePostRequest({ name: 'Free', price: 0 }))
+    expect(res.status).toBe(200)
+  })
 })

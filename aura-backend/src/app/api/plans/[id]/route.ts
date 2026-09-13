@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+
+const updatePlanSchema = z.object({
+  name: z.string().trim().min(1, "Nome é obrigatório").optional(),
+  price: z.number().min(0, "Preço não pode ser negativo").optional(),
+  features: z.array(z.string()).optional(),
+  active: z.boolean().optional(),
+  stripePaymentLink: z.string().trim().max(500).optional(),
+});
 
 // PATCH /api/plans/[id] - Atualizar plano (OWNER only)
 export async function PATCH(
@@ -22,8 +31,15 @@ export async function PATCH(
       );
     }
 
-    const body = await request.json();
-    const { name, price, features, active, stripePaymentLink } = body;
+    const rawBody = await request.json();
+    const validation = updatePlanSchema.safeParse(rawBody);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: "Dados inválidos", details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { name, price, features, active, stripePaymentLink } = validation.data;
 
     // Verificar se plano existe
     const existing = await prisma.saasPlan.findUnique({ where: { id } });

@@ -93,6 +93,28 @@ const updateCompanySchema = z.object({
   lastMarketingSentAt: z.string().datetime().nullable().optional(),
 }).strict();
 
+// Campos de billing/assinatura (King/Owner). Historicamente ausentes do schema
+// acima — como o schema é `.strict()`, qualquer PUT tentando setar `plan`,
+// `subscriptionStatus` ou `subscriptionExpiresAt` era rejeitado com 400 para
+// QUALQUER papel, inclusive o OWNER. Isso é correto para impedir uma
+// clínica (ADMIN) de se auto-promover de plano/assinatura via este endpoint
+// genérico (ver companies-id.test.ts, describe ".strict() bloqueia campos
+// sensíveis"), mas quebrava por completo as duas únicas ações de escrita do
+// painel King em Configurações (`pages/king/KingSettings.tsx`:
+// `handleAddTime`/`handleChangePlan`, que chamam `updateCompany` → PUT aqui).
+// Solução: um schema estendido, aplicado somente quando `authUser.role ===
+// "OWNER"` (verificado de novo ao montar `updateData`, abaixo — nunca
+// confiar só na seleção do schema). Para qualquer outro papel, o schema
+// original (sem esses campos) continua em vigor e `.strict()` segue
+// rejeitando com 400, preservando o comportamento de segurança já coberto
+// por teste.
+const ownerBillingFields = z.object({
+  plan: z.enum(["FREE", "BASIC", "STARTER", "PROFESSIONAL", "PREMIUM", "ENTERPRISE"]).optional(),
+  subscriptionStatus: z.enum(["ACTIVE", "TRIAL", "OVERDUE", "CANCELED"]).optional(),
+  subscriptionExpiresAt: z.string().datetime().optional(),
+});
+const updateCompanySchemaOwner = updateCompanySchema.extend(ownerBillingFields.shape).strict();
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
@@ -203,7 +225,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const rawBody = await request.json();
-    const validation = updateCompanySchema.safeParse(rawBody);
+    const isOwner = authUser.role === "OWNER";
+    const validation = isOwner
+      ? updateCompanySchemaOwner.safeParse(rawBody)
+      : updateCompanySchema.safeParse(rawBody);
 
     if (!validation.success) {
       return NextResponse.json(
@@ -212,7 +237,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const data = validation.data;
+    // O tipo de `validation.data` varia com o schema escolhido acima (o schema
+    // do OWNER inclui plan/subscriptionStatus/subscriptionExpiresAt) — o cast
+    // é seguro porque os três campos extras são opcionais e só existem de
+    // fato no objeto quando `isOwner` (o `isOwner` abaixo, ao montar
+    // `updateData`, é quem decide se eles são aplicados).
+    const data = validation.data as z.infer<typeof updateCompanySchemaOwner>;
 
     // Construir updateData tipado a partir dos campos validados pelo Zod
     const updateData: Prisma.CompanyUpdateInput = {
@@ -241,6 +271,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       ...(data.onboardingCompleted !== undefined && { onboardingCompleted: data.onboardingCompleted }),
       ...(data.lastMarketingSentAt !== undefined && {
         lastMarketingSentAt: data.lastMarketingSentAt ? new Date(data.lastMarketingSentAt) : null,
+      }),
+      // Billing/assinatura — OWNER apenas (defesa em profundidade: mesmo que o
+      // schema de validação já garanta que só o schema do OWNER aceita esses
+      // campos, a checagem de papel é repetida aqui explicitamente antes de
+      // qualquer escrita no banco).
+      ...(isOwner && data.plan !== undefined && { plan: data.plan }),
+      ...(isOwner && data.subscriptionStatus !== undefined && { subscriptionStatus: data.subscriptionStatus }),
+      ...(isOwner && data.subscriptionExpiresAt !== undefined && {
+        subscriptionExpiresAt: new Date(data.subscriptionExpiresAt),
       }),
     };
 

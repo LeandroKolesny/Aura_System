@@ -341,23 +341,88 @@ describe('PUT /api/companies/[id] — validação de businessHours (abertura < f
   })
 })
 
-describe('PUT /api/companies/[id] — .strict() bloqueia campos sensíveis fora do schema', () => {
+describe('PUT /api/companies/[id] — .strict() bloqueia campos sensíveis fora do schema para não-OWNER', () => {
   beforeEach(() => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', paymentMethods: [] } as never)
   })
 
-  it('tentar alterar plan via PUT → 400 (campo não está no updateCompanySchema)', async () => {
+  it('ADMIN tentar alterar plan via PUT → 400 (campo não está no schema de não-OWNER)', async () => {
     const res = await PUT(makePutRequest({ plan: 'PREMIUM' }), makeParams('c1'))
     expect(res.status).toBe(400)
     expect(prisma.company.update).not.toHaveBeenCalled()
   })
 
-  it('tentar alterar subscriptionStatus via PUT → 400', async () => {
+  it('ADMIN tentar alterar subscriptionStatus via PUT → 400', async () => {
     const res = await PUT(makePutRequest({ subscriptionStatus: 'ACTIVE' }), makeParams('c1'))
     expect(res.status).toBe(400)
     expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('ADMIN tentar alterar subscriptionExpiresAt via PUT → 400', async () => {
+    const res = await PUT(makePutRequest({ subscriptionExpiresAt: '2027-01-01T00:00:00.000Z' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/companies/[id] — OWNER pode alterar plan/subscriptionStatus/subscriptionExpiresAt (King → Configurações)', () => {
+  // BUG CORRIGIDO: o schema .strict() bloqueava esses 3 campos para QUALQUER
+  // papel, inclusive OWNER — quebrando por completo "Adicionar Tempo" e
+  // "Alterar Plano" em pages/king/KingSettings.tsx. Correção: schema
+  // estendido (updateCompanySchemaOwner), aplicado só quando authUser.role
+  // === "OWNER", mantendo o bloqueio original para os demais papéis (ver
+  // describe acima).
+  beforeEach(() => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(prisma.company.update).mockResolvedValue({ id: 'c1', plan: 'PREMIUM', paymentMethods: [] } as never)
+  })
+
+  it('OWNER altera plan com sucesso (200) — valor persistido no Prisma', async () => {
+    const res = await PUT(makePutRequest({ plan: 'PREMIUM' }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ plan: 'PREMIUM' }) })
+    )
+  })
+
+  it('OWNER altera subscriptionStatus com sucesso (200)', async () => {
+    const res = await PUT(makePutRequest({ subscriptionStatus: 'ACTIVE' }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ subscriptionStatus: 'ACTIVE' }) })
+    )
+  })
+
+  it('OWNER altera subscriptionExpiresAt com sucesso (200), convertido para Date', async () => {
+    const iso = '2027-03-15T00:00:00.000Z'
+    const res = await PUT(makePutRequest({ subscriptionExpiresAt: iso }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ subscriptionExpiresAt: new Date(iso) }) })
+    )
+  })
+
+  it('OWNER com plan fora do enum → 400', async () => {
+    const res = await PUT(makePutRequest({ plan: 'GOLD' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('OWNER com subscriptionStatus fora do enum → 400', async () => {
+    const res = await PUT(makePutRequest({ subscriptionStatus: 'active' }), makeParams('c1'))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('OWNER continua podendo alterar campos normais (name) junto com plan', async () => {
+    const res = await PUT(makePutRequest({ name: 'Nova Clínica', plan: 'STARTER' }), makeParams('c1'))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ name: 'Nova Clínica', plan: 'STARTER' }) })
+    )
   })
 })
 

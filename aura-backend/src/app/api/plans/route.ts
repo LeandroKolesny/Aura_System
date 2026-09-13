@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+
+// Sem validação Zod, um corpo malformado (price como string, negativo, nome
+// vazio) chegava direto no Prisma e só falharia lá (ou pior, seria aceito
+// silenciosamente quando o tipo "batia" por coerção implícita do JS).
+const createPlanSchema = z.object({
+  name: z.string().trim().min(1, "Nome é obrigatório"),
+  displayName: z.string().trim().min(1).max(100).optional(),
+  price: z.number().min(0, "Preço não pode ser negativo"),
+  maxProfessionals: z.number().int().optional(),
+  maxPatients: z.number().int().optional(),
+  modules: z.array(z.string()).optional(),
+  features: z.array(z.string()).optional(),
+  active: z.boolean().optional(),
+  stripePaymentLink: z.string().trim().max(500).optional(),
+});
 
 // GET /api/plans - Listar todos os planos (publico)
 export async function GET(request: NextRequest) {
@@ -52,15 +68,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { name, displayName, price, maxProfessionals, maxPatients, modules, features, active, stripePaymentLink } = body;
-
-    if (!name || price === undefined) {
+    const rawBody = await request.json();
+    const validation = createPlanSchema.safeParse(rawBody);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "Nome e preco sao obrigatorios" },
+        { error: "Dados inválidos", details: validation.error.flatten() },
         { status: 400 }
       );
     }
+
+    const { name, displayName, price, maxProfessionals, maxPatients, modules, features, active, stripePaymentLink } = validation.data;
 
     const plan = await prisma.saasPlan.create({
       data: {

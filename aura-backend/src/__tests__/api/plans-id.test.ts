@@ -77,6 +77,32 @@ describe('PATCH /api/plans/[id]', () => {
       expect.objectContaining({ data: { isActive: false, stripeProductId: 'https://stripe.com/x' } })
     )
   })
+
+  // BUG CORRIGIDO: sem validação Zod (regra obrigatória do CLAUDE.md) — o
+  // corpo era desestruturado direto de `body` sem checar tipo/sinal.
+  it('retorna 400 quando price é negativo', async () => {
+    vi.mocked(verifyAuth).mockResolvedValue({ success: true, user: OWNER as never })
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue(EXISTING_PLAN as never)
+    const res = await PATCH(makeRequest('PATCH', { price: -1 }), makeParams())
+    expect(res.status).toBe(400)
+    expect(prisma.saasPlan.update).not.toHaveBeenCalled()
+  })
+
+  it('retorna 400 quando name é string vazia', async () => {
+    vi.mocked(verifyAuth).mockResolvedValue({ success: true, user: OWNER as never })
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue(EXISTING_PLAN as never)
+    const res = await PATCH(makeRequest('PATCH', { name: '' }), makeParams())
+    expect(res.status).toBe(400)
+    expect(prisma.saasPlan.update).not.toHaveBeenCalled()
+  })
+
+  it('retorna 400 quando features não é um array de strings', async () => {
+    vi.mocked(verifyAuth).mockResolvedValue({ success: true, user: OWNER as never })
+    vi.mocked(prisma.saasPlan.findUnique).mockResolvedValue(EXISTING_PLAN as never)
+    const res = await PATCH(makeRequest('PATCH', { features: 'não é array' }), makeParams())
+    expect(res.status).toBe(400)
+    expect(prisma.saasPlan.update).not.toHaveBeenCalled()
+  })
 })
 
 describe('DELETE /api/plans/[id]', () => {
