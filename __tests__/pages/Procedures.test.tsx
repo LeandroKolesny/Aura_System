@@ -133,7 +133,7 @@ describe('pages/Procedures — permissões por role', () => {
     );
   });
 
-  it.each([UserRole.RECEPTIONIST, UserRole.ESTHETICIAN])(
+  it.each([UserRole.RECEPTIONIST, UserRole.ESTHETICIAN, UserRole.PATIENT])(
     '%s: não vê botões de CRUD nem financeiro',
     (role) => {
       appState.user = userWith(role);

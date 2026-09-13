@@ -13,9 +13,13 @@ const render = (ui: React.ReactElement) =>
 
 vi.mock('../../components/Modals', () => ({
   NewAppointmentModal: (() => null) as React.FC,
-  CheckoutModal: (() => null) as React.FC,
-  ReviewAppointmentModal: (() => null) as React.FC,
-  PatientAppointmentViewModal: (() => null) as React.FC,
+  CheckoutModal: ((props: { appointment: { patientName: string } }) => (
+    <div data-testid="checkout-modal">{props.appointment.patientName}</div>
+  )) as React.FC,
+  ReviewAppointmentModal: (() => <div data-testid="review-modal" />) as React.FC,
+  PatientAppointmentViewModal: ((props: { appointment: { patientName: string } }) => (
+    <div data-testid="patient-view-modal">{props.appointment.patientName}</div>
+  )) as React.FC,
 }));
 
 vi.mock('../../services/api', () => ({
@@ -34,7 +38,10 @@ function todayAt(hour: number): string {
   return d.toISOString();
 }
 
-const appState: { appointments: unknown[] } = { appointments: [] };
+const appState: { appointments: unknown[]; user: { id: string; role: UserRole; patientId?: string } } = {
+  appointments: [],
+  user: { id: 'u1', role: UserRole.ADMIN },
+};
 
 vi.mock('../../context/AppContext', () => ({
   useApp: () => ({
@@ -45,7 +52,7 @@ vi.mock('../../context/AppContext', () => ({
     ],
     patients: [] as unknown[],
     currentCompany: {},
-    user: { id: 'u1', role: UserRole.ADMIN },
+    user: appState.user,
     isReadOnly: false,
     unavailabilityRules: [] as unknown[],
     notifications: [] as unknown[],
@@ -62,6 +69,7 @@ import Schedule from '../../pages/Schedule';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  appState.user = { id: 'u1', role: UserRole.ADMIN };
   appState.appointments = [
     { id: 'a1', companyId: 'c1', patientName: 'Alice', patientId: 'pa', professionalId: 'prof-1', professionalName: 'Dra. Ana', service: 'Limpeza', price: 100, date: todayAt(10), durationMinutes: 60, status: 'scheduled' },
     { id: 'a2', companyId: 'c1', patientName: 'Bruno', patientId: 'pb', professionalId: 'prof-2', professionalName: 'Dr. Bob', service: 'Peeling', price: 200, date: todayAt(11), durationMinutes: 60, status: 'scheduled' },
@@ -98,5 +106,55 @@ describe('pages/Schedule — navegação de data', () => {
 
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Bruno')).toBeInTheDocument();
+  });
+});
+
+describe('pages/Schedule — recorte PATIENT', () => {
+  beforeEach(() => {
+    appState.user = { id: 'u-patient', role: UserRole.PATIENT, patientId: 'pa' };
+  });
+
+  it('mostra o PRÓPRIO agendamento com os dados reais', () => {
+    render(<Schedule />);
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Limpeza')).toBeInTheDocument();
+  });
+
+  it('NÃO mostra nome/serviço do agendamento de OUTRO paciente — renderiza "Ocupado"', () => {
+    render(<Schedule />);
+    expect(screen.queryByText('Bruno')).not.toBeInTheDocument();
+    expect(screen.queryByText('Peeling')).not.toBeInTheDocument();
+    expect(screen.getByText('Ocupado')).toBeInTheDocument();
+  });
+
+  it('clicar no bloco "Ocupado" de outro paciente não abre nenhum modal (sem onClick)', () => {
+    render(<Schedule />);
+    fireEvent.click(screen.getByText('Ocupado'));
+    expect(screen.queryByTestId('patient-view-modal')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('checkout-modal')).not.toBeInTheDocument();
+  });
+
+  it('clicar no PRÓPRIO agendamento abre o PatientAppointmentViewModal (nunca o CheckoutModal)', () => {
+    render(<Schedule />);
+    fireEvent.click(screen.getByText('Alice'));
+    expect(screen.getByTestId('patient-view-modal')).toBeInTheDocument();
+    expect(screen.queryByTestId('checkout-modal')).not.toBeInTheDocument();
+  });
+
+  it('não mostra o botão "Novo Agendamento" nem o seletor de profissional (área de staff)', () => {
+    render(<Schedule />);
+    expect(screen.queryByText('Novo Agendamento')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  // Documenta a dependência de user.patientId (ver bug corrigido em
+  // GET /api/auth/me — aura-backend/src/app/api/auth/me/route.ts): sem esse
+  // campo, a máscara de "Ocupado" de outros pacientes deixa de funcionar e
+  // service/preço/hora reais de outros pacientes voltam a aparecer no card.
+  it('CARACTERIZAÇÃO: sem user.patientId (ex.: sessão restaurada sem o campo), a máscara de outros pacientes falha', () => {
+    appState.user = { id: 'u-patient', role: UserRole.PATIENT, patientId: undefined };
+    render(<Schedule />);
+    expect(screen.getByText('Peeling')).toBeInTheDocument();
+    expect(screen.queryByText('Ocupado')).not.toBeInTheDocument();
   });
 });

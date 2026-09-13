@@ -48,12 +48,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Para pacientes, resolver o patientId correspondente (mesma lógica de
+    // POST /api/auth/login). Sem isso, o frontend perde user.patientId a cada
+    // restauração de sessão via cookie (F5 na página) — quebrando a UI que usa
+    // esse campo para saber quais agendamentos são do próprio paciente (ver
+    // currentPatientId em pages/Schedule.tsx e getNextAppointment em
+    // apps/PatientPortalApp.tsx).
+    let patientId: string | null | undefined = undefined;
+    if (user.role === "PATIENT") {
+      const patientRecord = await prisma.patient.findFirst({
+        where: { email: user.email, companyId: user.company?.id },
+        select: { id: true },
+      });
+      patientId = patientRecord?.id || null;
+    }
+
     // Include the session token in the response so the frontend can store it
     // for subsequent Bearer auth requests. The token is read from the httpOnly
     // cookie (never from a URL parameter) — this is the secure retrieval path.
     const sessionToken = request.cookies.get("aura_session")?.value ?? null;
 
-    return NextResponse.json({ user, token: sessionToken });
+    return NextResponse.json({
+      user: patientId !== undefined ? { ...user, patientId } : user,
+      token: sessionToken,
+    });
   } catch (error) {
     console.error("Erro ao buscar usuário:", error);
     return NextResponse.json(

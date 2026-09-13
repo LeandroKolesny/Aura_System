@@ -8,6 +8,7 @@ vi.mock('@/lib/prisma', () => ({
   default: {
     appointment: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     activity: { create: vi.fn() },
+    patient: { findFirst: vi.fn() },
   },
 }))
 vi.mock('@/lib/auth', () => ({ getAuthUser: vi.fn() }))
@@ -69,13 +70,46 @@ describe('GET /api/appointments/[id]', () => {
 
   it('restringe dados sensíveis do paciente para roles não privilegiados (ex.: PATIENT)', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(PATIENT_ROLE as never)
-    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ id: 'appt1' } as never)
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ id: 'appt1', patientId: 'patient-001' } as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'patient-001' } as never)
 
     await GET(makeRequest('GET'), makeParams())
 
     expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ include: expect.objectContaining({ patient: { select: { id: true, name: true, phone: true } } }) })
     )
+  })
+
+  // BUG CONFIRMADO: ao contrário de POST /consent e GET /signature-history (que
+  // checam isOwnAppointment para PATIENT), este endpoint só validava companyId —
+  // qualquer paciente autenticado conseguia ver nome, telefone, profissional e
+  // TRANSAÇÕES financeiras de um agendamento de OUTRO paciente da mesma empresa
+  // bastando conhecer (ou adivinhar) o id do agendamento.
+  it('retorna 403 quando PATIENT tenta ver o agendamento de OUTRO paciente da mesma empresa', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT_ROLE as never)
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ id: 'appt1', patientId: 'patient-OUTRO' } as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'patient-001' } as never)
+
+    const res = await GET(makeRequest('GET'), makeParams())
+    expect(res.status).toBe(403)
+  })
+
+  it('permite quando PATIENT vê o PRÓPRIO agendamento', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT_ROLE as never)
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ id: 'appt1', patientId: 'patient-001' } as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'patient-001' } as never)
+
+    const res = await GET(makeRequest('GET'), makeParams())
+    expect(res.status).toBe(200)
+  })
+
+  it('retorna 403 quando PATIENT não tem nenhum registro Patient correspondente na empresa', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT_ROLE as never)
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({ id: 'appt1', patientId: 'patient-001' } as never)
+    vi.mocked(prisma.patient.findFirst).mockResolvedValue(null)
+
+    const res = await GET(makeRequest('GET'), makeParams())
+    expect(res.status).toBe(403)
   })
 })
 
@@ -146,6 +180,17 @@ describe('DELETE /api/appointments/[id]', () => {
     vi.mocked(getAuthUser).mockResolvedValue(null)
     const res = await DELETE(makeRequest('DELETE'), makeParams())
     expect(res.status).toBe(401)
+  })
+
+  // BUG CONFIRMADO: este handler não tinha NENHUMA checagem de role (diferente
+  // de PUT, que restringe a allowedRoles logo no início) — qualquer usuário
+  // autenticado da mesma empresa, incluindo um PATIENT, conseguia cancelar
+  // (DELETE) o agendamento de QUALQUER outro paciente só sabendo o id.
+  it('retorna 403 quando o role não é permitido (ex.: PATIENT) — mesma allowlist do PUT', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT_ROLE as never)
+    const res = await DELETE(makeRequest('DELETE'), makeParams())
+    expect(res.status).toBe(403)
+    expect(prisma.appointment.update).not.toHaveBeenCalled()
   })
 
   it('retorna 404 quando o agendamento não existe', async () => {

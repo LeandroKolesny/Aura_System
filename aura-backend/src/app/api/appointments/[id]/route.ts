@@ -39,6 +39,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Agendamento não encontrado" }, { status: 404 });
     }
 
+    // Paciente só pode ver o PRÓPRIO agendamento — sem isso, qualquer paciente
+    // autenticado conseguia ver nome, telefone, profissional e transações
+    // financeiras do agendamento de OUTRO paciente da mesma empresa apenas
+    // conhecendo o id (mesmo padrão de checagem usado em /consent e
+    // /signature-history, mas comparando patientId em vez de e-mail para não
+    // precisar ampliar o select acima).
+    if (user.role === "PATIENT") {
+      const patientRecord = await prisma.patient.findFirst({
+        where: { email: user.email, companyId: user.companyId! },
+        select: { id: true },
+      });
+      if (!patientRecord || appointment.patientId !== patientRecord.id) {
+        return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+      }
+    }
+
     return NextResponse.json({ appointment });
   } catch (error) {
     console.error("Erro ao buscar agendamento:", error);
@@ -156,6 +172,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     if (!user) {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    }
+
+    // Cancelamento é ação de staff — igual a PUT (allowedRoles acima). Antes
+    // deste fix não havia NENHUMA checagem de role aqui: qualquer usuário
+    // autenticado da mesma empresa, incluindo um PATIENT, conseguia cancelar o
+    // agendamento de QUALQUER outro paciente apenas conhecendo o id.
+    const allowedRoles = ["OWNER", "ADMIN", "RECEPTIONIST", "ESTHETICIAN"];
+    if (!allowedRoles.includes(user.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
     const appointment = await prisma.appointment.findFirst({

@@ -8,7 +8,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useDialog } from '../context/DialogContext';
 
 const PatientHistory: React.FC = () => {
-  const { appointments, patients, user, currentCompany, photos, signAppointmentConsent, loadAppointments, loadPatients } = useApp();
+  const { appointments, user, currentCompany, photos, signAppointmentConsent, loadAppointments } = useApp();
   const { showAlert } = useDialog();
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
@@ -18,19 +18,23 @@ const PatientHistory: React.FC = () => {
   // Carregar dados ao montar
   useEffect(() => {
     loadAppointments(true); // Força reload para pegar dados atualizados
-    loadPatients();
-  }, [loadAppointments, loadPatients]);
+  }, [loadAppointments]);
 
   if (!user) return null;
 
-  // Para pacientes, encontrar o patientId pelo email
+  // Para pacientes, usar o patientId do user (vem do login/sessão — ver
+  // AppContext). NÃO procurar em `patients`: GET /api/patients retorna 403
+  // para role PATIENT por design (LGPD — um paciente não pode listar todos os
+  // pacientes da clínica), então esse array nunca é preenchido numa sessão de
+  // paciente e a busca sempre resultava em null, deixando "Meu Histórico"
+  // permanentemente vazio mesmo com agendamentos reais. Mesmo padrão usado em
+  // pages/Schedule.tsx.
   const currentPatientId = useMemo(() => {
-    if (user.role === UserRole.PATIENT && user.email) {
-      const patientRecord = patients.find(p => p.email === user.email);
-      return patientRecord?.id || null;
+    if (user.role === UserRole.PATIENT) {
+      return user.patientId || null;
     }
     return null;
-  }, [user, patients]);
+  }, [user]);
 
   const myAppointments = appointments
     .filter(a => currentPatientId && a.patientId === currentPatientId)

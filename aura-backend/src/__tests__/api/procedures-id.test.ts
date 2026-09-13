@@ -21,6 +21,7 @@ import prisma from '@/lib/prisma'
 
 const ADMIN = { id: 'u1', email: 'admin@clinica.com', role: 'ADMIN', companyId: 'c1' }
 const ESTHETICIAN = { id: 'u2', email: 'esth@clinica.com', role: 'ESTHETICIAN', companyId: 'c1' }
+const PATIENT_ROLE = { id: 'u3', email: 'paciente@email.com', role: 'PATIENT', companyId: 'c1' }
 
 function makeRequest(method: string, body?: unknown) {
   return new NextRequest('http://localhost/api/procedures/proc1', {
@@ -71,6 +72,17 @@ describe('PUT /api/procedures/[id]', () => {
     vi.mocked(getAuthUser).mockResolvedValue(ESTHETICIAN as never)
     const res = await PUT(makeRequest('PUT', { name: 'Novo Nome' }), makeParams())
     expect(res.status).toBe(403)
+  })
+
+  // CARACTERIZAÇÃO (recorte PATIENT): mesma allowlist ["OWNER", "ADMIN"] do
+  // teste acima — confirma que um paciente do portal não consegue editar o
+  // catálogo de procedimentos da clínica (pages/Procedures.tsx já não expõe
+  // nenhuma UI de edição para ele, e o backend também bloqueia).
+  it('CARACTERIZAÇÃO: retorna 403 quando o solicitante é PATIENT', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT_ROLE as never)
+    const res = await PUT(makeRequest('PUT', { name: 'Novo Nome' }), makeParams())
+    expect(res.status).toBe(403)
+    expect(prisma.procedure.update).not.toHaveBeenCalled()
   })
 
   it('retorna 400 para dados inválidos', async () => {
@@ -149,6 +161,16 @@ describe('DELETE /api/procedures/[id]', () => {
     vi.mocked(getAuthUser).mockResolvedValue(ESTHETICIAN as never)
     const res = await DELETE(makeRequest('DELETE'), makeParams())
     expect(res.status).toBe(403)
+  })
+
+  // CARACTERIZAÇÃO (recorte PATIENT): mesma allowlist ["OWNER", "ADMIN"] do
+  // teste acima — confirma que um paciente do portal não consegue excluir
+  // procedimentos do catálogo da clínica.
+  it('CARACTERIZAÇÃO: retorna 403 quando o solicitante é PATIENT', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(PATIENT_ROLE as never)
+    const res = await DELETE(makeRequest('DELETE'), makeParams())
+    expect(res.status).toBe(403)
+    expect(prisma.procedure.delete).not.toHaveBeenCalled()
   })
 
   it('retorna 404 quando o procedimento não existe', async () => {

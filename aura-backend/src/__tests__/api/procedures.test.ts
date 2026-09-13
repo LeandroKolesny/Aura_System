@@ -106,6 +106,16 @@ describe('POST /api/procedures', () => {
     expect(res.status).toBe(403)
   })
 
+  // CARACTERIZAÇÃO (recorte PATIENT): já bloqueado pela mesma allowlist
+  // ["OWNER", "ADMIN"] usada acima para ESTHETICIAN — confirma que um
+  // paciente do portal não consegue criar procedimento no catálogo da clínica.
+  it('CARACTERIZAÇÃO: retorna 403 quando o solicitante é PATIENT', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue({ id: 'u3', email: 'paciente@email.com', role: 'PATIENT', companyId: 'c1' } as never)
+    const res = await POST(makePostRequest(VALID_PROCEDURE))
+    expect(res.status).toBe(403)
+    expect(prisma.procedure.create).not.toHaveBeenCalled()
+  })
+
   it('retorna 400 para dados inválidos (preço negativo)', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
     const res = await POST(makePostRequest({ ...VALID_PROCEDURE, price: -10 }))
