@@ -1326,9 +1326,12 @@ export const SignatureModal: React.FC<{
   const canSave = !isEmpty && (!isCorrection || reasonIsValid);
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800 flex items-center gap-2"><PenTool className="w-5 h-5" /> {isCorrection ? 'Corrigir Assinatura' : 'Assinatura Digital'}</h3><button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400" /></button></div>
-        <div className="p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0"><h3 className="font-bold text-slate-800 flex items-center gap-2"><PenTool className="w-5 h-5" /> {isCorrection ? 'Corrigir Assinatura' : 'Assinatura Digital'}</h3><button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400" /></button></div>
+        {/* Corpo rolável: em telas baixas (celular deitado, com motivo de correção
+            aberto) o canvas de assinatura + botões não cabem inteiros na viewport —
+            sem isso, "Confirmar Assinatura" ficava inacessível. */}
+        <div className="p-6 overflow-y-auto">
           {isCorrection && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-1">Motivo da correção <span className="text-red-500">*</span></label>

@@ -75,6 +75,18 @@ describe('SignatureModal — assinatura normal', () => {
   });
 });
 
+describe('SignatureModal — cabe em telas baixas (mobile)', () => {
+  it('o card tem altura máxima e o corpo rola, para "Confirmar" nunca ficar fora da viewport', () => {
+    // Em celular deitado (ou com o campo de motivo da correção aberto), o
+    // canvas + botões não cabem inteiros na tela — sem max-h + overflow-y-auto
+    // no corpo, "Confirmar Assinatura" ficava inacessível (ver fix de responsividade mobile).
+    const { container } = render(<SignatureModal onClose={vi.fn()} onSave={vi.fn()} isCorrection />);
+    const card = container.querySelector('.rounded-2xl.shadow-2xl');
+    expect(card).toHaveClass('max-h-[90vh]', 'flex', 'flex-col');
+    expect(confirmBtn().closest('div.overflow-y-auto')).not.toBeNull();
+  });
+});
+
 describe('SignatureModal — modo correção', () => {
   it('mesmo com assinatura desenhada, "Confirmar" só habilita com motivo de 3+ caracteres', () => {
     render(<SignatureModal onClose={vi.fn()} onSave={vi.fn()} isCorrection />);

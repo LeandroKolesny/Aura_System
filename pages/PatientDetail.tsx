@@ -243,7 +243,7 @@ const PatientDetail: React.FC = () => {
 
   const AppointmentEvidenceModal = ({ appointment, onClose }: { appointment: Appointment, onClose: () => void }) => (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-fade-in flex flex-col">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-slate-100 flex justify-between items-start shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="bg-primary-50 p-2 rounded-lg text-primary-600">
@@ -258,7 +258,7 @@ const PatientDetail: React.FC = () => {
                     <X className="w-6 h-6" />
                 </button>
             </div>
-            <div className="p-8 bg-slate-50 space-y-6">
+            <div className="p-8 bg-slate-50 space-y-6 overflow-y-auto">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Assinatura Coletada</p>
                     <div className="border border-slate-100 rounded-lg p-4 mb-4 flex items-center justify-center bg-slate-50/50 min-h-[120px]">
@@ -293,7 +293,7 @@ const PatientDetail: React.FC = () => {
                     </div>
                 </div>
             </div>
-            <div className="p-4 bg-white border-t border-slate-100 flex justify-end">
+            <div className="p-4 bg-white border-t border-slate-100 flex justify-end shrink-0">
                 <button onClick={onClose} className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-colors shadow-lg">Fechar Documento</button>
             </div>
         </div>

@@ -55,6 +55,17 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Playfair Display', serif;
 }
 
+/* No mobile (abaixo do breakpoint `md`), o WebKit do iOS dá zoom automático
+   na página ao focar em qualquer input/select/textarea com font-size < 16px —
+   e boa parte dos formulários do sistema usa `text-sm`/`text-xs` (14px/12px).
+   Forçamos 16px só nesse range para eliminar o zoom, sem alterar o visual
+   do desktop (que mantém o tamanho definido por cada componente). */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
 /* Custom scrollbar for cleaner look */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

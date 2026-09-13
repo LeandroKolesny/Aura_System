@@ -188,6 +188,27 @@ describe('PatientDetail — badge de correção de consentimento', () => {
   });
 });
 
+describe('PatientDetail — modal "Comprovante Digital" cabe em telas baixas (mobile)', () => {
+  it('o card do comprovante tem altura máxima e o corpo rola, para o botão "Fechar" nunca ficar fora da viewport', () => {
+    // Assinatura + metadados de auditoria podem ultrapassar a altura de um
+    // celular deitado — sem max-h + overflow-y-auto o rodapé (Fechar) ficava
+    // inacessível (ver fix de responsividade mobile).
+    st.appointments = [
+      appointment({
+        id: 'a1', signatureUrl: 'data:image/png;base64,SIG',
+        signatureMetadata: { signedAt: '2026-01-01T10:00:00.000Z', ipAddress: '1.2.3.4', userAgent: 'Mozilla/5.0', documentVersion: 'v1' },
+      }),
+    ];
+    const { container } = renderDetail();
+    fireEvent.click(screen.getByRole('button', { name: /Assinado/i }));
+
+    const card = container.querySelector('.rounded-2xl.shadow-2xl.max-w-xl');
+    expect(card).toHaveClass('max-h-[90vh]', 'flex', 'flex-col');
+    expect(screen.getByRole('button', { name: 'Fechar Documento' }).closest('.shrink-0')).not.toBeNull();
+    expect(screen.getByText('Assinatura Coletada').closest('div.overflow-y-auto')).not.toBeNull();
+  });
+});
+
 describe('PatientDetail — falhas de API são comunicadas (nunca em silêncio)', () => {
   it('signConsent { success:false } dispara showAlert', async () => {
     signConsent.mockResolvedValue({ success: false, error: 'Falha ao assinar' });
