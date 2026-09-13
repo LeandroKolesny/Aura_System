@@ -223,6 +223,32 @@ describe('PATCH /api/king/leads', () => {
     expect(prisma.company.update).not.toHaveBeenCalled()
   })
 
+  it('retorna 400 quando status é um valor fora do enum aceito', async () => {
+    const res = await PATCH(makePatchRequest({ companyId: 'company-001', status: 'archived' }))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('retorna 400 quando plan é um valor fora do enum aceito', async () => {
+    const res = await PATCH(makePatchRequest({ companyId: 'company-001', status: 'won', plan: 'GOLD' }))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('retorna 400 quando demoAt não é uma data ISO válida', async () => {
+    const res = await PATCH(makePatchRequest({ companyId: 'company-001', status: 'demo', demoAt: 'ontem às 10h' }))
+    expect(res.status).toBe(400)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('aceita demoAt nulo para limpar a data agendada', async () => {
+    const res = await PATCH(makePatchRequest({ companyId: 'company-001', status: 'demo', demoAt: null }))
+    expect(res.status).toBe(200)
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ demoAt: null }) })
+    )
+  })
+
   it('retorna 401 sem autenticação', async () => {
     vi.mocked(getAuthUser).mockResolvedValue(null as never)
     const res = await PATCH(makePatchRequest({ companyId: 'company-001', status: 'contacted' }))

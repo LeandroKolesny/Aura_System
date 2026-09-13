@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BellRing, Plus, Info, AlertTriangle, XCircle, CheckCircle,
   Calendar, Building, Eye, EyeOff, Send, History, Megaphone
@@ -8,7 +8,7 @@ import { useDialog } from '../../context/DialogContext';
 import { SystemAlert } from '../../types';
 
 const KingAlerts: React.FC = () => {
-  const { systemAlerts, addSystemAlert, companies, toggleSystemAlertStatus } = useApp();
+  const { systemAlerts, addSystemAlert, companies, toggleSystemAlertStatus, loadSystemAlerts } = useApp();
   const { showAlert } = useDialog();
   const [formData, setFormData] = useState({
     title: '',
@@ -17,6 +17,13 @@ const KingAlerts: React.FC = () => {
     target: 'all'
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
+
+  // REGRESSÃO: systemAlerts nunca era carregado do backend nesta tela — o
+  // "Histórico de Alertas" ficava vazio a cada reload, mesmo com alertas já
+  // enviados no banco (só aparecia o que fosse criado na própria sessão).
+  useEffect(() => {
+    loadSystemAlerts();
+  }, [loadSystemAlerts]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

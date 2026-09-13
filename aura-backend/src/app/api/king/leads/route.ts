@@ -1,7 +1,18 @@
 // API King Leads - Empresas FREE/TRIAL como leads para conversão
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireOwner } from "@/lib/kingGuard";
 import prisma from "@/lib/prisma";
+
+const patchLeadSchema = z.object({
+  companyId: z.string().trim().min(1, "companyId é obrigatório"),
+  status: z.enum(["new", "contacted", "demo", "negotiation", "won", "lost"]).optional(),
+  plan: z.enum(["FREE", "BASIC", "STARTER", "PROFESSIONAL", "PREMIUM", "ENTERPRISE"]).optional(),
+  demoAt: z.string().datetime().optional().nullable(),
+  demoNotes: z.string().optional().nullable(),
+  lostReason: z.string().optional().nullable(),
+  lostComment: z.string().optional().nullable(),
+});
 
 // Mapeamento de SalesStatus do Prisma para status do frontend
 const salesStatusMap: Record<string, string> = {
@@ -91,14 +102,16 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { companyId, status, plan, demoAt, demoNotes, lostReason, lostComment } = body;
+    const validation = patchLeadSchema.safeParse(body);
 
-    if (!companyId) {
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, error: "companyId é obrigatório" },
+        { success: false, error: "Dados inválidos", details: validation.error.flatten() },
         { status: 400 }
       );
     }
+
+    const { companyId, status, plan, demoAt, demoNotes, lostReason, lostComment } = validation.data;
 
     const updateData: Record<string, unknown> = {};
 

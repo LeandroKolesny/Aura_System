@@ -76,6 +76,7 @@ vi.mock('../../services/api', () => ({
   systemAlertsApi: {
     create: vi.fn(),
     toggleStatus: vi.fn(),
+    list: vi.fn(),
   },
   notificationsApi: {
     create: vi.fn(),
@@ -87,7 +88,7 @@ vi.mock('../../services/api', () => ({
     update: vi.fn(),
     delete: vi.fn(),
   },
-  kingApi: { updateLead: vi.fn() },
+  kingApi: { updateLead: vi.fn(), leads: vi.fn() },
   subscriptionsApi: {},
   setAuthToken: vi.fn(),
   getAuthToken: vi.fn(() => null),
@@ -99,7 +100,7 @@ vi.mock('../../services/installmentsApi', () => ({
 
 import type { SystemModule } from '../../types';
 import { AppProvider, useApp, normalizeProfessional } from '../../context/AppContext';
-import { authApi, patientsApi, appointmentsApi, photosApi, usersApi, inventoryApi, companiesApi, ticketsApi, systemAlertsApi, unavailabilityApi, leadsApi, notificationsApi, transactionsApi, proceduresApi, plansApi } from '../../services/api';
+import { authApi, patientsApi, appointmentsApi, photosApi, usersApi, inventoryApi, companiesApi, ticketsApi, systemAlertsApi, unavailabilityApi, leadsApi, notificationsApi, transactionsApi, proceduresApi, plansApi, kingApi } from '../../services/api';
 import { installmentsApi } from '../../services/installmentsApi';
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -619,6 +620,38 @@ describe('AppContext > closeTicket / toggleSystemAlertStatus / removePhoto / mov
     expect(outcome).toEqual({ success: false, error: 'Erro de sistema. Tente novamente.' });
   });
 
+  it('moveLead (OWNER) com campos extras faz uma única chamada a kingApi.updateLead e mescla os campos no estado local (antes só o status era mesclado, perdendo demoAt/demoNotes/lostReason/lostComment até um reload)', async () => {
+    const { result } = await renderReadyAppLoggedIn('c1', 'OWNER');
+    vi.mocked(kingApi.leads).mockResolvedValue({
+      success: true,
+      data: { leads: [
+        { id: 'company-1', clinicName: 'Clínica X', contactName: 'Fulano', phone: '', email: '', status: 'CONTACTED', value: 197, createdAt: '2026-09-01T00:00:00.000Z', companyId: 'company-1' },
+      ] },
+    } as never);
+    await act(async () => { await result.current.loadLeads(true); });
+    expect(result.current.leads).toHaveLength(1);
+
+    vi.mocked(kingApi.updateLead).mockResolvedValue({ success: true } as never);
+
+    let outcome: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      outcome = await result.current.moveLead('company-1', 'demo', { demoAt: '2026-09-10T14:00:00.000Z', demoNotes: 'Focar no financeiro' });
+    });
+
+    expect(kingApi.updateLead).toHaveBeenCalledWith('company-1', {
+      status: 'demo',
+      demoAt: '2026-09-10T14:00:00.000Z',
+      demoNotes: 'Focar no financeiro',
+    });
+    expect(kingApi.updateLead).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({ success: true });
+    expect(result.current.leads[0]).toMatchObject({
+      status: 'demo',
+      demoAt: '2026-09-10T14:00:00.000Z',
+      demoNotes: 'Focar no financeiro',
+    });
+  });
+
   it('removeUnavailabilityRule: erro de conexão retorna {success:false} em vez de remover a regra só localmente', async () => {
     const { result } = await renderReadyApp();
     vi.mocked(unavailabilityApi.delete).mockRejectedValue(new Error('network down'));
@@ -848,6 +881,24 @@ describe('AppContext > addLead / createTicket / replyTicket / addSystemAlert / a
     expect(result.current.tickets).toHaveLength(2);
     expect(result.current.tickets[0].status).toBe('open');
     expect(result.current.tickets[1].status).toBe('closed');
+  });
+
+  it('loadSystemAlerts chama systemAlertsApi.list e popula o estado systemAlerts (antes não era chamado em lugar nenhum)', async () => {
+    const { result } = await renderReadyAppLoggedIn('c1', 'OWNER');
+    vi.mocked(systemAlertsApi.list).mockResolvedValue({
+      success: true,
+      data: { alerts: [
+        { id: 'a1', title: 'Manutenção', message: 'Aviso 1', type: 'WARNING', target: 'all', status: 'ACTIVE', createdAt: '2026-09-08T00:00:00.000Z' },
+        { id: 'a2', title: 'Encerrado', message: 'Aviso 2', type: 'INFO', target: 'c1', status: 'INACTIVE', createdAt: '2026-09-07T00:00:00.000Z' },
+      ] },
+    } as never);
+
+    await act(async () => { await result.current.loadSystemAlerts(true); });
+
+    expect(systemAlertsApi.list).toHaveBeenCalledWith(false);
+    expect(result.current.systemAlerts).toHaveLength(2);
+    expect(result.current.systemAlerts[0].status).toBe('active');
+    expect(result.current.systemAlerts[1].status).toBe('inactive');
   });
 
   it('addSystemAlert (OWNER) chama systemAlertsApi.create e adiciona o alerta', async () => {

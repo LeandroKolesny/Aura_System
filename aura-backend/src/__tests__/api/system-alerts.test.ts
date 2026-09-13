@@ -52,6 +52,29 @@ describe('GET /api/system-alerts', () => {
       expect.objectContaining({ where: expect.objectContaining({ status: 'ACTIVE' }) })
     )
   })
+
+  it('OWNER vê o histórico completo (sem filtrar por target) — corrige bug onde o próprio criador não via alertas direcionados a uma clínica específica', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    await GET(makeGetRequest())
+    expect(prisma.systemAlert.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} })
+    )
+  })
+
+  it('OWNER com activeOnly=true filtra só por status, sem restringir por target', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    await GET(makeGetRequest('?activeOnly=true'))
+    expect(prisma.systemAlert.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'ACTIVE' } })
+    )
+  })
+
+  it('retorna 500 quando Prisma lança erro', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(ADMIN as never)
+    vi.mocked(prisma.systemAlert.findMany).mockRejectedValue(new Error('DB error'))
+    const res = await GET(makeGetRequest())
+    expect(res.status).toBe(500)
+  })
 })
 
 describe('POST /api/system-alerts', () => {
@@ -97,6 +120,27 @@ describe('POST /api/system-alerts', () => {
       expect.objectContaining({ data: expect.objectContaining({ type: 'WARNING' }) })
     )
   })
+
+  it('retorna 400 quando o type é um valor inválido', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    const res = await POST(makeRequest('POST', { title: 'Aviso', message: 'Mensagem', type: 'bogus' }))
+    expect(res.status).toBe(400)
+    expect(prisma.systemAlert.create).not.toHaveBeenCalled()
+  })
+
+  it('retorna 400 quando title é só espaços em branco', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    const res = await POST(makeRequest('POST', { title: '   ', message: 'Mensagem' }))
+    expect(res.status).toBe(400)
+    expect(prisma.systemAlert.create).not.toHaveBeenCalled()
+  })
+
+  it('retorna 500 quando Prisma lança erro', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    vi.mocked(prisma.systemAlert.create).mockRejectedValue(new Error('DB error'))
+    const res = await POST(makeRequest('POST', { title: 'Aviso', message: 'Mensagem' }))
+    expect(res.status).toBe(500)
+  })
 })
 
 describe('PATCH /api/system-alerts', () => {
@@ -134,5 +178,19 @@ describe('PATCH /api/system-alerts', () => {
     await PATCH(makeRequest('PATCH', { id: 'alert1' }))
 
     expect(prisma.systemAlert.update).toHaveBeenCalledWith({ where: { id: 'alert1' }, data: { status: 'INACTIVE' } })
+  })
+
+  it('retorna 400 quando status é um valor inválido', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    const res = await PATCH(makeRequest('PATCH', { id: 'alert1', status: 'bogus' }))
+    expect(res.status).toBe(400)
+    expect(prisma.systemAlert.update).not.toHaveBeenCalled()
+  })
+
+  it('retorna 500 quando Prisma lança erro', async () => {
+    vi.mocked(getAuthUser).mockResolvedValue(OWNER as never)
+    vi.mocked(prisma.systemAlert.update).mockRejectedValue(new Error('DB error'))
+    const res = await PATCH(makeRequest('PATCH', { id: 'alert1', status: 'inactive' }))
+    expect(res.status).toBe(500)
   })
 })

@@ -88,15 +88,19 @@ const KingLeads: React.FC = () => {
     kingApi.markLeadsSeen().catch(() => {});
   }, [loadLeads]);
 
-  const handleAddLead = (e: React.FormEvent) => {
+  const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newLead.clinicName && newLead.contactName) {
-      addLead({
+      const result = await addLead({
         ...newLead,
         value: Number(newLead.value) || 0,
         status: 'new',
         createdAt: new Date().toISOString()
       });
+      if (!result.success) {
+        showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
+        return;
+      }
       setNewLead({ clinicName: '', contactName: '', phone: '', email: '', value: '' });
       setIsModalOpen(false);
     }
@@ -175,12 +179,14 @@ const KingLeads: React.FC = () => {
     if (!demoModal.lead) return;
     setSavingDemo(true);
     try {
-      await kingApi.updateLead(demoModal.lead.companyId || demoModal.lead.id, {
-        status: 'demo',
+      // Um único PATCH com status + demoAt/demoNotes: evita uma 2ª chamada
+      // redundante e garante que o card do Kanban mostre a data/observação
+      // da demo imediatamente, sem precisar recarregar a página (moveLead
+      // já mescla os campos extras no estado local).
+      const result = await moveLead(demoModal.lead.id, 'demo', {
         demoAt: demoAt || undefined,
         demoNotes: demoNotes || undefined,
       });
-      const result = await moveLead(demoModal.lead.id, 'demo');
       if (!result.success) {
         showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
         return;
@@ -203,12 +209,14 @@ const KingLeads: React.FC = () => {
           subscriptionStatus: 'CANCELED',
         });
       }
-      await kingApi.updateLead(lostModal.lead.companyId || lostModal.lead.id, {
-        status: 'lost',
+      // Um único PATCH com status + lostReason/lostComment: evita uma 2ª
+      // chamada redundante e garante que o card do Kanban mostre o motivo/
+      // comentário da perda imediatamente (moveLead já mescla os campos
+      // extras no estado local, em vez de perdê-los até um reload).
+      const result = await moveLead(lostModal.lead.id, 'lost', {
         lostReason,
         lostComment: lostComment || undefined,
       });
-      const result = await moveLead(lostModal.lead.id, 'lost');
       if (!result.success) {
         showAlert(result.error ?? 'Erro de sistema. Tente novamente.', { variant: 'danger' });
         return;

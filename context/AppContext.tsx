@@ -99,7 +99,11 @@ interface AppContextType {
 
   leads: Lead[];
   addLead: (lead: Omit<Lead, 'id'>) => Promise<{ success: boolean; error?: string; lead?: Lead }>;
-  moveLead: (id: string, status: LeadStatus) => Promise<{ success: boolean; error?: string }>;
+  moveLead: (
+    id: string,
+    status: LeadStatus,
+    extra?: Partial<Pick<Lead, 'demoAt' | 'demoNotes' | 'lostReason' | 'lostComment'>>
+  ) => Promise<{ success: boolean; error?: string }>;
 
   tickets: Ticket[];
   createTicket: (subject: string, message: string) => Promise<{ success: boolean; error?: string; ticket?: Ticket }>;
@@ -156,6 +160,7 @@ interface AppContextType {
   loadLeads: (forceReload?: boolean) => Promise<void>;
   loadUnavailabilityRules: (forceReload?: boolean) => Promise<void>;
   loadTickets: (forceReload?: boolean) => Promise<void>;
+  loadSystemAlerts: (forceReload?: boolean) => Promise<void>;
   pendingSubscriptionsCount: number;
   loadPendingSubscriptions: () => Promise<void>;
   newLeadsCount: number;
@@ -420,6 +425,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     leads: false,
     unavailabilityRules: false,
     tickets: false,
+    systemAlerts: false,
   });
 
   const loadedRef = React.useRef({
@@ -434,6 +440,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     leads: false,
     unavailabilityRules: false,
     tickets: false,
+    systemAlerts: false,
   });
 
   const loadPatients = useCallback(async (forceReload?: boolean) => {
@@ -956,8 +963,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.error('Erro no logout via API:', error);
       }
       // Reset dos refs de lazy loading
-      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false, tickets: false };
-      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false, tickets: false };
+      loadedRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false, tickets: false, systemAlerts: false };
+      loadingRef.current = { patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false, unavailabilityRules: false, tickets: false, systemAlerts: false };
       setLoadedStates({ patients: false, appointments: false, transactions: false, procedures: false, professionals: false, inventory: false, plans: false, photos: false, leads: false });
       // Limpar dados
       setPatients([]);
@@ -1856,17 +1863,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  const moveLead = async (id: string, status: LeadStatus) => {
+  const moveLead = async (
+    id: string,
+    status: LeadStatus,
+    extra?: Partial<Pick<Lead, 'demoAt' | 'demoNotes' | 'lostReason' | 'lostComment'>>
+  ) => {
       try {
-        // OWNER usa kingApi (atualiza salesStatus da empresa)
-        // Outros usam leadsApi (atualiza Lead da clínica)
+        // OWNER usa kingApi (atualiza salesStatus da empresa) e pode enviar
+        // campos extras (demoAt/demoNotes/lostReason/lostComment) no mesmo
+        // PATCH — evita uma 2ª chamada redundante e mantém o estado local
+        // (leads) em sincronia com o que foi realmente persistido, em vez de
+        // só atualizar o status e perder os campos extras até um reload.
+        // Outros usam leadsApi (atualiza Lead da clínica, sem os campos extra).
         const isOwner = user?.role === UserRole.OWNER;
         const response = isOwner
-          ? await kingApi.updateLead(id, { status })
+          ? await kingApi.updateLead(id, { status, ...extra })
           : await leadsApi.update(id, { status: status.toUpperCase() });
 
         if (response.success) {
-          setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
+          setLeads(prev => prev.map(l => l.id === id ? { ...l, status, ...extra } : l));
           return { success: true };
         }
         console.error('❌ Erro ao mover lead:', response.error);
@@ -2103,6 +2118,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  // REGRESSÃO: systemAlertsApi.list() nunca era chamado em lugar nenhum — o
+  // array só recebia alertas criados na própria sessão (via addSystemAlert),
+  // então o histórico de alertas (KingAlerts.tsx) e o banner de avisos do
+  // Dashboard das clínicas ficavam sempre vazios a cada reload/nova sessão,
+  // mesmo com alertas ativos no banco. Mesmo padrão de bug já corrigido para
+  // tickets (ver loadTickets acima).
+  const loadSystemAlerts = useCallback(async (forceReload = false) => {
+    if (!forceReload && (loadedRef.current.systemAlerts || loadingRef.current.systemAlerts)) return;
+    if (forceReload) loadedRef.current.systemAlerts = false;
+    loadingRef.current.systemAlerts = true;
+    try {
+      const res = await systemAlertsApi.list(false);
+      if (res.success && res.data?.alerts) {
+        const mapped = res.data.alerts.map(a => ({
+          ...a,
+          status: (a.status?.toLowerCase() || 'active') as SystemAlert['status'],
+          type: (a.type?.toLowerCase() || 'info') as SystemAlert['type'],
+        } as unknown as SystemAlert));
+        setSystemAlerts(mapped);
+        loadedRef.current.systemAlerts = true;
+        console.log('✅ Alertas do sistema carregados:', mapped.length);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar alertas do sistema:', error);
+    } finally {
+      loadingRef.current.systemAlerts = false;
+    }
+  }, []);
+
   const loadUnavailabilityRules = useCallback(async (forceReload = false) => {
     if (!forceReload && (loadedRef.current.unavailabilityRules || loadingRef.current.unavailabilityRules)) return;
     if (forceReload) loadedRef.current.unavailabilityRules = false;
@@ -2291,6 +2335,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       systemAlerts,
       addSystemAlert,
       toggleSystemAlertStatus,
+      loadSystemAlerts,
       dismissedAlertIds,
       dismissAlert,
       notifications: notifications.filter(n => n.companyId === user?.companyId),
