@@ -2,6 +2,7 @@
 // Permitem queries com ou sem filtro de companyId (para OWNER ver tudo)
 
 import prisma from "@/lib/prisma";
+import { Prisma, type PatientStatus, type AppointmentStatus, type TransactionType, type SubscriptionStatus } from "@prisma/client";
 
 interface QueryOptions {
   companyId?: string; // Se undefined, retorna de todas as empresas
@@ -15,7 +16,7 @@ export async function queryPatients(options: QueryOptions & { status?: string })
   const { companyId, page = 1, limit = 100, search, status } = options;
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: Prisma.PatientWhereInput = {};
 
   // Filtro opcional por empresa
   if (companyId) {
@@ -31,7 +32,7 @@ export async function queryPatients(options: QueryOptions & { status?: string })
   }
 
   if (status && status !== "all") {
-    where.status = status;
+    where.status = status as PatientStatus;
   }
 
   const [patients, total] = await Promise.all([
@@ -40,7 +41,19 @@ export async function queryPatients(options: QueryOptions & { status?: string })
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: {
+      // Seleção explícita: a visão global do King (Owner) NÃO deve trafegar
+      // dados sensíveis/LGPD (cpf, anamnese, assinatura de consentimento) —
+      // só o necessário para a listagem agregada de pacientes por clínica.
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        birthDate: true,
+        lastVisit: true,
+        createdAt: true,
+        companyId: true,
         company: { select: { id: true, name: true, slug: true } },
       },
     }),
@@ -59,15 +72,19 @@ export async function queryAppointments(options: QueryOptions & {
   const { companyId, page = 1, limit = 100, startDate, endDate, status } = options;
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: Prisma.AppointmentWhereInput = {};
 
   if (companyId) {
     where.companyId = companyId;
   }
 
-  if (startDate) where.date = { ...where.date, gte: new Date(startDate) };
-  if (endDate) where.date = { ...where.date, lte: new Date(endDate) };
-  if (status && status !== "all") where.status = status;
+  if (startDate || endDate) {
+    where.date = {
+      ...(startDate ? { gte: new Date(startDate) } : {}),
+      ...(endDate ? { lte: new Date(endDate) } : {}),
+    };
+  }
+  if (status && status !== "all") where.status = status as AppointmentStatus;
 
   const [appointments, total] = await Promise.all([
     prisma.appointment.findMany({
@@ -75,7 +92,17 @@ export async function queryAppointments(options: QueryOptions & {
       skip,
       take: limit,
       orderBy: { date: "desc" },
-      include: {
+      // Seleção explícita: a visão global do King (Owner) não deve trafegar
+      // dados sensíveis (assinatura de consentimento/notas clínicas) — só o
+      // necessário para a listagem agregada de agendamentos por clínica.
+      select: {
+        id: true,
+        date: true,
+        durationMinutes: true,
+        price: true,
+        status: true,
+        notes: true,
+        createdAt: true,
         patient: { select: { id: true, name: true } },
         professional: { select: { id: true, name: true } },
         procedure: { select: { id: true, name: true } },
@@ -97,15 +124,19 @@ export async function queryTransactions(options: QueryOptions & {
   const { companyId, page = 1, limit = 100, startDate, endDate, type } = options;
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: Prisma.TransactionWhereInput = {};
 
   if (companyId) {
     where.companyId = companyId;
   }
 
-  if (startDate) where.date = { ...where.date, gte: new Date(startDate) };
-  if (endDate) where.date = { ...where.date, lte: new Date(endDate) };
-  if (type && type !== "all") where.type = type;
+  if (startDate || endDate) {
+    where.date = {
+      ...(startDate ? { gte: new Date(startDate) } : {}),
+      ...(endDate ? { lte: new Date(endDate) } : {}),
+    };
+  }
+  if (type && type !== "all") where.type = type as TransactionType;
 
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
@@ -128,7 +159,7 @@ export async function queryCompanies(options: QueryOptions & { status?: string }
   const { page = 1, limit = 100, search, status } = options;
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: Prisma.CompanyWhereInput = {};
 
   if (search) {
     where.OR = [
@@ -138,7 +169,7 @@ export async function queryCompanies(options: QueryOptions & { status?: string }
   }
 
   if (status && status !== "all") {
-    where.subscriptionStatus = status;
+    where.subscriptionStatus = status as SubscriptionStatus;
   }
 
   const [companies, total] = await Promise.all([
@@ -147,7 +178,18 @@ export async function queryCompanies(options: QueryOptions & { status?: string }
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: {
+      // Seleção explícita: a listagem global do King não precisa (e não deve)
+      // trafegar dados internos de billing (IDs do Asaas) nem configurações
+      // internas de negócio (horários, booking online, layout público).
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        plan: true,
+        subscriptionStatus: true,
+        subscriptionExpiresAt: true,
+        createdAt: true,
+        isActive: true,
         _count: {
           select: {
             patients: true,

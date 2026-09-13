@@ -116,9 +116,13 @@ const KingCompanies: React.FC = () => {
     setError(null);
     try {
       const response = await kingApi.companies({ page, limit, search, status: statusFilter });
-      const apiData = response.data as { success: boolean; data: { companies: Company[]; total: number } };
+      const apiData = response.data as { success: boolean; error?: string; data: { companies: Company[]; total: number } } | undefined;
 
-      if (response.success && apiData?.success && apiData?.data) {
+      if (!response.success) {
+        setError(response.error || 'Erro ao carregar empresas');
+      } else if (!apiData?.success) {
+        setError(apiData?.error || 'Erro ao carregar empresas');
+      } else if (apiData.data) {
         setCompanies(apiData.data.companies);
         setTotal(apiData.data.total);
       } else {

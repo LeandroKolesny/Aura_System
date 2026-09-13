@@ -121,6 +121,7 @@ const AppointmentCard: React.FC<{ appointment: Appointment }> = ({ appointment }
 const KingAppointments: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [totalAppointmentsCount, setTotalAppointmentsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -168,15 +169,32 @@ const KingAppointments: React.FC = () => {
         }),
       ]);
 
-      const companiesData = companiesRes.data as { success: boolean; data: { companies: Company[] } };
-      const appointmentsData = appointmentsRes.data as { success: boolean; data: { appointments: Appointment[] } };
+      const companiesData = companiesRes.data as { success: boolean; error?: string; data: { companies: Company[] } } | undefined;
+      const appointmentsData = appointmentsRes.data as { success: boolean; error?: string; data: { appointments: Appointment[]; total: number } } | undefined;
 
-      if (companiesRes.success && companiesData?.success && companiesData?.data) {
+      const companiesError = !companiesRes.success
+        ? (companiesRes.error || 'Erro ao carregar empresas')
+        : !companiesData?.success
+          ? (companiesData?.error || 'Erro ao carregar empresas')
+          : null;
+
+      const appointmentsError = !appointmentsRes.success
+        ? (appointmentsRes.error || 'Erro ao carregar agendamentos')
+        : !appointmentsData?.success
+          ? (appointmentsData?.error || 'Erro ao carregar agendamentos')
+          : null;
+
+      if (companiesError || appointmentsError) {
+        setError([companiesError, appointmentsError].filter(Boolean).join(' / '));
+      }
+
+      if (!companiesError && companiesData?.data) {
         setCompanies(companiesData.data.companies);
       }
 
-      if (appointmentsRes.success && appointmentsData?.success && appointmentsData?.data) {
+      if (!appointmentsError && appointmentsData?.data) {
         setAppointments(appointmentsData.data.appointments);
+        setTotalAppointmentsCount(appointmentsData.data.total);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -211,8 +229,7 @@ const KingAppointments: React.FC = () => {
     return appointments.filter(a => a.company.id === companyId);
   };
 
-  // Calcular totais
-  const totalAppointments = appointments.length;
+  // Calcular totais (sobre os agendamentos efetivamente buscados — ver aviso de truncamento abaixo)
   const totalRevenue = appointments.reduce((acc, a) => acc + Number(a.price), 0);
 
   return (
@@ -238,7 +255,7 @@ const KingAppointments: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">Total de Agendamentos</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{totalAppointments.toLocaleString('pt-BR')}</p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">{totalAppointmentsCount.toLocaleString('pt-BR')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">Clínicas</p>
@@ -256,21 +273,30 @@ const KingAppointments: React.FC = () => {
         </div>
       </div>
 
+      {/* Aviso de truncamento: valor total e listagem trabalham sobre os primeiros 500 agendamentos buscados */}
+      {totalAppointmentsCount > appointments.length && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
+          Mostrando os primeiros {appointments.length.toLocaleString('pt-BR')} de {totalAppointmentsCount.toLocaleString('pt-BR')} agendamentos. Valor total e listagem refletem apenas os itens carregados — refine por período ou status para ver o restante.
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-600">Período:</span>
           <div className="flex gap-1">
-            {[
-              { value: 'all', label: 'Todos' },
-              { value: 'today', label: 'Hoje' },
-              { value: 'week', label: 'Semana' },
-              { value: 'month', label: 'Mês' },
-            ].map((opt) => (
+            {(
+              [
+                { value: 'all', label: 'Todos' },
+                { value: 'today', label: 'Hoje' },
+                { value: 'week', label: 'Semana' },
+                { value: 'month', label: 'Mês' },
+              ] as const
+            ).map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setDateFilter(opt.value as any)}
+                onClick={() => setDateFilter(opt.value)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   dateFilter === opt.value
                     ? 'bg-amber-100 text-amber-700'

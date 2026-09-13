@@ -100,9 +100,24 @@ describe('GET /api/king/appointments', () => {
     expect(queryAppointments).not.toHaveBeenCalled()
   })
 
+  it.each(['RECEPTIONIST', 'ESTHETICIAN', 'PATIENT'])('retorna 403 para role %s', async (role) => {
+    vi.mocked(getAuthUser).mockResolvedValue({ id: 'u-x', role, companyId: 'company-001' } as never)
+    const res = await GET(makeRequest())
+    expect(res.status).toBe(403)
+    expect(queryAppointments).not.toHaveBeenCalled()
+  })
+
   it('retorna 500 quando query lança erro', async () => {
     vi.mocked(queryAppointments).mockRejectedValue(new Error('DB error'))
     const res = await GET(makeRequest())
     expect(res.status).toBe(500)
+  })
+
+  it('500 não vaza o detalhe interno do erro na resposta', async () => {
+    vi.mocked(queryAppointments).mockRejectedValue(new Error('connection string exposed: postgres://user:pass@host'))
+    const res = await GET(makeRequest())
+    const body = await res.json()
+    expect(body.success).toBe(false)
+    expect(JSON.stringify(body)).not.toContain('postgres://')
   })
 })

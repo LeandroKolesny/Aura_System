@@ -14,25 +14,33 @@ export async function GET(request: NextRequest) {
 
   const where = { type: "USER_LOGIN" as const }
 
-  const [logs, total] = await Promise.all([
-    prisma.activity.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-      select: {
-        id: true,
-        title: true,
-        ipAddress: true,
-        userAgent: true,
-        createdAt: true,
-        retainUntil: true,
-        metadata: true,
-        userId: true,
-      },
-    }),
-    prisma.activity.count({ where }),
-  ])
+  try {
+    const [logs, total] = await Promise.all([
+      prisma.activity.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          ipAddress: true,
+          userAgent: true,
+          createdAt: true,
+          retainUntil: true,
+          metadata: true,
+          userId: true,
+        },
+      }),
+      prisma.activity.count({ where }),
+    ])
 
-  return NextResponse.json({ data: logs, page, limit, total })
+    return NextResponse.json({ success: true, data: logs, page, limit, total })
+  } catch (error) {
+    console.error("Erro ao listar logs de acesso:", error)
+    return NextResponse.json(
+      { success: false, error: "Erro inesperado." },
+      { status: 500 }
+    )
+  }
 }

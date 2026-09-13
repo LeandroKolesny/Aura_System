@@ -108,6 +108,7 @@ const PatientCard: React.FC<{ patient: Patient }> = ({ patient }) => {
 const KingPatients: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [totalPatients, setTotalPatients] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -123,15 +124,32 @@ const KingPatients: React.FC = () => {
         kingApi.patients({ limit: 500 }),
       ]);
 
-      const companiesData = companiesRes.data as { success: boolean; data: { companies: Company[] } };
-      const patientsData = patientsRes.data as { success: boolean; data: { patients: Patient[] } };
+      const companiesData = companiesRes.data as { success: boolean; error?: string; data: { companies: Company[] } } | undefined;
+      const patientsData = patientsRes.data as { success: boolean; error?: string; data: { patients: Patient[]; total: number } } | undefined;
 
-      if (companiesRes.success && companiesData?.success && companiesData?.data) {
+      const companiesError = !companiesRes.success
+        ? (companiesRes.error || 'Erro ao carregar empresas')
+        : !companiesData?.success
+          ? (companiesData?.error || 'Erro ao carregar empresas')
+          : null;
+
+      const patientsError = !patientsRes.success
+        ? (patientsRes.error || 'Erro ao carregar pacientes')
+        : !patientsData?.success
+          ? (patientsData?.error || 'Erro ao carregar pacientes')
+          : null;
+
+      if (companiesError || patientsError) {
+        setError([companiesError, patientsError].filter(Boolean).join(' / '));
+      }
+
+      if (!companiesError && companiesData?.data) {
         setCompanies(companiesData.data.companies);
       }
 
-      if (patientsRes.success && patientsData?.success && patientsData?.data) {
+      if (!patientsError && patientsData?.data) {
         setPatients(patientsData.data.patients);
+        setTotalPatients(patientsData.data.total);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -199,7 +217,7 @@ const KingPatients: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">Total de Pacientes</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{patients.length.toLocaleString('pt-BR')}</p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">{totalPatients.toLocaleString('pt-BR')}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-xs font-bold text-slate-400 uppercase">Clínicas</p>
@@ -210,6 +228,13 @@ const KingPatients: React.FC = () => {
           <p className="text-2xl font-bold text-purple-600 mt-1">{totalFiltered.toLocaleString('pt-BR')}</p>
         </div>
       </div>
+
+      {/* Aviso de truncamento: a listagem trabalha sobre os primeiros 500 pacientes buscados */}
+      {totalPatients > patients.length && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
+          Mostrando os primeiros {patients.length.toLocaleString('pt-BR')} de {totalPatients.toLocaleString('pt-BR')} pacientes. Use a busca para refinar o resultado.
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-4">

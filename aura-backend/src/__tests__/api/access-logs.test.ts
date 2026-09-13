@@ -126,4 +126,27 @@ describe('GET /api/king/access-logs', () => {
     const body = await res.json()
     expect(body.limit).toBe(100)
   })
+
+  it('resposta de sucesso segue o padrão { success: true, data }', async () => {
+    authorizeOwner()
+    vi.mocked(prisma.activity.findMany).mockResolvedValue([] as never)
+    vi.mocked(prisma.activity.count).mockResolvedValue(0)
+
+    const res = await GET(makeReq())
+    const body = await res.json()
+    expect(body.success).toBe(true)
+  })
+
+  it('retorna 500 com mensagem genérica (sem vazar erro interno) quando a query lança exceção', async () => {
+    authorizeOwner()
+    vi.mocked(prisma.activity.findMany).mockRejectedValue(new Error('conexão perdida com detalhes internos do banco'))
+    vi.mocked(prisma.activity.count).mockResolvedValue(0)
+
+    const res = await GET(makeReq())
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.success).toBe(false)
+    expect(body.error).toBe('Erro inesperado.')
+    expect(body.error).not.toContain('conexão perdida')
+  })
 })
