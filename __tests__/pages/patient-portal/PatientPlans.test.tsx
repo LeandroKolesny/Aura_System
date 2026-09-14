@@ -28,6 +28,12 @@ vi.mock('../../../services/api', () => ({
 }));
 
 import PatientPlans from '../../../pages/patient-portal/PatientPlans';
+// DialogProvider real (não mockado): PatientPlans.tsx não cria mais o seu
+// próprio, já que apps/PatientPortalApp.tsx agora fornece um pra todo o
+// portal (ver bug corrigido em apps/PatientPortalApp.tsx — Procedures.tsx/
+// PatientHistory.tsx travavam sem ele). O teste precisa envolver com um,
+// igual a composição real faz.
+import { DialogProvider } from '../../../context/DialogContext';
 
 const MY_URL = 'http://localhost:3001/api/subscriptions/patients/my';
 const COMPANY_URL = 'http://localhost:3001/api/public/company/clinica-aura';
@@ -59,9 +65,11 @@ function mockFetchRouter(handlers: Record<string, () => Promise<unknown>>) {
 
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <PatientPlans />
-    </MemoryRouter>
+    <DialogProvider>
+      <MemoryRouter>
+        <PatientPlans />
+      </MemoryRouter>
+    </DialogProvider>
   );
 }
 

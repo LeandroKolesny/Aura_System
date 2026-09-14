@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
 import { ClinicProvider, useClinic } from '../context/ClinicContext';
 import { AppProvider, useApp } from '../context/AppContext';
+import { DialogProvider } from '../context/DialogContext';
 import { UserRole, PublicLayoutConfig, Appointment } from '../types';
 import { getPortalBasePath } from '../utils/subdomain';
 import { formatDateTime } from '../utils/formatUtils';
@@ -338,13 +339,20 @@ interface PatientPortalAppProps {
 const PatientPortalApp: React.FC<PatientPortalAppProps> = ({ clinicSlug }) => {
   return (
     <AppProvider>
-      <ClinicProvider slug={clinicSlug}>
-        <ClinicWrapper>
-          <Router>
-            <PatientPortalRoutes clinicSlug={clinicSlug} />
-          </Router>
-        </ClinicWrapper>
-      </ClinicProvider>
+      {/* Sem isso, qualquer página reaproveitada do app de staff que chame
+          useDialog() (ex.: Procedures.tsx, PatientHistory.tsx) travava a
+          tela inteira com "useDialog deve ser usado dentro de DialogProvider"
+          assim que renderizada dentro do portal do cliente — App.tsx (staff)
+          já tem esse provider, este app nunca teve. */}
+      <DialogProvider>
+        <ClinicProvider slug={clinicSlug}>
+          <ClinicWrapper>
+            <Router>
+              <PatientPortalRoutes clinicSlug={clinicSlug} />
+            </Router>
+          </ClinicWrapper>
+        </ClinicProvider>
+      </DialogProvider>
     </AppProvider>
   );
 };

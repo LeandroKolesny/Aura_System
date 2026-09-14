@@ -46,6 +46,10 @@ vi.mock('../../components/patient-portal/PatientSidebar', () => ({
 }));
 
 import { PatientPortalLayout, PatientDashboard } from '../../apps/PatientPortalApp';
+// DialogContext propositalmente NÃO mockado aqui: o objetivo deste describe é
+// provar que useDialog() funciona de verdade dentro da composição do portal
+// (ver "Bug real" abaixo) — mockar o hook mascararia exatamente esse bug.
+import { DialogProvider, useDialog } from '../../context/DialogContext';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -185,5 +189,58 @@ describe('apps/PatientPortalApp — PatientDashboard', () => {
     renderDashboard();
 
     expect(screen.getByText('Você não tem agendamentos próximos')).toBeInTheDocument();
+  });
+});
+
+// Bug real de produção: pages/Procedures.tsx e pages/PatientHistory.tsx
+// (reaproveitadas do app de staff dentro do portal do cliente, via
+// PatientPortalLayout) chamam useDialog() — mas apps/PatientPortalApp.tsx
+// nunca envolvia sua árvore num <DialogProvider>, só o AdminApp (App.tsx)
+// tinha isso. Resultado: tela branca (exceção não capturada) ao entrar em
+// Procedimentos/Histórico como paciente. Os testes de Procedures.tsx e
+// PatientHistory.tsx nunca pegaram isso porque MOCKAM useDialog() direto —
+// nunca passam pelo Provider de verdade. Este describe usa o DialogContext
+// REAL (sem mock) para provar que a composição do portal fornece o Provider.
+describe('apps/PatientPortalApp — DialogProvider precisa envolver as rotas protegidas', () => {
+  // Substituto mínimo de uma página real (Procedures.tsx/PatientHistory.tsx)
+  // que chama useDialog() no nível mais alto do componente, igual elas.
+  const PageThatUsesRealDialog: React.FC = () => {
+    const { showAlert } = useDialog();
+    return <button onClick={() => showAlert('oi')}>Página que usa useDialog</button>;
+  };
+
+  const renderWithRealDialogProvider = (content: React.ReactElement) =>
+    rtlRender(
+      <DialogProvider>
+        <MemoryRouter initialEntries={['/protegida']}>
+          <Routes>
+            <Route element={<PatientPortalLayout />}>
+              <Route path="/protegida" element={content} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </DialogProvider>
+    );
+
+  it('BUG (regressão): uma página que usa useDialog() renderiza sem travar quando o portal fornece DialogProvider', () => {
+    appState.user = { role: UserRole.PATIENT, companyId: 'company-1' };
+    expect(() => renderWithRealDialogProvider(<PageThatUsesRealDialog />)).not.toThrow();
+    expect(screen.getByText('Página que usa useDialog')).toBeInTheDocument();
+  });
+
+  it('sem nenhum DialogProvider na árvore, a mesma página lança o erro que causava a tela branca', () => {
+    appState.user = { role: UserRole.PATIENT, companyId: 'company-1' };
+    // Sem <DialogProvider> — reproduz exatamente o bug que existia em produção.
+    const renderWithoutProvider = () =>
+      rtlRender(
+        <MemoryRouter initialEntries={['/protegida']}>
+          <Routes>
+            <Route element={<PatientPortalLayout />}>
+              <Route path="/protegida" element={<PageThatUsesRealDialog />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      );
+    expect(renderWithoutProvider).toThrow(/useDialog deve ser usado dentro de DialogProvider/i);
   });
 });

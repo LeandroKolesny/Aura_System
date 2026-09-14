@@ -8,7 +8,7 @@ import { getAuthToken, API_BASE_URL } from '../../services/api';
 import { PlanCard, PlanForCard, PlanStatus } from '../../components/patient-portal/PlanCard';
 import { PlanContractModal } from '../../components/patient-portal/PlanContractModal';
 import { PlanHistoryDrawer } from '../../components/patient-portal/PlanHistoryDrawer';
-import { DialogProvider, useDialog } from '../../context/DialogContext';
+import { useDialog } from '../../context/DialogContext';
 
 
 interface SubscriptionItem {
@@ -37,22 +37,7 @@ interface MySubscription {
   items: SubscriptionItem[];
 }
 
-// `apps/PatientPortalApp.tsx` (fora do escopo desta auditoria) ainda não
-// envolve o portal com <DialogProvider> — só o AdminApp em App.tsx tem esse
-// provider hoje. Sem ele, useDialog() lançaria "useDialog deve ser usado
-// dentro de DialogProvider" e quebraria a página inteira. Para cumprir a
-// regra obrigatória do projeto (nunca `alert()`/`window.confirm()`, sempre
-// useDialog()) sem mexer em arquivo de outro agente, esta página cria seu
-// próprio DialogProvider local, restrito à sua própria árvore. Recomendação
-// para uma tarefa futura: mover o DialogProvider para a raiz do
-// PatientPortalApp e remover este wrapper local.
-const PatientPlans: React.FC = () => (
-  <DialogProvider>
-    <PatientPlansContent />
-  </DialogProvider>
-);
-
-const PatientPlansContent: React.FC = () => {
+const PatientPlans: React.FC = () => {
   const { clinic } = useClinic();
   const navigate = useNavigate();
   const basePath = getPortalBasePath();
