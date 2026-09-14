@@ -42,6 +42,20 @@ interface PublicBookingProps {
   clinicSlug?: string; // Pode receber o slug como prop
 }
 
+// `<input type="date">` espera "YYYY-MM-DD" na hora LOCAL de quem está
+// olhando a tela. `date.toISOString().split('T')[0]` (usado antes aqui)
+// converte pra UTC primeiro — no Brasil (UTC-3), depois das ~21h a data em
+// UTC já virou o dia seguinte, então o seletor nativo mostrava amanhã em vez
+// de hoje. Constrói a string a partir dos componentes locais, simétrico ao
+// parsing em `handleDirectDateChange` (que já usa `new Date(year, month-1, day)`,
+// também em hora local).
+export function toLocalDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
   // Tenta pegar o slug de múltiplas fontes:
   // 1. Prop passada diretamente
@@ -828,7 +842,7 @@ const PublicBooking: React.FC<PublicBookingProps> = ({ clinicSlug }) => {
                              <p className="text-[8px] lg:text-[10px] font-bold uppercase tracking-[0.3em] lg:tracking-[0.4em] opacity-40 mb-1 lg:mb-3">{selectedDate.getFullYear()}</p>
                              <p className="text-base lg:text-2xl font-bold flex items-center justify-center gap-2 lg:gap-3">{(() => { const s = selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' }).toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); })()} <CalendarIcon className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: primaryColor }} /></p>
                          </div>
-                         <input type="date" className="custom-date-input" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 }} value={selectedDate.toISOString().split('T')[0]} onChange={handleDirectDateChange} />
+                         <input type="date" className="custom-date-input" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 }} value={toLocalDateInputValue(selectedDate)} onChange={handleDirectDateChange} />
                      </div>
                      <button onClick={() => changeDate(1)} disabled={isMaxDateReached()} className={`p-2 lg:p-5 rounded-full transition-all ${isMaxDateReached() ? 'opacity-10 cursor-not-allowed' : 'hover:bg-white/5 active:scale-90 border border-white/5'}`}><ChevronRight className="w-5 h-5 lg:w-8 lg:h-8" /></button>
                 </div>

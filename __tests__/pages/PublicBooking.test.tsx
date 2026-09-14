@@ -10,7 +10,7 @@
 //   - Passo 3: slot cujo término ultrapassaria o fechamento não era desabilitado
 
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { UserRole } from '../../types';
@@ -60,7 +60,7 @@ vi.mock('../../services/api', () => ({
   API_BASE_URL: 'http://localhost:3001',
 }));
 
-import PublicBooking from '../../pages/PublicBooking';
+import PublicBooking, { toLocalDateInputValue } from '../../pages/PublicBooking';
 
 // ── fixtures ────────────────────────────────────────────────────────────────
 
@@ -266,6 +266,35 @@ describe('pages/PublicBooking', () => {
       const slot1730 = screen.getByText('17:30').closest('button') as HTMLButtonElement;
       expect(slot1730).toBeDisabled();
       expect(screen.getByText('08:00').closest('button')).not.toBeDisabled();
+    });
+  });
+
+  // Bug achado ao investigar uma falha intermitente nos testes acima: o
+  // <input type="date"> oculto (usado só pra abrir o seletor nativo) exibia
+  // amanhã em vez de hoje sempre que rodado à noite no Brasil (depois de
+  // ~21h), porque construía o valor com toISOString() (UTC) em vez da data
+  // local. Isso também mascarava mudança de data nos testes acima sempre que
+  // rodados nesse horário — corrigido junto.
+  describe('toLocalDateInputValue — valor do seletor nativo de data usa a data LOCAL, não UTC', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('à noite no Brasil (UTC-3), depois da meia-noite em UTC, ainda mostra o dia local — não amanhã', () => {
+      // 21h de sábado em São Paulo (UTC-3) == 00h de domingo em UTC.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-12T21:00:00-03:00'));
+      expect(toLocalDateInputValue(new Date())).toBe('2026-09-12');
+    });
+
+    it('de manhã, sem a travessia de meia-noite em UTC, também acerta (não regride o caso simples)', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-12T09:00:00-03:00'));
+      expect(toLocalDateInputValue(new Date())).toBe('2026-09-12');
+    });
+
+    it('preenche mês e dia com zero à esquerda (formato YYYY-MM-DD)', () => {
+      expect(toLocalDateInputValue(new Date(2026, 0, 5))).toBe('2026-01-05'); // 5 de janeiro
     });
   });
 });
