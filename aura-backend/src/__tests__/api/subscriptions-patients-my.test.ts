@@ -8,6 +8,7 @@ vi.mock('@/lib/prisma', () => ({
   default: {
     patient: { findFirst: vi.fn() },
     patientSubscription: { findMany: vi.fn() },
+    appointment: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }))
 vi.mock('@/lib/auth', () => ({ getAuthUser: vi.fn() }))
@@ -24,6 +25,7 @@ function makeRequest() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(prisma.appointment.findMany).mockResolvedValue([])
 })
 
 describe('GET /api/subscriptions/patients/my', () => {
@@ -124,5 +126,82 @@ describe('GET /api/subscriptions/patients/my', () => {
 
     expect(body.data[0].items[0].sessionsUsed).toBe(0)
     expect(body.data[0].items[0].sessionsRemaining).toBe(4)
+  })
+
+  // Bug relatado: "Meus Planos" sempre mostrava "Agende sua primeira sessão"
+  // para uma assinatura PENDING, mesmo quando o paciente já tinha agendado
+  // (o agendamento fica PENDING_APPROVAL até o admin aprovar — só aí a
+  // assinatura vira ACTIVE). A tela não tinha como saber que já existia um
+  // agendamento aguardando aprovação.
+  describe('hasPendingAppointment (assinatura PENDING já tem sessão agendada aguardando aprovação)', () => {
+    const PENDING_SUB = {
+      id: 'sub1', status: 'PENDING', startDate: new Date(), nextBillingDate: new Date(), lastCycleReset: new Date(),
+      sessionsUsedThisCycle: {},
+      plan: {
+        id: 'plan1', name: 'Plano Mensal', price: 150, description: null, imageUrl: null,
+        items: [
+          { procedureId: 'proc1', sessionsPerCycle: 4, procedure: { id: 'proc1', name: 'Limpeza', durationMinutes: 60 } },
+        ],
+      },
+    }
+
+    it('assinatura PENDING sem nenhum agendamento vinculado → hasPendingAppointment: false', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([PENDING_SUB] as never)
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([])
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].hasPendingAppointment).toBe(false)
+    })
+
+    it('assinatura PENDING com agendamento PENDING_APPROVAL vinculado → hasPendingAppointment: true', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([PENDING_SUB] as never)
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+        { subscriptionId: 'sub1' },
+      ] as never)
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].hasPendingAppointment).toBe(true)
+      expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            subscriptionId: { in: ['sub1'] },
+            status: 'PENDING_APPROVAL',
+          }),
+        })
+      )
+    })
+
+    it('não consulta agendamentos quando não há nenhuma assinatura PENDING (evita query desnecessária)', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([
+        { ...PENDING_SUB, id: 'sub2', status: 'ACTIVE' },
+      ] as never)
+
+      await GET(makeRequest())
+
+      expect(prisma.appointment.findMany).not.toHaveBeenCalled()
+    })
+
+    it('assinatura ACTIVE nunca precisa de hasPendingAppointment (sempre false, sem consultar agendamentos)', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([
+        { ...PENDING_SUB, id: 'sub2', status: 'ACTIVE' },
+      ] as never)
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].hasPendingAppointment).toBe(false)
+    })
   })
 })

@@ -22,6 +22,7 @@ interface SubscriptionItem {
 interface MySubscription {
   id: string;
   status: string;
+  hasPendingAppointment?: boolean;
   startDate: string;
   nextBillingDate: string;
   lastCycleReset: string;
@@ -302,7 +303,7 @@ const PatientPlansContent: React.FC = () => {
                   <div className="flex-1">
                     <span className="font-bold text-sm" style={{ color: cardText }}>{sub.plan.name}</span>
                     <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
-                      Aguardando 1º agendamento
+                      {sub.hasPendingAppointment ? 'Pendente.' : 'Aguardando 1º agendamento'}
                     </span>
                   </div>
                   <span className="font-bold text-sm" style={{ color: primaryColor }}>
@@ -311,7 +312,9 @@ const PatientPlansContent: React.FC = () => {
                 </div>
                 <div className="p-4">
                   <p className="text-xs opacity-60" style={{ color: cardText }}>
-                    Agende sua primeira sessão para ativar o plano e combinar o pagamento com a clínica.
+                    {sub.hasPendingAppointment
+                      ? 'Sua sessão já foi agendada e está aguardando aprovação da clínica.'
+                      : 'Agende sua primeira sessão para ativar o plano e combinar o pagamento com a clínica.'}
                   </p>
                   <button
                     onClick={() => navigate(`${basePath}/`, {

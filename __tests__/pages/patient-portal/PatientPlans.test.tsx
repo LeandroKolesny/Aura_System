@@ -110,6 +110,29 @@ describe('pages/patient-portal/PatientPlans', () => {
     });
   });
 
+  // Bug relatado: cliente já tinha agendado a 1ª sessão do plano (visível na
+  // aba Agendamentos, status PENDING_APPROVAL aguardando o admin aprovar),
+  // mas "Meus Planos" continuava dizendo "Agende sua primeira sessão" como
+  // se nada tivesse sido agendado — a API agora informa hasPendingAppointment.
+  it('assinatura PENDING com hasPendingAppointment: true → mostra "Pendente." em vez de "Aguardando 1º agendamento"', async () => {
+    mockFetchRouter({
+      [MY_URL]: () => jsonResponse({
+        success: true,
+        data: [{
+          id: 'sub-1', status: 'PENDING', hasPendingAppointment: true,
+          startDate: '2026-01-01', nextBillingDate: '2026-02-01', lastCycleReset: '2026-01-01',
+          plan: { id: 'plan-a', name: 'Plano Facial', price: 150 }, items: [],
+        }],
+      }),
+      [COMPANY_URL]: () => jsonResponse({ subscriptionPlans: [] }),
+    });
+    renderPage();
+
+    expect(await screen.findByText('Pendente.')).toBeInTheDocument();
+    expect(screen.queryByText('Aguardando 1º agendamento')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Agende sua primeira sessão/i)).not.toBeInTheDocument();
+  });
+
   it('assinatura ACTIVE: mostra sessões restantes calculadas pelo backend (não recalcula no cliente)', async () => {
     mockFetchRouter({
       [MY_URL]: () => jsonResponse({

@@ -37,11 +37,35 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
+    // Uma assinatura PENDING pode já ter uma sessão agendada aguardando
+    // aprovação do admin (o agendamento nasce PENDING_APPROVAL e só vira
+    // SCHEDULED — ativando a assinatura — quando o admin aprova). Sem isso, a
+    // tela "Meus Planos" não tinha como distinguir "ainda não agendou" de
+    // "já agendou, aguardando a clínica aprovar", mostrando sempre "Agende
+    // sua primeira sessão" mesmo com um agendamento já pendente.
+    const pendingSubscriptionIds = subscriptions
+      .filter((sub) => sub.status === "PENDING")
+      .map((sub) => sub.id);
+    const subscriptionIdsWithPendingAppointment = new Set<string>();
+    if (pendingSubscriptionIds.length > 0) {
+      const pendingAppointments = await prisma.appointment.findMany({
+        where: {
+          subscriptionId: { in: pendingSubscriptionIds },
+          status: "PENDING_APPROVAL",
+        },
+        select: { subscriptionId: true },
+      });
+      for (const appt of pendingAppointments) {
+        if (appt.subscriptionId) subscriptionIdsWithPendingAppointment.add(appt.subscriptionId);
+      }
+    }
+
     const result = subscriptions.map((sub) => {
       const used = (sub.sessionsUsedThisCycle ?? {}) as Record<string, number>;
       return {
         id: sub.id,
         status: sub.status,
+        hasPendingAppointment: subscriptionIdsWithPendingAppointment.has(sub.id),
         startDate: sub.startDate,
         nextBillingDate: sub.nextBillingDate,
         lastCycleReset: sub.lastCycleReset,
