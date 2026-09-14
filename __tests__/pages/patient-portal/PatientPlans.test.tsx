@@ -131,6 +131,14 @@ describe('pages/patient-portal/PatientPlans', () => {
     expect(await screen.findByText('Pendente.')).toBeInTheDocument();
     expect(screen.queryByText('Aguardando 1º agendamento')).not.toBeInTheDocument();
     expect(screen.queryByText(/Agende sua primeira sessão/i)).not.toBeInTheDocument();
+
+    // Pedido do usuário: nada de "Agendar agora" clicável — só um botão
+    // cinza "Pendente", desabilitado.
+    expect(screen.queryByRole('button', { name: 'Agendar agora' })).not.toBeInTheDocument();
+    const pendenteBtn = screen.getByRole('button', { name: 'Pendente' });
+    expect(pendenteBtn).toBeDisabled();
+    fireEvent.click(pendenteBtn);
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it('assinatura ACTIVE: mostra sessões restantes calculadas pelo backend (não recalcula no cliente)', async () => {
@@ -149,6 +157,49 @@ describe('pages/patient-portal/PatientPlans', () => {
 
     expect(await screen.findByText('3 restantes')).toBeInTheDocument();
     expect(screen.getByText('/ 4')).toBeInTheDocument();
+  });
+
+  // Pedido do usuário: uma vez aprovado (assinatura ACTIVE com sessão
+  // vinculada), o botão de agendar vira "Consultar agenda" e leva direto pro
+  // dia/horário daquela sessão.
+  it('assinatura ACTIVE com nextAppointment: mostra "Consultar agenda" e navega pra Schedule com o targetDate certo', async () => {
+    mockFetchRouter({
+      [MY_URL]: () => jsonResponse({
+        success: true,
+        data: [{
+          id: 'sub-1', status: 'ACTIVE', nextAppointment: { id: 'appt-1', date: '2026-03-10T14:00:00.000Z' },
+          startDate: '2026-01-01', nextBillingDate: '2026-02-01', lastCycleReset: '2026-01-01',
+          plan: { id: 'plan-a', name: 'Plano Facial', price: 150 },
+          items: [{ procedureId: 'proc-1', procedureName: 'Limpeza de Pele', sessionsPerCycle: 4, sessionsUsed: 1, sessionsRemaining: 3 }],
+        }],
+      }),
+      [COMPANY_URL]: () => jsonResponse({ subscriptionPlans: [] }),
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Consultar agenda' }));
+    expect(navigateMock).toHaveBeenCalledWith('/clinica-aura/agendamentos', {
+      state: { targetDate: '2026-03-10T14:00:00.000Z' },
+    });
+  });
+
+  it('assinatura ACTIVE sem nextAppointment: não mostra "Consultar agenda"', async () => {
+    mockFetchRouter({
+      [MY_URL]: () => jsonResponse({
+        success: true,
+        data: [{
+          id: 'sub-1', status: 'ACTIVE', nextAppointment: null,
+          startDate: '2026-01-01', nextBillingDate: '2026-02-01', lastCycleReset: '2026-01-01',
+          plan: { id: 'plan-a', name: 'Plano Facial', price: 150 },
+          items: [{ procedureId: 'proc-1', procedureName: 'Limpeza de Pele', sessionsPerCycle: 4, sessionsUsed: 1, sessionsRemaining: 3 }],
+        }],
+      }),
+      [COMPANY_URL]: () => jsonResponse({ subscriptionPlans: [] }),
+    });
+    renderPage();
+
+    await screen.findByText('3 restantes');
+    expect(screen.queryByRole('button', { name: 'Consultar agenda' })).not.toBeInTheDocument();
   });
 
   it('plano disponível (sem assinatura): contratar chama POST /self e navega ao agendamento em caso de sucesso', async () => {

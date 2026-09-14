@@ -179,7 +179,9 @@ describe('GET /api/subscriptions/patients/my', () => {
       )
     })
 
-    it('não consulta agendamentos quando não há nenhuma assinatura PENDING (evita query desnecessária)', async () => {
+    it('não consulta PENDING_APPROVAL quando não há nenhuma assinatura PENDING (evita query desnecessária)', async () => {
+      // Só não há a consulta de hasPendingAppointment — a assinatura ACTIVE
+      // ainda dispara sua própria consulta (nextAppointment, ver describe abaixo).
       vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
       vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
       vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([
@@ -188,7 +190,9 @@ describe('GET /api/subscriptions/patients/my', () => {
 
       await GET(makeRequest())
 
-      expect(prisma.appointment.findMany).not.toHaveBeenCalled()
+      expect(prisma.appointment.findMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: 'PENDING_APPROVAL' }) })
+      )
     })
 
     it('assinatura ACTIVE nunca precisa de hasPendingAppointment (sempre false, sem consultar agendamentos)', async () => {
@@ -202,6 +206,109 @@ describe('GET /api/subscriptions/patients/my', () => {
       const body = await res.json()
 
       expect(body.data[0].hasPendingAppointment).toBe(false)
+    })
+  })
+
+  // Pedido do usuário: no card do plano ACTIVE, o botão "Consultar agenda"
+  // precisa levar direto pro dia/horário da sessão vinculada — o próximo
+  // agendamento futuro (SCHEDULED/CONFIRMED) se houver, senão o mais recente
+  // já realizado.
+  describe('nextAppointment (assinatura ACTIVE — pra "Consultar agenda" ir direto no dia certo)', () => {
+    const ACTIVE_SUB = {
+      id: 'sub2', status: 'ACTIVE', startDate: new Date(), nextBillingDate: new Date(), lastCycleReset: new Date(),
+      sessionsUsedThisCycle: {},
+      plan: {
+        id: 'plan1', name: 'Plano Mensal', price: 150, description: null, imageUrl: null,
+        items: [
+          { procedureId: 'proc1', sessionsPerCycle: 4, procedure: { id: 'proc1', name: 'Limpeza', durationMinutes: 60 } },
+        ],
+      },
+    }
+
+    it('assinatura ACTIVE sem nenhum agendamento vinculado → nextAppointment: null', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([ACTIVE_SUB] as never)
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([])
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].nextAppointment).toBeNull()
+      expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            subscriptionId: { in: ['sub2'] },
+            status: { in: ['SCHEDULED', 'CONFIRMED'] },
+          }),
+          orderBy: { date: 'asc' },
+        })
+      )
+    })
+
+    it('com um agendamento futuro → nextAppointment aponta pra ele', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([ACTIVE_SUB] as never)
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+        { id: 'appt-future', date: futureDate, subscriptionId: 'sub2' },
+      ] as never)
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].nextAppointment).toEqual({ id: 'appt-future', date: futureDate.toISOString() })
+    })
+
+    it('com dois agendamentos futuros → escolhe o mais PRÓXIMO (menor data), não o mais distante', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([ACTIVE_SUB] as never)
+      const soon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+      const later = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
+      // A rota espera a lista já ordenada asc (é o que orderBy:{date:'asc'} garante de verdade) —
+      // o mock aqui já simula essa ordem.
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+        { id: 'appt-soon', date: soon, subscriptionId: 'sub2' },
+        { id: 'appt-later', date: later, subscriptionId: 'sub2' },
+      ] as never)
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].nextAppointment.id).toBe('appt-soon')
+    })
+
+    it('só com agendamentos PASSADOS (todos já ocorreram) → escolhe o mais RECENTE (maior data)', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([ACTIVE_SUB] as never)
+      const olderPast = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000)
+      const recentPast = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+      vi.mocked(prisma.appointment.findMany).mockResolvedValue([
+        { id: 'appt-older', date: olderPast, subscriptionId: 'sub2' },
+        { id: 'appt-recent', date: recentPast, subscriptionId: 'sub2' },
+      ] as never)
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].nextAppointment.id).toBe('appt-recent')
+    })
+
+    it('assinatura PENDING/PAUSED nunca calcula nextAppointment (fica null, sem consultar)', async () => {
+      vi.mocked(getAuthUser).mockResolvedValue(PATIENT_USER as never)
+      vi.mocked(prisma.patient.findFirst).mockResolvedValue({ id: 'p1' } as never)
+      vi.mocked(prisma.patientSubscription.findMany).mockResolvedValue([
+        { ...ACTIVE_SUB, id: 'sub3', status: 'PAUSED' },
+      ] as never)
+
+      const res = await GET(makeRequest())
+      const body = await res.json()
+
+      expect(body.data[0].nextAppointment).toBeNull()
+      expect(prisma.appointment.findMany).not.toHaveBeenCalled()
     })
   })
 })

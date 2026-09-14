@@ -60,12 +60,45 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Assinatura ACTIVE: para o botão "Consultar agenda" (leva o paciente
+    // direto pro dia/horário da sessão), buscamos o agendamento vinculado a
+    // ela — o próximo futuro se houver, senão o mais recente já realizado.
+    const activeSubscriptionIds = subscriptions
+      .filter((sub) => sub.status === "ACTIVE")
+      .map((sub) => sub.id);
+    const nextAppointmentBySubscription = new Map<string, { id: string; date: Date }>();
+    if (activeSubscriptionIds.length > 0) {
+      const linkedAppointments = await prisma.appointment.findMany({
+        where: {
+          subscriptionId: { in: activeSubscriptionIds },
+          status: { in: ["SCHEDULED", "CONFIRMED"] },
+        },
+        select: { id: true, date: true, subscriptionId: true },
+        orderBy: { date: "asc" },
+      });
+      // Lista já vem ordenada por data ASC: assim que acharmos o primeiro
+      // agendamento futuro de uma assinatura, ele é o futuro mais próximo —
+      // ignoramos o resto. Se nenhum for futuro, vamos sobrescrevendo até
+      // sobrar o último visto (o passado mais recente).
+      const now = new Date();
+      for (const appt of linkedAppointments) {
+        if (!appt.subscriptionId) continue;
+        const current = nextAppointmentBySubscription.get(appt.subscriptionId);
+        if (current && current.date >= now) continue;
+        nextAppointmentBySubscription.set(appt.subscriptionId, appt);
+      }
+    }
+
     const result = subscriptions.map((sub) => {
       const used = (sub.sessionsUsedThisCycle ?? {}) as Record<string, number>;
+      const linkedAppointment = nextAppointmentBySubscription.get(sub.id);
       return {
         id: sub.id,
         status: sub.status,
         hasPendingAppointment: subscriptionIdsWithPendingAppointment.has(sub.id),
+        nextAppointment: linkedAppointment
+          ? { id: linkedAppointment.id, date: linkedAppointment.date }
+          : null,
         startDate: sub.startDate,
         nextBillingDate: sub.nextBillingDate,
         lastCycleReset: sub.lastCycleReset,

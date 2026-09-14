@@ -157,4 +157,27 @@ describe('pages/Schedule — recorte PATIENT', () => {
     expect(screen.getByText('Peeling')).toBeInTheDocument();
     expect(screen.queryByText('Ocupado')).not.toBeInTheDocument();
   });
+
+  // Pedido do usuário: "Consultar agenda" em Meus Planos (portal do cliente)
+  // precisa abrir a Agenda já no dia da sessão vinculada ao plano, não em "hoje".
+  it('abre já no dia vindo de location.state.targetDate (não em "hoje"), quando presente', () => {
+    const targetDate = '2026-03-10T14:00:00.000Z';
+    const expectedHeader = new Date(targetDate).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' });
+
+    rtlRender(<Schedule />, {
+      wrapper: ({ children }) => (
+        <MemoryRouter initialEntries={[{ pathname: '/schedule', state: { targetDate } }]}>
+          {children}
+        </MemoryRouter>
+      ),
+    });
+
+    expect(screen.getByText(new RegExp(expectedHeader, 'i'))).toBeInTheDocument();
+  });
+
+  it('sem targetDate no state, abre em "hoje" (comportamento pré-existente preservado)', () => {
+    const expectedHeader = new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' });
+    render(<Schedule />);
+    expect(screen.getByText(new RegExp(expectedHeader, 'i'))).toBeInTheDocument();
+  });
 });

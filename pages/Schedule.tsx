@@ -15,6 +15,11 @@ const Schedule: React.FC = () => {
   // Ler procedureId do state (vindo da página de procedimentos)
   const preSelectedProcedureId = (location.state as { procedureId?: string })?.procedureId;
 
+  // Ler targetDate do state (vindo de "Consultar agenda" em Meus Planos —
+  // portal do cliente): abre a agenda já no dia da sessão vinculada ao
+  // plano, em vez de sempre abrir em "hoje".
+  const targetDateFromState = (location.state as { targetDate?: string })?.targetDate;
+
   // Para pacientes logados, usar o patientId do user (vem do login)
   const currentPatientId = useMemo(() => {
     if (user?.role === UserRole.PATIENT) {
@@ -23,7 +28,9 @@ const Schedule: React.FC = () => {
     return null;
   }, [user]);
 
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() =>
+    targetDateFromState ? new Date(targetDateFromState) : new Date()
+  );
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<string>('all');
   const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);

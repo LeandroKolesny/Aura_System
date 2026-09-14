@@ -23,6 +23,7 @@ interface MySubscription {
   id: string;
   status: string;
   hasPendingAppointment?: boolean;
+  nextAppointment?: { id: string; date: string } | null;
   startDate: string;
   nextBillingDate: string;
   lastCycleReset: string;
@@ -316,15 +317,25 @@ const PatientPlansContent: React.FC = () => {
                       ? 'Sua sessão já foi agendada e está aguardando aprovação da clínica.'
                       : 'Agende sua primeira sessão para ativar o plano e combinar o pagamento com a clínica.'}
                   </p>
-                  <button
-                    onClick={() => navigate(`${basePath}/`, {
-                      state: { pendingPlanId: sub.plan.id, pendingPlanName: sub.plan.name },
-                    })}
-                    className="mt-3 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:opacity-90"
-                    style={{ backgroundColor: primaryColor }}
-                  >
-                    Agendar agora
-                  </button>
+                  {sub.hasPendingAppointment ? (
+                    <button
+                      disabled
+                      aria-disabled="true"
+                      className="mt-3 px-4 py-2 rounded-xl text-xs font-bold text-slate-500 bg-slate-200 cursor-not-allowed"
+                    >
+                      Pendente
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`${basePath}/`, {
+                        state: { pendingPlanId: sub.plan.id, pendingPlanName: sub.plan.name },
+                      })}
+                      className="mt-3 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:opacity-90"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      Agendar agora
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -430,13 +441,26 @@ const PatientPlansContent: React.FC = () => {
                       <RefreshCw className="w-3 h-3" /> Renova {formatDate(sub.nextBillingDate)}
                     </span>
                   </div>
-                  <button
-                    onClick={() => setHistoryDrawer({ id: sub.id, name: sub.plan.name })}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all hover:opacity-80"
-                    style={{ color: primaryColor, borderColor: `${primaryColor}40` }}
-                  >
-                    Ver histórico
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {sub.nextAppointment && (
+                      <button
+                        onClick={() => navigate(`${basePath}/agendamentos`, {
+                          state: { targetDate: sub.nextAppointment!.date },
+                        })}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:opacity-90"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        Consultar agenda
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setHistoryDrawer({ id: sub.id, name: sub.plan.name })}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border transition-all hover:opacity-80"
+                      style={{ color: primaryColor, borderColor: `${primaryColor}40` }}
+                    >
+                      Ver histórico
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
